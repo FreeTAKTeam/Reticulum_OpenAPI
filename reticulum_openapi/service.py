@@ -1,13 +1,18 @@
 # reticulum_openapi/service.py
 import asyncio
+import time
+import json
+import zlib
 import RNS, LXMF
 from typing import Callable, Dict, Optional, Type
+from jsonschema import validate, ValidationError
 from .model import dataclass_from_json, dataclass_to_json
 
 class LXMFService:
-    def __init__(self, config_path: str = None, storage_path: str = None, 
-                 identity: RNS.Identity = None, display_name: str = "ReticulumOpenAPI", 
-                 stamp_cost: int = 0):
+    def __init__(self, config_path: str = None, storage_path: str = None,
+                 identity: RNS.Identity = None, display_name: str = "ReticulumOpenAPI",
+                 stamp_cost: int = 0, auth_token: str = None,
+                 max_payload_size: int = 32_000):
         """
         Initialize the LXMF Service dispatcher.
         :param config_path: Path to Reticulum config directory (None for default).
@@ -33,16 +38,19 @@ class LXMFService:
         # Routing table: command -> (handler_coroutine, payload_type)
         self._routes: Dict[str, (Callable, Optional[Type])] = {}
         self._loop = asyncio.get_event_loop()
+        self.auth_token = auth_token
+        self.max_payload_size = max_payload_size
         RNS.log(f"LXMFService initialized (Identity hash: {RNS.prettyhexrep(self.source_identity.hash)})")
     
-    def add_route(self, command: str, handler: Callable, payload_type: Optional[Type] = None):
+    def add_route(self, command: str, handler: Callable, payload_type: Optional[Type] = None,
+                 payload_schema: dict = None):
         """
         Register a handler for a given command name.
         :param command: Command string (should match LXMF message title).
         :param handler: Async function to handle the command.
         :param payload_type: Dataclass type for request payload, or None for raw dict/bytes.
         """
-        self._routes[command] = (handler, payload_type)
+        self._routes[command] = (handler, payload_type, payload_schema)
         RNS.log(f"Route registered: '{command}' -> {handler}")
     
     def _lxmf_delivery_callback(self, message: LXMF.LXMessage):
@@ -61,9 +69,12 @@ class LXMFService:
         if cmd not in self._routes:
             RNS.log(f"No route found for command: {cmd}")
             return
-        handler, payload_type = self._routes[cmd]
+        handler, payload_type, payload_schema = self._routes[cmd]
         # Decode payload
         if payload_bytes:
+            if len(payload_bytes) > self.max_payload_size:
+                RNS.log(f"Payload for {cmd} exceeds maximum size")
+                return
             if payload_type:
                 try:
                     # Parse bytes into the expected dataclass
@@ -74,7 +85,6 @@ class LXMFService:
             else:
                 # If no type provided, just decode JSON to dict
                 try:
-                    import json, zlib
                     json_bytes = zlib.decompress(payload_bytes)
                     payload_obj = json.loads(json_bytes.decode('utf-8'))
                 except zlib.error:
@@ -82,6 +92,16 @@ class LXMFService:
                     payload_obj = json.loads(payload_bytes.decode('utf-8'))
                 except Exception as e:
                     RNS.log(f"Invalid JSON payload for {cmd}: {e}")
+                    return
+            if payload_schema is not None:
+                try:
+                    validate(payload_obj, payload_schema)
+                except ValidationError as e:
+                    RNS.log(f"Schema validation failed for {cmd}: {e.message}")
+                    return
+            if self.auth_token and isinstance(payload_obj, dict):
+                if payload_obj.get('auth_token') != self.auth_token:
+                    RNS.log("Authentication failed for message")
                     return
         else:
             payload_obj = None  # No payload content
@@ -145,7 +165,7 @@ class LXMFService:
         # Dispatch the message via the router
         self.router.handle_outbound(lxmessage)
     
-    def send_message(self, dest_hex: str, command: str, payload_obj=None, await_path: bool = True):
+    async def send_message(self, dest_hex: str, command: str, payload_obj=None, await_path: bool = True):
         """
         Public method to send a command to another LXMF node (by hex hash of its identity).
         This can be used by clients or by the server to send outbound notifications.
@@ -160,10 +180,10 @@ class LXMFService:
         if await_path and not RNS.Transport.has_path(dest_hash):
             RNS.log("Destination not in routing table, requesting path...")
             RNS.Transport.request_path(dest_hash)
-            # Wait a short while for an announce (up to 5 seconds)
             attempts = 0
             while attempts < 50 and not RNS.Transport.has_path(dest_hash):
-                time.sleep(0.1); attempts += 1
+                await asyncio.sleep(0.1)
+                attempts += 1
         # Recall or create Identity object for destination
         dest_identity = RNS.Identity.recall(dest_hash)
         if dest_identity is None:
@@ -188,18 +208,11 @@ class LXMFService:
         except Exception as e:
             RNS.log(f"Announcement failed: {e}")
     
-    def start(self):
-        """
-        Start the service. In this context, the Reticulum network and LXMF router
-        are already running after init, so this can simply log and perhaps run an event loop.
-        """
+    async def start(self):
+        """Run the service until cancelled."""
         RNS.log("LXMFService started and listening for messages...")
-        # Optionally, block the main thread to keep the service alive
         try:
-            # Keep alive indefinitely; Reticulum threads will handle I/O.
-            import time
             while True:
-                time.sleep(1)
-        except KeyboardInterrupt:
-            RNS.log("Service stopping (KeyboardInterrupt).")
-            # Cleanup could go here if needed
+                await asyncio.sleep(1)
+        except asyncio.CancelledError:
+            RNS.log("Service stopping (Cancelled)")

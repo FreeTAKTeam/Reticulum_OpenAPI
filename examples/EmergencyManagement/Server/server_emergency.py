@@ -19,7 +19,7 @@ async def main():
     svc.add_route("PatchEvent", evc.PatchEvent, Event)
     svc.add_route("RetrieveEvent", evc.RetrieveEvent)
     svc.announce()
-    svc.start()
+    await svc.start()
 
 if __name__ == "__main__":
     asyncio.run(main())

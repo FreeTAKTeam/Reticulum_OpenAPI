@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "reticulum-openapi"
+version = "0.1.0"
+description = "Reticulum LXMF-based OpenAPI framework"
+readme = "README.md"
+requires-python = ">=3.8"
+license = {text = "MIT"}
+dependencies = [
+    "RNS",
+    "LXMF",
+    "SQLAlchemy",
+    "jsonschema"
+]
