@@ -37,12 +37,14 @@ class LXMFService:
             identity, display_name=display_name, stamp_cost=stamp_cost
         )
         # Routing table: command -> (handler_coroutine, payload_type)
-        self._routes: Dict[str, (Callable, Optional[Type])] = {}
+        self._routes: Dict[str, (Callable, Optional[Type], Optional[dict])] = {}
         self._loop = asyncio.get_event_loop()
         self._start_task: Optional[asyncio.Task] = None
         self.auth_token = auth_token
         self.max_payload_size = max_payload_size
         RNS.log(f"LXMFService initialized (Identity hash: {RNS.prettyhexrep(self.source_identity.hash)})")
+        # register built in route for schema discovery
+        self.add_route("GetSchema", self._handle_get_schema)
 
     def add_route(
         self,
@@ -59,6 +61,24 @@ class LXMFService:
         """
         self._routes[command] = (handler, payload_type, payload_schema)
         RNS.log(f"Route registered: '{command}' -> {handler}")
+
+    def getApiSpecification(self) -> dict:
+        """Return a minimal JSON specification of available commands."""
+        commands = {}
+        for name, (_handler, ptype, schema) in self._routes.items():
+            if name == "GetSchema":
+                continue
+            entry: dict = {}
+            if ptype is not None:
+                entry["payload_dataclass"] = ptype.__name__
+            if schema is not None:
+                entry["payload_schema"] = schema
+            commands[name] = entry
+        return {"openapi": "3.0.0", "commands": commands}
+
+    async def _handle_get_schema(self):
+        """Handler for the built-in GetSchema command."""
+        return self.getApiSpecification()
 
     def _lxmf_delivery_callback(self, message: LXMF.LXMessage):
         """

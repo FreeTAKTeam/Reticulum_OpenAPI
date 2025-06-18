@@ -114,3 +114,15 @@ async def test_lxmf_callback_dispatches_response():
     assert dest is src
     assert title == "PING_response"
     assert json.loads(zlib.decompress(payload_bytes).decode()) == {"status": "ok"}
+
+
+def test_get_api_specification_returns_registered_routes():
+    service = LXMFService.__new__(LXMFService)
+    service._routes = {
+        "GetSchema": (lambda: None, None, None),
+        "Test": (lambda: None, Sample, {"type": "object"}),
+    }
+    spec = service.getApiSpecification()
+    assert "commands" in spec
+    assert "Test" in spec["commands"]
+    assert spec["commands"]["Test"]["payload_dataclass"] == "Sample"
