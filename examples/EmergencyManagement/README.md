@@ -7,6 +7,10 @@ The example models an emergency management system with two main resources:
 * **EmergencyActionMessage** – a status report for a callsign
 * **Event** – a wrapper that may contain one or more emergency action messages
 
+The dataclass models treat `callsign` (for EmergencyActionMessage) and `uid`
+(for Event) as **required** fields. All other properties are optional and may be
+omitted or `null` when encoding the JSON payload.
+
 The API contract is described in [`API/EmergencyActionMessageManagement-OAS.yaml`](API/EmergencyActionMessageManagement-OAS.yaml).
 
 ## Components

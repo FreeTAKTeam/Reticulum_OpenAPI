@@ -140,7 +140,7 @@ components:
             callsign:
               type: string
               description: >-
-                use TAK or HAM callsign 
+                use TAK or HAM callsign
             groupName:
               type: string
               description: >-
@@ -186,6 +186,8 @@ components:
                 Yellow – No immediate threats, but NOT in a secure area
                 Green – No immediate threats and currently in a secure area
               $ref: '#/components/schemas/EAMStatus'
+          required:
+            - callsign
     Event:
       allOf:
         - type: object
@@ -228,6 +230,8 @@ components:
               nullable: true
               type: string
               x-reference: '#/components/schemas/Point'
+          required:
+            - uid
     Point:
       allOf:
         - type: object
