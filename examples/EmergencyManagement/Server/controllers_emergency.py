@@ -1,8 +1,13 @@
-mport asyncio
-from reticulum_openapi.controller import Controller, handle_exceptions, APIException
+import asyncio
+from reticulum_openapi.controller import Controller, handle_exceptions
 from examples.EmergencyManagement.Server.models_emergency import (
-    EmergencyActionMessage, Event, EAMStatus
+    EmergencyActionMessage,
+    Event,
+    EAMStatus,
+    Detail,
+    Point,
 )
+
 
 class EmergencyController(Controller):
     @handle_exceptions
@@ -15,7 +20,7 @@ class EmergencyController(Controller):
     async def DeleteEmergencyActionMessage(self, callsign: str):
         self.logger.info(f"DeleteEAM callsign={callsign}")
         await asyncio.sleep(0.1)
-        return {"status":"deleted","callsign":callsign}
+        return {"status": "deleted", "callsign": callsign}
 
     @handle_exceptions
     async def ListEmergencyActionMessage(self):
@@ -41,6 +46,7 @@ class EmergencyController(Controller):
             commsMethod="Radio"
         )
 
+
 class EventController(Controller):
     @handle_exceptions
     async def CreateEvent(self, req: Event):
@@ -52,7 +58,7 @@ class EventController(Controller):
     async def DeleteEvent(self, uid: str):
         self.logger.info(f"DeleteEvent uid={uid}")
         await asyncio.sleep(0.1)
-        return {"status":"deleted","uid":uid}
+        return {"status": "deleted", "uid": uid}
 
     @handle_exceptions
     async def ListEvent(self):
@@ -75,5 +81,5 @@ class EventController(Controller):
             stale="PT1H", start="PT0S", access="public",
             opex=0, qos=1,
             detail=Detail(emergencyActionMessage=None),
-            point=Point(0,0,0,0,0)
+            point=Point(0, 0, 0, 0, 0)
         )

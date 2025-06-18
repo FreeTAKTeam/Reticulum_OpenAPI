@@ -1,5 +1,4 @@
 import logging
-import asyncio
 from typing import Callable, Any, Coroutine, TypeVar
 
 # Setup module logger
@@ -10,6 +9,7 @@ formatter = logging.Formatter("[%(asctime)s] %(levelname)s %(name)s: %(message)s
 handler.setFormatter(formatter)
 logger.addHandler(handler)
 
+
 class APIException(Exception):
     """Base exception for API errors, carrying a message and HTTP-like status code."""
     def __init__(self, message: str, code: int = 500):
@@ -17,23 +17,30 @@ class APIException(Exception):
         self.code = code
         self.message = message
 
+
 F = TypeVar('F', bound=Callable[..., Coroutine[Any, Any, Any]])
+
 
 def handle_exceptions(func: F) -> F:
     """Decorator to wrap controller methods with logging and exception handling."""
     async def wrapper(*args, **kwargs):
-        logger.info(f"Executing {{func.__name__}} with args={{args[1:]}} kwargs={{kwargs}}")
+        logger.info(
+            f"Executing {func.__name__} with args={args[1:]} kwargs={kwargs}"
+        )
         try:
             result = await func(*args, **kwargs)
-            logger.info(f"{{func.__name__}} completed successfully.")
+            logger.info(f"{func.__name__} completed successfully.")
             return result
         except APIException as e:
-            logger.error(f"APIException in {{func.__name__}}: {{e.message}} (code={{e.code}})")
+            logger.error(
+                f"APIException in {func.__name__}: {e.message} (code={e.code})"
+            )
             return {"error": e.message, "code": e.code}
         except Exception as e:
-            logger.exception(f"Unhandled exception in {{func.__name__}}: {{e}}")
+            logger.exception(f"Unhandled exception in {func.__name__}: {e}")
             return {"error": "InternalServerError", "code": 500}
     return wrapper  # type: ignore
+
 
 class Controller:
     """
@@ -52,11 +59,15 @@ class Controller:
         self.logger.info(f"Running business logic: {logic.__name__}")
         try:
             result = await logic(*args, **kwargs)
-            self.logger.info(f"Business logic {{logic.__name__}} succeeded.")
+            self.logger.info(f"Business logic {logic.__name__} succeeded.")
             return result
         except APIException as e:
-            self.logger.error(f"APIException in business logic {{logic.__name__}}: {{e.message}} (code={{e.code}})")
+            self.logger.error(
+                f"APIException in business logic {logic.__name__}: {e.message} (code={e.code})"
+            )
             return {"error": e.message, "code": e.code}
         except Exception as e:
-            self.logger.exception(f"Unhandled exception in business logic {{logic.__name__}}: {{e}}")
+            self.logger.exception(
+                f"Unhandled exception in business logic {logic.__name__}: {e}"
+            )
             return {"error": "InternalServerError", "code": 500}

@@ -1,7 +1,9 @@
 import asyncio
-import RNS, LXMF
-from typing import Optional, Dict, Callable, Type
+import RNS
+import LXMF
+from typing import Optional, Dict
 from .model import dataclass_to_json, dataclass_from_json
+
 
 class LXMFClient:
     """Simple client for sending commands and awaiting responses."""
@@ -47,7 +49,8 @@ class LXMFClient:
         else:
             data = dataclass_to_json(payload_obj)
             if self.auth_token:
-                import json, zlib
+                import json
+                import zlib
                 obj = dataclass_from_json(type(payload_obj), data)
                 obj_dict = obj.__dict__
                 obj_dict['auth_token'] = self.auth_token
