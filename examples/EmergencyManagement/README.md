@@ -13,13 +13,14 @@ The API contract is described in [`API/EmergencyActionMessageManagement-OAS.yaml
 
 | Folder | Description |
 |-------|-------------|
-| `Server/` | Asynchronous service implementation. Defines dataclasses, controllers and the service class. |
-| `client/` | Simple client that connects to the server and sends a sample `CreateEmergencyActionMessage` command. |
+| `Server/` | Asynchronous service implementation. Defines dataclasses, controllers, a small SQLite database and the service class. |
+| `client/` | Simple client that connects to the server, creates a message and then retrieves it back to demonstrate persistence. |
 | `API/` | OpenAPI specification for the example. |
 
 ### Server
 - `models_emergency.py` – dataclass models for the API payloads.
 - `controllers_emergency.py` – async handlers for API commands.
+- `database.py` – initializes a small SQLite database used for persistence.
 - `service_emergency.py` – subclass of `LXMFService` that registers the routes.
 - `server_emergency.py` – starts the service, announces its identity and runs for ~30 seconds.
 
@@ -48,6 +49,9 @@ python Server/server_emergency.py
 python client/client_emergency.py
 ```
 
-The client sends a `CreateEmergencyActionMessage` request and prints the response returned by the server.
+The client first sends a `CreateEmergencyActionMessage` request and prints the
+response returned by the server. It then issues a `RetrieveEmergencyActionMessage`
+command for the same callsign and displays the stored record, demonstrating that
+the data is persisted in `emergency.db`.
 
 This example assumes a working Reticulum environment. When running on separate machines, ensure that both client and server can communicate over the Reticulum network.
