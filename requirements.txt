@@ -3,4 +3,5 @@ LXMF
 SQLAlchemy
 jsonschema
 pytest
+pytest-asyncio
 flake8
