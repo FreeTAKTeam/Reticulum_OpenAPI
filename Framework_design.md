@@ -1,6 +1,8 @@
 # Reticulum OpenAPI Asynchronous Framework Design Specification
 
 ## Architecture Overview
+![image](https://github.com/user-attachments/assets/56a70d0b-14f7-45e8-988b-abafa3a4226f)
+
 
 The Reticulum OpenAPI framework is a **fully asynchronous, lightweight Python server-client system** built on the Reticulum network stack and its LXMF messaging protocol. It is designed to operate efficiently on edge devices like Raspberry Pi, leveraging Reticulum’s low-overhead, delay-tolerant communication suitable for low-bandwidth links. The framework uses a modified **Model-Controller-Service (MCS)** architecture (inspired by NestJS) to separate concerns and improve maintainability. Key characteristics of the architecture include:
 
