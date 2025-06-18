@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from reticulum_openapi.model import BaseModel
 from sqlalchemy.orm import declarative_base
-from sqlalchemy import Column, Integer, String, Float, JSON
+from sqlalchemy import Column, Integer, String, JSON
 
 Base = declarative_base()
 

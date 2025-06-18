@@ -1,13 +1,9 @@
-import asyncio
 from dataclasses import asdict
 from reticulum_openapi.controller import Controller, handle_exceptions
 from examples.EmergencyManagement.Server.database import async_session
 from examples.EmergencyManagement.Server.models_emergency import (
     EmergencyActionMessage,
     Event,
-    EAMStatus,
-    Detail,
-    Point,
 )
 
 
