@@ -1,10 +1,18 @@
 # reticulum_openapi/model.py
-from dataclasses import dataclass, asdict, is_dataclass
+from dataclasses import dataclass, asdict, is_dataclass, fields
 import json
 import zlib
 from typing import Type, TypeVar
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 from sqlalchemy import select
+
+__all__ = [
+    "dataclass_to_json",
+    "dataclass_from_json",
+    "BaseModel",
+    "create_async_engine",
+    "async_sessionmaker",
+]
 
 T = TypeVar('T')
 
@@ -59,18 +67,33 @@ class BaseModel:
         """Deserialize compressed JSON bytes to a dataclass instance."""
         return dataclass_from_json(cls, data)
 
+    def to_orm(self):
+        """Create an ORM instance from this dataclass."""
+        if self.__orm_model__ is None:
+            raise NotImplementedError(
+                "Subclasses must define __orm_model__ for persistence"
+            )
+        return self.__orm_model__(**asdict(self))
+
     @classmethod
-    async def create(cls, session: AsyncSession, **kwargs):
+    def from_orm(cls: Type[T], orm_obj) -> T:
+        """Instantiate a dataclass from an ORM row."""
+        kwargs = {f.name: getattr(orm_obj, f.name) for f in fields(cls)}
+        return cls(**kwargs)
+
+    @classmethod
+    async def create(cls, session: AsyncSession, **kwargs) -> T:
         """
         Create and persist a new record using the associated ORM model.
-        Returns the ORM instance.
+        Returns the dataclass instance.
         """
         if cls.__orm_model__ is None:
             raise NotImplementedError("Subclasses must define __orm_model__ for persistence")
         obj = cls.__orm_model__(**kwargs)
         session.add(obj)
         await session.commit()
-        return obj
+        await session.refresh(obj)
+        return cls.from_orm(obj)
 
     @classmethod
     async def get(cls, session: AsyncSession, id_):
@@ -80,7 +103,10 @@ class BaseModel:
         """
         if cls.__orm_model__ is None:
             raise NotImplementedError("Subclasses must define __orm_model__ for persistence")
-        return await session.get(cls.__orm_model__, id_)
+        orm_obj = await session.get(cls.__orm_model__, id_)
+        if orm_obj is None:
+            return None
+        return cls.from_orm(orm_obj)
 
     @classmethod
     async def list(cls, session: AsyncSession, **filters):
@@ -95,7 +121,7 @@ class BaseModel:
         for attr, value in filters.items():
             stmt = stmt.where(getattr(cls.__orm_model__, attr) == value)
         result = await session.execute(stmt)
-        return result.scalars().all()
+        return [cls.from_orm(obj) for obj in result.scalars().all()]
 
     @classmethod
     async def update(cls, session: AsyncSession, id_, **kwargs):
@@ -105,14 +131,15 @@ class BaseModel:
         """
         if cls.__orm_model__ is None:
             raise NotImplementedError("Subclasses must define __orm_model__ for persistence")
-        obj = await cls.get(session, id_)
-        if obj is None:
+        orm_obj = await session.get(cls.__orm_model__, id_)
+        if orm_obj is None:
             return None
         for attr, value in kwargs.items():
-            setattr(obj, attr, value)
-        session.add(obj)
+            setattr(orm_obj, attr, value)
+        session.add(orm_obj)
         await session.commit()
-        return obj
+        await session.refresh(orm_obj)
+        return cls.from_orm(orm_obj)
 
     @classmethod
     async def delete(cls, session: AsyncSession, id_):
@@ -122,9 +149,9 @@ class BaseModel:
         """
         if cls.__orm_model__ is None:
             raise NotImplementedError("Subclasses must define __orm_model__ for persistence")
-        obj = await cls.get(session, id_)
-        if obj is None:
+        orm_obj = await session.get(cls.__orm_model__, id_)
+        if orm_obj is None:
             return False
-        await session.delete(obj)
+        await session.delete(orm_obj)
         await session.commit()
         return True
