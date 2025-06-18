@@ -8,16 +8,19 @@ from reticulum_openapi.model import BaseModel
 
 Base = declarative_base()
 
+
 class ItemORM(Base):
     __tablename__ = "items"
     id = Column(Integer, primary_key=True)
     name = Column(String)
+
 
 @dataclass
 class Item(BaseModel):
     id: int
     name: str
     __orm_model__ = ItemORM
+
 
 @pytest.mark.asyncio
 async def test_crud_roundtrip():
