@@ -151,40 +151,40 @@ components:
                 comms Method Preferred (mobile phone, FRS, GMRS, MURS, simplex, repeater, etc.) Mark items with 1&#176;, 2&#176;, 3&#176;, etc. and write out the frequency, tones, modes, app names, or any other information necessary to make a contact using that comms method.
             medicalStatus:
               description: >-
-                Red – Injury / medical condition(s) requiring urgent attention ASAP
-                Yellow – Injury / medical condition(s) for which care can be delayed
-                Green – No injury / medical condition(s) requiring attention
+                Red â€“ Injury / medical condition(s) requiring urgent attention ASAP
+                Yellow â€“ Injury / medical condition(s) for which care can be delayed
+                Green â€“ No injury / medical condition(s) requiring attention
               $ref: '#/components/schemas/EAMStatus'
             commsStatus:
               description: >-
-                Red – No alternate comms available
-                Yellow – HT only
-                Green – Mobile (50watts) or better
-                Green + – Mobile (50watts or better), plus HF capability
+                Red â€“ No alternate comms available
+                Yellow â€“ HT only
+                Green â€“ Mobile (50watts) or better
+                Green + â€“ Mobile (50watts or better), plus HF capability
               $ref: '#/components/schemas/EAMStatus'
             preparednessStatus:
               description: >-
-                Red – No sustainment supplies…&lt;24 hrs.
-                Yellow – Limited sustainment supplies…&gt;24-72 hrs., but &lt;1 wk.
-                Green – Adequate sustainment supplies…&gt;1 week or better
+                Red â€“ No sustainment suppliesâ€¦&lt;24 hrs.
+                Yellow â€“ Limited sustainment suppliesâ€¦&gt;24-72 hrs., but &lt;1 wk.
+                Green â€“ Adequate sustainment suppliesâ€¦&gt;1 week or better
               $ref: '#/components/schemas/EAMStatus'
             mobilityStatus:
               description: >-
-                Red – Stuck at current location with no movement possible (May be due to injuries, vehicle status, security risks, kids/elderly unable to move)
-                Yellow – Can move by foot only
-                Green – Vehicular movement capable
+                Red â€“ Stuck at current location with no movement possible (May be due to injuries, vehicle status, security risks, kids/elderly unable to move)
+                Yellow â€“ Can move by foot only
+                Green â€“ Vehicular movement capable
               $ref: '#/components/schemas/EAMStatus'
             securityCapability:
               description: >-
-                Red – No ability to repel threats
-                Yellow – Limited ability to repel threats (low on weapons/ammo/personnel)
-                Green – Full capacity to repel threats (adequate weapons/ammo/personnel)
+                Red â€“ No ability to repel threats
+                Yellow â€“ Limited ability to repel threats (low on weapons/ammo/personnel)
+                Green â€“ Full capacity to repel threats (adequate weapons/ammo/personnel)
               $ref: '#/components/schemas/EAMStatus'
             securityStatus:
               description: >-
-                Red – Threats eminent
-                Yellow – No immediate threats, but NOT in a secure area
-                Green – No immediate threats and currently in a secure area
+                Red â€“ Threats eminent
+                Yellow â€“ No immediate threats, but NOT in a secure area
+                Green â€“ No immediate threats and currently in a secure area
               $ref: '#/components/schemas/EAMStatus'
     Event:
       allOf:
