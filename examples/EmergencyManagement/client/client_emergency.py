@@ -16,8 +16,19 @@ async def main():
         mobilityStatus=EAMStatus.Green, commsStatus=EAMStatus.Green,
         commsMethod="VOIP"
     )
-    resp = await client.send_command(server_id, "CreateEmergencyActionMessage", eam, await_response=True)
-    print("Response:", resp)
+    resp = await client.send_command(
+        server_id, "CreateEmergencyActionMessage", eam, await_response=True
+    )
+    print("Create response:", resp)
+
+    # Retrieve the message back from the server to demonstrate persistence
+    retrieved = await client.send_command(
+        server_id,
+        "RetrieveEmergencyActionMessage",
+        eam.callsign,
+        await_response=True,
+    )
+    print("Retrieve response:", retrieved)
 
 if __name__ == "__main__":
     asyncio.run(main())
