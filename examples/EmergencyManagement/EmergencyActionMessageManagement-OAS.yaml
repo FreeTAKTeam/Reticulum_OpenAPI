@@ -1,0 +1,431 @@
+openapi: 3.0.1
+info:
+  title: EmergencyActionMessageManagement
+  version: '3.0'
+  description: >-
+  contact:
+    name: FreeTAKTeam
+    url: https://github.com/FreeTAKTeam
+    email: FreeTAKTeam@gmail.com
+  license:
+    name: EPL
+paths:
+  /Event/{id}:
+    get:
+      x-scope: public
+      tags:
+       - Event
+      description: >-
+      summary: retrieve an existing Event record based on the provided ID.
+      operationId: RetreiveEvent
+      parameters:
+        - $ref: '#/components/parameters/id'
+      responses:
+        '200':
+          $ref: '#/components/responses/200Event_get'
+  /EmergencyActionMessage:
+    post:
+      x-scope: public
+      tags:
+       - EmergencyActionMessage
+      description: >-
+      summary: Creates a new EmergencyActionMessage record.
+      operationId: CreateEmergencyActionMessage
+      requestBody:
+        $ref: '#/components/requestBodies/EmergencyActionMessage'
+      responses:
+        '200':
+          $ref: '#/components/responses/200EmergencyActionMessage_post'
+    delete:
+      x-scope: public
+      tags:
+       - EmergencyActionMessage
+      description: >-
+      summary: Deletes an existing EmergencyActionMessage record based on the provided ID.
+      operationId: DeleteEmergencyActionMessage
+      parameters:
+        - $ref: '#/components/parameters/ID'
+      responses:
+        '200':
+          $ref: '#/components/responses/200EmergencyActionMessage_delete'
+    get:
+      x-scope: public
+      tags:
+       - EmergencyActionMessage
+      description: >-
+      summary: Retrieves a list of all EmergencyActionMessage
+      operationId: ListEmergencyActionMessage
+      responses:
+        '200':
+          $ref: '#/components/responses/200EmergencyActionMessage_get'
+    patch:
+      x-scope: public
+      tags:
+       - EmergencyActionMessage
+      description: >-
+      summary: Updates an existing EmergencyActionMessage record.
+      operationId: PatchEmergencyActionMessage
+      requestBody:
+        $ref: '#/components/requestBodies/EmergencyActionMessage'
+      responses:
+        '200':
+          $ref: '#/components/responses/200EmergencyActionMessage_patch'
+  /Event/EmergencyActionMessage:
+    post:
+      x-scope: public
+      tags:
+       - Event
+       -  EmergencyActionMessage
+      description: >-
+      summary: Creates a new Event record.
+      operationId: CreateEvent
+      requestBody:
+        $ref: '#/components/requestBodies/Event'
+      responses:
+        '200':
+          $ref: '#/components/responses/200Event_post'
+    delete:
+      x-scope: public
+      tags:
+       - Event
+      description: >-
+      summary: Deletes an existing Event record based on the provided ID.
+      operationId: DeleteEvent
+      parameters:
+        - $ref: '#/components/parameters/ID'
+      responses:
+        '200':
+          $ref: '#/components/responses/200Event_delete'
+    get:
+      x-scope: public
+      tags:
+       - Event
+      description: >-
+      summary: Retrieves a list of all Event
+      operationId: ListEvent
+      responses:
+        '200':
+          $ref: '#/components/responses/200Event_get'
+    patch:
+      x-scope: public
+      tags:
+       - Event
+      description: >-
+      summary: Updates an existing Event record.
+      operationId: PatchEvent
+      requestBody:
+        $ref: '#/components/requestBodies/Event'
+      responses:
+        '200':
+          $ref: '#/components/responses/200Event_patch'
+  /EmergencyActionMessage/{id}:
+    get:
+      x-scope: public
+      tags:
+       - EmergencyActionMessage
+      description: >-
+      summary: retrieve an existing EmergencyActionMessage record based on the provided ID.
+      operationId: RetreiveEmergencyActionMessage
+      parameters:
+        - $ref: '#/components/parameters/id'
+      responses:
+        '200':
+          $ref: '#/components/responses/200EmergencyActionMessage_get'
+components:
+  schemas:
+    EmergencyActionMessage:
+      allOf:
+        - type: object
+          properties:
+            callsign:
+              type: string
+              description: >-
+                use TAK or HAM callsign 
+            groupName:
+              type: string
+              description: >-
+                 Number of people in the group (total number/number capable of defense)
+            commsMethod:
+              type: string
+              description: >-
+                comms Method Preferred (mobile phone, FRS, GMRS, MURS, simplex, repeater, etc.) Mark items with 1&#176;, 2&#176;, 3&#176;, etc. and write out the frequency, tones, modes, app names, or any other information necessary to make a contact using that comms method.
+            medicalStatus:
+              description: >-
+                Red – Injury / medical condition(s) requiring urgent attention ASAP
+                Yellow – Injury / medical condition(s) for which care can be delayed
+                Green – No injury / medical condition(s) requiring attention
+              $ref: '#/components/schemas/EAMStatus'
+            commsStatus:
+              description: >-
+                Red – No alternate comms available
+                Yellow – HT only
+                Green – Mobile (50watts) or better
+                Green + – Mobile (50watts or better), plus HF capability
+              $ref: '#/components/schemas/EAMStatus'
+            preparednessStatus:
+              description: >-
+                Red – No sustainment supplies…&lt;24 hrs.
+                Yellow – Limited sustainment supplies…&gt;24-72 hrs., but &lt;1 wk.
+                Green – Adequate sustainment supplies…&gt;1 week or better
+              $ref: '#/components/schemas/EAMStatus'
+            mobilityStatus:
+              description: >-
+                Red – Stuck at current location with no movement possible (May be due to injuries, vehicle status, security risks, kids/elderly unable to move)
+                Yellow – Can move by foot only
+                Green – Vehicular movement capable
+              $ref: '#/components/schemas/EAMStatus'
+            securityCapability:
+              description: >-
+                Red – No ability to repel threats
+                Yellow – Limited ability to repel threats (low on weapons/ammo/personnel)
+                Green – Full capacity to repel threats (adequate weapons/ammo/personnel)
+              $ref: '#/components/schemas/EAMStatus'
+            securityStatus:
+              description: >-
+                Red – Threats eminent
+                Yellow – No immediate threats, but NOT in a secure area
+                Green – No immediate threats and currently in a secure area
+              $ref: '#/components/schemas/EAMStatus'
+    Event:
+      allOf:
+        - type: object
+          properties:
+            uid:
+              type: integer
+              description: >-
+            how:
+              type: string
+              description: >-
+            version:
+              type: integer
+              description: >-
+            time:
+              type: integer
+              description: >-
+            type:
+              type: string
+              description: >-
+            stale:
+              type: string
+              description: >-
+            start:
+              type: string
+              description: >-
+            access:
+              type: string
+              description: >-
+            opex:
+              type: integer
+              description: >-
+            qos:
+              type: integer
+              description: >-
+            detail:
+              type: string
+              description: >-
+            point:
+              description: >-
+              nullable: true
+              type: string
+              x-reference: '#/components/schemas/Point'
+    Point:
+      allOf:
+        - type: object
+          properties:
+            lat:
+              type: number
+              description: >-
+            lon:
+              type: number
+              description: >-
+            ce:
+              type: number
+              description: >-
+            le:
+              type: number
+              description: >-
+            hae:
+              type: number
+              description: >-
+    Error:
+      description: Error
+    EAMStatus:
+      enum:
+        - Red
+        - Yellow
+        - Green
+      type: string
+      description: >-
+  parameters:
+    ID:
+      name: id
+      required: true
+      description: >-
+        TODO
+      schema:
+        type: string
+      in: query
+    id:
+      name: id
+      required: true
+      description: >-
+        TODO
+      schema:
+        type: string
+      in: path
+  responses:
+    200Event_get:
+      description: Success
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Event'
+    200EmergencyActionMessage_post:
+      description: Success
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/EmergencyActionMessage'
+    200EmergencyActionMessage_delete:
+      description: Success
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/EmergencyActionMessage'
+    200EmergencyActionMessage_get:
+      description: Success
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/EmergencyActionMessage'
+    200EmergencyActionMessage_patch:
+      description: Success
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/EmergencyActionMessage'
+    200Event_post:
+      description: Success
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Event'
+    200Event_delete:
+      description: Success
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Event'
+    200Event_patch:
+      description: Success
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Event'
+    '200':
+      description: OK
+    '201':
+      description: Added Object
+    '202':
+      description: Accepted
+    '204':
+      description: Deleted
+    '400':
+      description: Bad Request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    '401':
+      description: Unauthorized
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    '403':
+      description: Forbidden
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    '404':
+      description: Not Found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    '405':
+      description: Method Not allowed
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    '409':
+      description: Conflict
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    '500':
+      description: Internal Server Error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    '501':
+      description: Not Implemented
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    '503':
+      description: Service Unavailable
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    'Error':
+      description: Error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+  requestBodies:
+    EmergencyActionMessage:
+      description: >-
+        The Emergency Action Message (EAM) is a structured communication schema designed to provide essential situational awareness during critical incidents. It enables rapid assessment and secure reporting of a group's location, composition, security status, medical condition, preparedness level, mobility, and communication capabilities. By standardizing the relay of vital information, the EAM ensures clear and effective coordination in emergency response scenarios, enhancing decision-making and operational readiness within teams.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/EmergencyActionMessage'
+      required: true
+    Event:
+      description: >-
+        represents a simplified TAK event: this class is instantiated with a standard set of values.
+          The opex field is intended to indicate that the event is part of a   live operation, an exercise, or a simulation.  For backward compatibility, absence of the opex indicates "no statement", which will be interpreted in   an installation specific manner.
+          
+          opex="o-&lt;name&gt;" or "e-&lt;nickname&gt;"  or "s-&lt;nickname&gt;",
+          where "-&lt;name&gt;" is optional.  That is, it is permissible to   specify only "o", "e", or "s" for the opex value.
+        <ul>
+        	<li>  o = operations</li>
+        	<li>  e = exercise</li>
+        </ul>
+          s = simulation
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Event'
+      required: true
+x-uml-relationships:
+  
+  - name: "point"
+    x-ea-guid: 5013537E-3D0E-41c5-A6A7-B840C55224C2
+    source:
+      schema: "#/components/schemas/Event"
+      multiplicity: "1..1"
+      navigability: Unspecified
+    target:
+      schema: "#/components/schemas/Point"
+      multiplicity: "1..1"
+      navigability: Navigable
+
