@@ -1,8 +1,3 @@
-Thanks for the clarification. I will now prepare a detailed design and specification for the Python server-client framework component of the Reticulum OpenAPI project. This will focus on an async, lightweight implementation using a modified Model-Controller-Service architecture inspired by Nest.JS, optimized for edge devices and built on top of LXMF messaging. I’ll include startup examples, architectural patterns, and guidance on how the service interfaces with Reticulum.
-
-I’ll let you know when it’s ready to review.
-
-
 # Reticulum OpenAPI Asynchronous Framework Design Specification
 
 ## Architecture Overview
