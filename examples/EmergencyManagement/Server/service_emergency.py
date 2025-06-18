@@ -26,8 +26,8 @@ class EmergencyService(LXMFService):
         self.add_route("DeleteEmergencyActionMessage", eamc.DeleteEmergencyActionMessage)
         self.add_route("ListEmergencyActionMessage", eamc.ListEmergencyActionMessage)
         self.add_route(
-            "PatchEmergencyActionMessage",
-            eamc.PatchEmergencyActionMessage,
+            "PutEmergencyActionMessage",
+            eamc.PutEmergencyActionMessage,
             EmergencyActionMessage,
         )
         self.add_route("RetrieveEmergencyActionMessage", eamc.RetrieveEmergencyActionMessage)
@@ -35,5 +35,5 @@ class EmergencyService(LXMFService):
         self.add_route("CreateEvent", evc.CreateEvent, Event)
         self.add_route("DeleteEvent", evc.DeleteEvent)
         self.add_route("ListEvent", evc.ListEvent)
-        self.add_route("PatchEvent", evc.PatchEvent, Event)
+        self.add_route("PutEvent", evc.PutEvent, Event)
         self.add_route("RetrieveEvent", evc.RetrieveEvent)
