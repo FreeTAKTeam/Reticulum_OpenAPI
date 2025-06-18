@@ -114,4 +114,3 @@ async def test_lxmf_callback_dispatches_response():
     assert dest is src
     assert title == "PING_response"
     assert json.loads(zlib.decompress(payload_bytes).decode()) == {"status": "ok"}
-
