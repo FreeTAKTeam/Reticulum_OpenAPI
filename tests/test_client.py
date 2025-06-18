@@ -1,14 +1,15 @@
 import asyncio
 from dataclasses import dataclass
 from types import SimpleNamespace
-from unittest.mock import Mock
 import pytest
 
 from reticulum_openapi import client as client_module
 
+
 @dataclass
 class Sample:
     text: str
+
 
 @pytest.mark.asyncio
 async def test_send_command_receives_response(monkeypatch):
@@ -28,11 +29,13 @@ async def test_send_command_receives_response(monkeypatch):
     class FakeDestination:
         OUT = object()
         SINGLE = object()
+
         def __init__(self, *a, **k):
             pass
     monkeypatch.setattr(client_module.RNS, "Destination", FakeDestination)
 
     class FakeLXMessage:
+
         def __init__(self, dest, src, content, title):
             self.dest = dest
             self.src = src
@@ -49,6 +52,7 @@ async def test_send_command_receives_response(monkeypatch):
     result = await task
     assert result == b"ok"
 
+
 @pytest.mark.asyncio
 async def test_send_command_timeout(monkeypatch):
     loop = asyncio.get_running_loop()
@@ -62,9 +66,11 @@ async def test_send_command_timeout(monkeypatch):
 
     monkeypatch.setattr(client_module.RNS.Transport, "has_path", lambda dest: True)
     monkeypatch.setattr(client_module.RNS.Identity, "recall", lambda h, create=False: object())
+
     class FakeDestination:
         OUT = object()
         SINGLE = object()
+
         def __init__(self, *a, **k):
             pass
     monkeypatch.setattr(client_module.RNS, "Destination", FakeDestination)
