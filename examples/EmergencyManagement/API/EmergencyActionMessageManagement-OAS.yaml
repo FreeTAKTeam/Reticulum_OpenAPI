@@ -58,18 +58,18 @@ paths:
       responses:
         '200':
           $ref: '#/components/responses/200EmergencyActionMessage_get'
-    patch:
+    put:
       x-scope: public
       tags:
        - EmergencyActionMessage
       description: >-
       summary: Updates an existing EmergencyActionMessage record.
-      operationId: PatchEmergencyActionMessage
+      operationId: PutEmergencyActionMessage
       requestBody:
         $ref: '#/components/requestBodies/EmergencyActionMessage'
       responses:
         '200':
-          $ref: '#/components/responses/200EmergencyActionMessage_patch'
+          $ref: '#/components/responses/200EmergencyActionMessage_put'
   /Event/EmergencyActionMessage:
     post:
       x-scope: public
@@ -106,18 +106,18 @@ paths:
       responses:
         '200':
           $ref: '#/components/responses/200Event_get'
-    patch:
+    put:
       x-scope: public
       tags:
        - Event
       description: >-
       summary: Updates an existing Event record.
-      operationId: PatchEvent
+      operationId: PutEvent
       requestBody:
         $ref: '#/components/requestBodies/Event'
       responses:
         '200':
-          $ref: '#/components/responses/200Event_patch'
+          $ref: '#/components/responses/200Event_put'
   /EmergencyActionMessage/{id}:
     get:
       x-scope: public
@@ -298,7 +298,7 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/EmergencyActionMessage'
-    200EmergencyActionMessage_patch:
+    200EmergencyActionMessage_put:
       description: Success
       content:
         application/json:
@@ -316,7 +316,7 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/Event'
-    200Event_patch:
+    200Event_put:
       description: Success
       content:
         application/json:

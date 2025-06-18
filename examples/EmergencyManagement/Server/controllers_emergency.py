@@ -30,8 +30,8 @@ class EmergencyController(Controller):
         return items
 
     @handle_exceptions
-    async def PatchEmergencyActionMessage(self, req: EmergencyActionMessage):
-        self.logger.info(f"PatchEAM: {req}")
+    async def PutEmergencyActionMessage(self, req: EmergencyActionMessage):
+        self.logger.info(f"PutEAM: {req}")
         async with async_session() as session:
             updated = await EmergencyActionMessage.update(session, req.callsign, **asdict(req))
         return updated
@@ -67,8 +67,8 @@ class EventController(Controller):
         return events
 
     @handle_exceptions
-    async def PatchEvent(self, req: Event):
-        self.logger.info(f"PatchEvent: {req}")
+    async def PutEvent(self, req: Event):
+        self.logger.info(f"PutEvent: {req}")
         async with async_session() as session:
             updated = await Event.update(session, req.uid, **asdict(req))
         return updated
