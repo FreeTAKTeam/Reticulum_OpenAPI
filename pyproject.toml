@@ -13,7 +13,8 @@ dependencies = [
     "RNS",
     "LXMF",
     "SQLAlchemy",
-    "jsonschema"
+    "jsonschema",
+    "aiosqlite"
 ]
 
 [project.optional-dependencies]

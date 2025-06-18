@@ -5,3 +5,4 @@ jsonschema
 pytest
 pytest-asyncio
 flake8
+aiosqlite
