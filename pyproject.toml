@@ -15,3 +15,10 @@ dependencies = [
     "SQLAlchemy",
     "jsonschema"
 ]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "pytest-asyncio",
+    "flake8"
+]
