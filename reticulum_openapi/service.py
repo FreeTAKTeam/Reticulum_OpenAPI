@@ -39,6 +39,7 @@ class LXMFService:
         # Routing table: command -> (handler_coroutine, payload_type)
         self._routes: Dict[str, (Callable, Optional[Type])] = {}
         self._loop = asyncio.get_event_loop()
+        self._start_task: Optional[asyncio.Task] = None
         self.auth_token = auth_token
         self.max_payload_size = max_payload_size
         RNS.log(f"LXMFService initialized (Identity hash: {RNS.prettyhexrep(self.source_identity.hash)})")
@@ -220,8 +221,24 @@ class LXMFService:
     async def start(self):
         """Run the service until cancelled."""
         RNS.log("LXMFService started and listening for messages...")
+        self._start_task = asyncio.current_task()
         try:
             while True:
                 await asyncio.sleep(1)
         except asyncio.CancelledError:
             RNS.log("Service stopping (Cancelled)")
+        finally:
+            self.router.exit_handler()
+            self._start_task = None
+
+    async def stop(self):
+        """Cancel the running service loop and shut down the router."""
+        if self._start_task is not None:
+            self._start_task.cancel()
+            try:
+                await self._start_task
+            except asyncio.CancelledError:
+                pass
+        else:
+            # If start wasn't called yet, ensure router cleanup
+            self.router.exit_handler()
