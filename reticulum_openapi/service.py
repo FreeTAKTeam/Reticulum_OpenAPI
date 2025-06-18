@@ -1,12 +1,13 @@
 # reticulum_openapi/service.py
 import asyncio
-import time
 import json
 import zlib
-import RNS, LXMF
+import RNS
+import LXMF
 from typing import Callable, Dict, Optional, Type
 from jsonschema import validate, ValidationError
 from .model import dataclass_from_json, dataclass_to_json
+
 
 class LXMFService:
     def __init__(self, config_path: str = None, storage_path: str = None,
@@ -41,9 +42,14 @@ class LXMFService:
         self.auth_token = auth_token
         self.max_payload_size = max_payload_size
         RNS.log(f"LXMFService initialized (Identity hash: {RNS.prettyhexrep(self.source_identity.hash)})")
-    
-    def add_route(self, command: str, handler: Callable, payload_type: Optional[Type] = None,
-                 payload_schema: dict = None):
+
+    def add_route(
+        self,
+        command: str,
+        handler: Callable,
+        payload_type: Optional[Type] = None,
+        payload_schema: dict = None,
+    ) -> None:
         """
         Register a handler for a given command name.
         :param command: Command string (should match LXMF message title).
@@ -52,7 +58,7 @@ class LXMFService:
         """
         self._routes[command] = (handler, payload_type, payload_schema)
         RNS.log(f"Route registered: '{command}' -> {handler}")
-    
+
     def _lxmf_delivery_callback(self, message: LXMF.LXMessage):
         """
         Internal callback invoked by LXMRouter on message delivery.
@@ -105,11 +111,13 @@ class LXMFService:
                     return
         else:
             payload_obj = None  # No payload content
+
         # Dispatch to handler asynchronously
         async def handle_and_reply():
             result = None
             try:
-                # Call the handler with the parsed payload. If payload is None, some handlers may not accept a parameter.
+                # Call the handler with the parsed payload.
+                # If payload is None, some handlers may not accept a parameter.
                 if payload_obj is not None:
                     result = await handler(payload_obj)
                 else:
@@ -128,7 +136,8 @@ class LXMFService:
                         resp_bytes = dataclass_to_json(result)
                     except Exception as e:
                         # Fallback: just JSON dump the object (it might not be a dataclass)
-                        resp_bytes = zlib.compress(json.dumps(result).encode('utf-8'))
+                        RNS.log(f"Failed to serialize result dataclass: {e}")
+                        resp_bytes = zlib.compress(json.dumps(result).encode("utf-8"))
                 else:
                     # If result is a simple value (str, number, etc.), wrap it in JSON
                     resp_bytes = zlib.compress(json.dumps(result).encode('utf-8'))
@@ -146,7 +155,7 @@ class LXMFService:
                     RNS.log("No source identity to respond to for message.")
         # Schedule the handler execution on the asyncio event loop
         self._loop.call_soon_threadsafe(lambda: asyncio.create_task(handle_and_reply()))
-    
+
     def _send_lxmf(self, dest_identity: RNS.Identity, title: str, content_bytes: bytes,
                    propagate: bool = False):
         """
@@ -164,7 +173,7 @@ class LXMFService:
         # For now, let LXMF choose the default (which is typically DIRECT if reachable).
         # Dispatch the message via the router
         self.router.handle_outbound(lxmessage)
-    
+
     async def send_message(self, dest_hex: str, command: str, payload_obj=None, await_path: bool = True):
         """
         Public method to send a command to another LXMF node (by hex hash of its identity).
@@ -199,7 +208,7 @@ class LXMFService:
             content_bytes = dataclass_to_json(payload_obj)
         # Use internal send helper
         self._send_lxmf(dest_identity, command, content_bytes, propagate=False)
-    
+
     def announce(self):
         """Announce this service's identity (make its address known on the network)."""
         try:
@@ -207,7 +216,7 @@ class LXMFService:
             RNS.log("Service identity announced: " + RNS.prettyhexrep(self.source_identity.hash))
         except Exception as e:
             RNS.log(f"Announcement failed: {e}")
-    
+
     async def start(self):
         """Run the service until cancelled."""
         RNS.log("LXMFService started and listening for messages...")

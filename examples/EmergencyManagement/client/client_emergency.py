@@ -1,6 +1,10 @@
 import asyncio
 from reticulum_openapi.client import LXMFClient
-from examples.EmergencyManagement.Server.models_emergency import EmergencyActionMessage, EAMStatus
+from examples.EmergencyManagement.Server.models_emergency import (
+    EmergencyActionMessage,
+    EAMStatus,
+)
+
 
 async def main():
     client = LXMFClient()

@@ -3,11 +3,16 @@ from reticulum_openapi.service import LXMFService
 from examples.EmergencyManagement.Server.controllers_emergency import (
     EmergencyController, EventController
 )
-from examples.EmergencyManagement.Server.models_emergency import EmergencyActionMessage, Event
+from examples.EmergencyManagement.Server.models_emergency import (
+    EmergencyActionMessage,
+    Event,
+)
+
 
 async def main():
     svc = LXMFService()
-    eamc = EmergencyController(); evc = EventController()
+    eamc = EmergencyController()
+    evc = EventController()
     svc.add_route("CreateEmergencyActionMessage", eamc.CreateEmergencyActionMessage, EmergencyActionMessage)
     svc.add_route("DeleteEmergencyActionMessage", eamc.DeleteEmergencyActionMessage)
     svc.add_route("ListEmergencyActionMessage", eamc.ListEmergencyActionMessage)

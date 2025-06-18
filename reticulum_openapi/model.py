@@ -1,11 +1,13 @@
 # reticulum_openapi/model.py
 from dataclasses import dataclass, asdict, is_dataclass
-import json, zlib
+import json
+import zlib
 from typing import Type, TypeVar
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 T = TypeVar('T')
+
 
 def dataclass_to_json(data_obj: T) -> bytes:
     """
@@ -23,6 +25,7 @@ def dataclass_to_json(data_obj: T) -> bytes:
     compressed = zlib.compress(json_bytes)
     return compressed
 
+
 def dataclass_from_json(cls: Type[T], data: bytes) -> T:
     """
     Deserialize a dataclass instance from a compressed JSON byte string.
@@ -36,6 +39,7 @@ def dataclass_from_json(cls: Type[T], data: bytes) -> T:
     obj_dict = json.loads(json_str)
     # Instantiate dataclass by unpacking dict (assumes keys match field names)
     return cls(**obj_dict)  # type: ignore
+
 
 @dataclass
 class BaseModel:
