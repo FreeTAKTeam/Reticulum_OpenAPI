@@ -1,0 +1,16 @@
+# Feature Request: API Schema Discovery Endpoint
+
+The protocol design specifies a discovery mechanism allowing clients to fetch the OpenAPI specification from the server.
+```
+To make the API self-describing and eliminate the need for prior hardcoded knowledge, the system includes an **API schema discovery mechanism over LXMF**. This allows clients to retrieve the OpenAPI specification (or an equivalent endpoint list) from the server itself. The discovery is designed to be simple and low-overhead:
+
+* **Discovery Endpoint:** The server shall expose a special endpoint that returns the API definition. In the REST-style model, a conventional choice is an HTTP-like path such as `/openapi.json` or `/api/schema`. A client would send a GET request for this path (e.g., `method: "GET", path: "/openapi.json"` in the request JSON). The server responds with a 200 status and the body containing the OpenAPI document (in JSON form). In the command model, an analogous approach could be a reserved command like `"GetSchema"` with no additional args, which triggers the same behavior. The system can support either or both, but implementing it as a normal path in the OpenAPI spec itself is straightforward.
+
+* **Schema Format:** The returned schema is a JSON representation of the **minimal OpenAPI 3.x spec** for the API. It will include the key sections needed to describe available endpoints: the list of paths and operations, the components schemas for data models, and basic metadata. By using the OpenAPI format, we ensure it’s a standard, machine-readable blueprint. Tools or libraries on the client side could even directly feed this into OpenAPI parsing utilities if available in Python, although that might be heavy for embedded use. At minimum, the client can traverse this JSON to find what it needs.
+
+* **Minimal Subset and Size:** The server should trim any unnecessary parts of the OpenAPI document to keep it small. For example, descriptive text, examples, and external documentation references in the spec are not strictly needed for the client to call the API and can be omitted to save space (or included only if they are brief and deemed useful for human operators). The focus is on **endpoints, parameters, and schemas**, which are essential. The server may pre-generate a minimized version of the OpenAPI JSON for this purpose. If the full original OpenAPI is already minimal, it can use that directly. Since OpenAPI 3.0+ is verbose, compression will be applied to this response as with any other, but it’s wise to avoid extremely large specs. In practice, APIs designed for mesh networks will not have hundreds of endpoints, so the spec might be only a few kilobytes at most when compressed.
+
+* **Delivery as LXMF:** Because the OpenAPI JSON might be larger than typical data responses, it may span multiple Reticulum packets, but it will still be delivered as a single LXMF message (Reticulum’s reliable transport can handle larger payloads by automatic segmentation). The server will set the response’s `Content` to the compressed OpenAPI JSON and likely use a 200 status. The client, upon receiving it, will decompress and parse it.
+```
+
+Implementing this endpoint will let clients query available commands dynamically.
