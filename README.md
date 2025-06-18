@@ -28,4 +28,11 @@ The client will ask for the server identity hash which the server prints on star
 
 ## Development
 
-Tests can be run with `pytest` and code style is checked with `flake8`.
+Before running tests or any of the example programs, make sure the project
+dependencies are installed:
+
+```bash
+pip install -r requirements.txt
+```
+
+Tests can then be run with `pytest` and code style is checked with `flake8`.
