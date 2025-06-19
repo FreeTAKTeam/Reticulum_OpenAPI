@@ -1,5 +1,6 @@
 from dataclasses import dataclass
-from typing import Optional
+
+from typing import Union, Optional
 
 from reticulum_openapi.model import BaseModel
 from sqlalchemy.orm import declarative_base
@@ -86,3 +87,29 @@ class Event(BaseModel):
     detail: Optional[Detail] = None
     point: Optional[Point] = None
     __orm_model__ = EventORM
+
+
+# --- Additional example models demonstrating allOf/oneOf/anyOf ---
+
+@dataclass
+class BaseVehicle(BaseModel):
+    manufacturer: str
+
+
+@dataclass
+class Car(BaseVehicle):
+    doors: int
+
+
+@dataclass
+class Bike(BaseModel):
+    handlebar: str
+
+
+Vehicle = Union[Car, Bike]
+
+
+@dataclass
+class TransportRecord(BaseModel):
+    owner: str
+    vehicle: Vehicle

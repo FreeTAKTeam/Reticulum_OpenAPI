@@ -2,7 +2,7 @@
 from dataclasses import dataclass, asdict, is_dataclass, fields
 import json
 import zlib
-from typing import Type, TypeVar
+from typing import Type, TypeVar, get_origin, get_args, Union
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 from sqlalchemy import select
 
@@ -45,8 +45,28 @@ def dataclass_from_json(cls: Type[T], data: bytes) -> T:
         json_bytes = data
     json_str = json_bytes.decode('utf-8')
     obj_dict = json.loads(json_str)
-    # Instantiate dataclass by unpacking dict (assumes keys match field names)
-    return cls(**obj_dict)  # type: ignore
+
+    def _construct(tp, value):
+        origin = get_origin(tp)
+        if origin is Union:
+            for sub in get_args(tp):
+                try:
+                    return _construct(sub, value)
+                except Exception:
+                    continue
+            raise ValueError(f"No matching type for Union {tp}")
+        if is_dataclass(tp):
+            kwargs = {}
+            for f in fields(tp):
+                if isinstance(value, dict) and f.name in value:
+                    kwargs[f.name] = _construct(f.type, value[f.name])
+            return tp(**kwargs)  # type: ignore
+        if origin is list and isinstance(value, list):
+            item_type = get_args(tp)[0]
+            return [_construct(item_type, v) for v in value]
+        return value
+
+    return _construct(cls, obj_dict)
 
 
 @dataclass
