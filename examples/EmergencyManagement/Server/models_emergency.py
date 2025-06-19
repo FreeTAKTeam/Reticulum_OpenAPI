@@ -1,5 +1,7 @@
 from dataclasses import dataclass
-from typing import Union
+
+from typing import Union, Optional
+
 from reticulum_openapi.model import BaseModel
 from sqlalchemy.orm import declarative_base
 from sqlalchemy import Column, Integer, String, JSON
@@ -10,30 +12,30 @@ Base = declarative_base()
 class EmergencyActionMessageORM(Base):
     __tablename__ = "emergency_action_messages"
     callsign = Column(String, primary_key=True)
-    groupName = Column(String)
-    securityStatus = Column(String)
-    securityCapability = Column(String)
-    preparednessStatus = Column(String)
-    medicalStatus = Column(String)
-    mobilityStatus = Column(String)
-    commsStatus = Column(String)
-    commsMethod = Column(String)
+    groupName = Column(String, nullable=True)
+    securityStatus = Column(String, nullable=True)
+    securityCapability = Column(String, nullable=True)
+    preparednessStatus = Column(String, nullable=True)
+    medicalStatus = Column(String, nullable=True)
+    mobilityStatus = Column(String, nullable=True)
+    commsStatus = Column(String, nullable=True)
+    commsMethod = Column(String, nullable=True)
 
 
 class EventORM(Base):
     __tablename__ = "events"
     uid = Column(Integer, primary_key=True)
-    how = Column(String)
-    version = Column(Integer)
-    time = Column(Integer)
-    type = Column(String)
-    stale = Column(String)
-    start = Column(String)
-    access = Column(String)
-    opex = Column(Integer)
-    qos = Column(Integer)
-    detail = Column(JSON)
-    point = Column(JSON)
+    how = Column(String, nullable=True)
+    version = Column(Integer, nullable=True)
+    time = Column(Integer, nullable=True)
+    type = Column(String, nullable=True)
+    stale = Column(String, nullable=True)
+    start = Column(String, nullable=True)
+    access = Column(String, nullable=True)
+    opex = Column(Integer, nullable=True)
+    qos = Column(Integer, nullable=True)
+    detail = Column(JSON, nullable=True)
+    point = Column(JSON, nullable=True)
 
 
 class EAMStatus(str):
@@ -45,45 +47,45 @@ class EAMStatus(str):
 @dataclass
 class EmergencyActionMessage(BaseModel):
     callsign: str
-    groupName: str
-    securityStatus: EAMStatus
-    securityCapability: EAMStatus
-    preparednessStatus: EAMStatus
-    medicalStatus: EAMStatus
-    mobilityStatus: EAMStatus
-    commsStatus: EAMStatus
-    commsMethod: str
+    groupName: Optional[str] = None
+    securityStatus: Optional[EAMStatus] = None
+    securityCapability: Optional[EAMStatus] = None
+    preparednessStatus: Optional[EAMStatus] = None
+    medicalStatus: Optional[EAMStatus] = None
+    mobilityStatus: Optional[EAMStatus] = None
+    commsStatus: Optional[EAMStatus] = None
+    commsMethod: Optional[str] = None
     __orm_model__ = EmergencyActionMessageORM
 
 
 @dataclass
 class Detail(BaseModel):
-    emergencyActionMessage: EmergencyActionMessage
+    emergencyActionMessage: Optional[EmergencyActionMessage] = None
 
 
 @dataclass
 class Point(BaseModel):
-    lat: float
-    lon: float
-    ce: float
-    le: float
-    hae: float
+    lat: Optional[float] = None
+    lon: Optional[float] = None
+    ce: Optional[float] = None
+    le: Optional[float] = None
+    hae: Optional[float] = None
 
 
 @dataclass
 class Event(BaseModel):
     uid: int
-    how: str
-    version: int
-    time: int
-    type: str
-    stale: str
-    start: str
-    access: str
-    opex: int
-    qos: int
-    detail: Detail
-    point: Point
+    how: Optional[str] = None
+    version: Optional[int] = None
+    time: Optional[int] = None
+    type: Optional[str] = None
+    stale: Optional[str] = None
+    start: Optional[str] = None
+    access: Optional[str] = None
+    opex: Optional[int] = None
+    qos: Optional[int] = None
+    detail: Optional[Detail] = None
+    point: Optional[Point] = None
     __orm_model__ = EventORM
 
 
