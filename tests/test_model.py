@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Union
+from typing import List, Union
 from reticulum_openapi.model import dataclass_to_json, dataclass_from_json
 
 
@@ -9,11 +9,23 @@ class Item:
     value: int
 
 
+@dataclass
+class ItemList:
+    items: List[Item]
+
+
 def test_serialization_roundtrip():
     item = Item(name="foo", value=42)
     data = dataclass_to_json(item)
     obj = dataclass_from_json(Item, data)
     assert obj == item
+
+
+def test_list_of_items_roundtrip():
+    obj = ItemList(items=[Item(name="a", value=1), Item(name="b", value=2)])
+    data = dataclass_to_json(obj)
+    reconstructed = dataclass_from_json(ItemList, data)
+    assert reconstructed == obj
 
 
 @dataclass
