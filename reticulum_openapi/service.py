@@ -195,7 +195,14 @@ class LXMFService:
         # Dispatch the message via the router
         self.router.handle_outbound(lxmessage)
 
-    async def send_message(self, dest_hex: str, command: str, payload_obj=None, await_path: bool = True):
+    async def send_message(
+        self,
+        dest_hex: str,
+        command: str,
+        payload_obj=None,
+        await_path: bool = True,
+        propagate: bool = False,
+    ):
         """
         Public method to send a command to another LXMF node (by hex hash of its identity).
         This can be used by clients or by the server to send outbound notifications.
@@ -203,6 +210,7 @@ class LXMFService:
         :param command: Command name (will be placed in LXMF title).
         :param payload_obj: The payload data (dataclass instance or dict) to send.
         :param await_path: If True, wait for path discovery if dest is not directly known.
+        :param propagate: Passed through to ``_send_lxmf``.
         """
         # Convert hex to bytes
         dest_hash = bytes.fromhex(dest_hex)
@@ -228,7 +236,7 @@ class LXMFService:
             # Use dataclass utility to get compressed JSON bytes
             content_bytes = dataclass_to_json(payload_obj)
         # Use internal send helper
-        self._send_lxmf(dest_identity, command, content_bytes, propagate=False)
+        self._send_lxmf(dest_identity, command, content_bytes, propagate=propagate)
 
     def announce(self):
         """Announce this service's identity (make its address known on the network)."""

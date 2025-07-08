@@ -42,6 +42,35 @@ async def test_send_message_calls_send(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_send_message_propagate_flag(monkeypatch):
+    svc = service_module.LXMFService.__new__(service_module.LXMFService)
+    svc._loop = asyncio.get_running_loop()
+    svc._send_lxmf = Mock()
+    dest_identity = object()
+    call_count = {"n": 0}
+
+    def has_path(dest):
+        call_count["n"] += 1
+        return call_count["n"] > 1
+
+    async def fast_sleep(_):
+        pass
+
+    monkeypatch.setattr(service_module.asyncio, "sleep", fast_sleep)
+    monkeypatch.setattr(service_module.RNS.Transport, "has_path", has_path)
+    monkeypatch.setattr(service_module.RNS.Transport, "request_path", lambda d: None)
+
+    def recall(dest, create=False):
+        if create:
+            return dest_identity
+        return None
+
+    monkeypatch.setattr(service_module.RNS.Identity, "recall", recall)
+    await svc.send_message("aa", "CMD", Item(name="x"), propagate=True)
+    assert svc._send_lxmf.call_args.kwargs["propagate"] is True
+
+
+@pytest.mark.asyncio
 async def test_send_lxmf_uses_router(monkeypatch):
     svc = service_module.LXMFService.__new__(service_module.LXMFService)
     send_mock = Mock()
