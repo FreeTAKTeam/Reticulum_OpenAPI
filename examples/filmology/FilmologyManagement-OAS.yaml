@@ -1,0 +1,978 @@
+openapi: 3.0.1
+info:
+  title: FilmologyManagement
+  version: '24.11.26'
+  description: >-
+    Filmology is a test API that describes all the possible variant of a DAF + API model and his implementation as a DigitalPy application
+  contact:
+    name: freeTAKTeam
+    url: https://github.com/FreeTAKTeam
+    email: Freetakteam@gmail.com
+  license:
+    name: EPL
+paths:
+  /Movie:
+    post:
+      x-scope: public
+      tags:
+       - Movie
+      description: >-
+      summary: Creates a new Movie record.
+      operationId: CreateMovie
+      requestBody:
+        $ref: '#/components/requestBodies/Movie'
+      responses:
+        '200':
+          $ref: '#/components/responses/200Movie_post'
+    delete:
+      x-scope: public
+      tags:
+       - Movie
+      description: >-
+      summary: Deletes an existing Movie record based on the provided ID.
+      operationId: DeleteMovie
+      parameters:
+        - $ref: '#/components/parameters/ID'
+      responses:
+        '200':
+          $ref: '#/components/responses/200Movie_delete'
+    get:
+      x-scope: public
+      tags:
+       - Movie
+      description: >-
+      summary: Retrieves a list of all Movie
+      operationId: ListMovie
+      responses:
+        '200':
+          $ref: '#/components/responses/200Movie_get'
+    patch:
+      x-scope: public
+      tags:
+       - Movie
+      description: >-
+      summary: Updates an existing Movie record.
+      operationId: PatchMovie
+      requestBody:
+        $ref: '#/components/requestBodies/Movie'
+      responses:
+        '200':
+          $ref: '#/components/responses/200Movie_patch'
+  /Director/{id}:
+    get:
+      x-scope: public
+      tags:
+       - Director
+      description: >-
+      summary: retrieve an existing Director record based on the provided ID.
+      operationId: RetreiveDirector
+      parameters:
+        - $ref: '#/components/parameters/id'
+      responses:
+        '200':
+          $ref: '#/components/responses/200Director_get'
+  /Poster:
+    post:
+      x-scope: public
+      tags:
+       - Poster
+      description: >-
+      summary: Creates a new Poster record.
+      operationId: CreatePoster
+      requestBody:
+        $ref: '#/components/requestBodies/Poster'
+      responses:
+        '200':
+          $ref: '#/components/responses/200Poster_post'
+    delete:
+      x-scope: public
+      tags:
+       - Poster
+      description: >-
+      summary: Deletes an existing Poster record based on the provided ID.
+      operationId: DeletePoster
+      parameters:
+        - $ref: '#/components/parameters/ID'
+      responses:
+        '200':
+          $ref: '#/components/responses/200Poster_delete'
+    get:
+      x-scope: public
+      tags:
+       - Poster
+      description: >-
+      summary: Retrieves a list of all Poster
+      operationId: ListPoster
+      responses:
+        '200':
+          $ref: '#/components/responses/200Poster_get'
+    patch:
+      x-scope: public
+      tags:
+       - Poster
+      description: >-
+      summary: Updates an existing Poster record.
+      operationId: PatchPoster
+      requestBody:
+        $ref: '#/components/requestBodies/Poster'
+      responses:
+        '200':
+          $ref: '#/components/responses/200Poster_patch'
+  /Genre/{id}:
+    get:
+      x-scope: public
+      tags:
+       - Genre
+      description: >-
+      summary: retrieve an existing Genre record based on the provided ID.
+      operationId: RetreiveGenre
+      parameters:
+        - $ref: '#/components/parameters/id'
+      responses:
+        '200':
+          $ref: '#/components/responses/200Genre_get'
+  /Date:
+    post:
+      x-scope: public
+      tags:
+       - Date
+      description: >-
+      summary: Creates a new Date record.
+      operationId: CreateDate
+      requestBody:
+        $ref: '#/components/requestBodies/Date'
+      responses:
+        '200':
+          $ref: '#/components/responses/200Date_post'
+    delete:
+      x-scope: public
+      tags:
+       - Date
+      description: >-
+      summary: Deletes an existing Date record based on the provided ID.
+      operationId: DeleteDate
+      parameters:
+        - $ref: '#/components/parameters/ID'
+      responses:
+        '200':
+          $ref: '#/components/responses/200Date_delete'
+    get:
+      x-scope: public
+      tags:
+       - Date
+      description: >-
+      summary: Retrieves a list of all Date
+      operationId: ListDate
+      responses:
+        '200':
+          $ref: '#/components/responses/200Date_get'
+    patch:
+      x-scope: public
+      tags:
+       - Date
+      description: >-
+      summary: Updates an existing Date record.
+      operationId: PatchDate
+      requestBody:
+        $ref: '#/components/requestBodies/Date'
+      responses:
+        '200':
+          $ref: '#/components/responses/200Date_patch'
+  /Language/{id}:
+    get:
+      x-scope: public
+      tags:
+       - Language
+      description: >-
+      summary: retrieve an existing Language record based on the provided ID.
+      operationId: RetreiveLanguage
+      parameters:
+        - $ref: '#/components/parameters/id'
+      responses:
+        '200':
+          $ref: '#/components/responses/200Language_get'
+  /Director:
+    post:
+      x-scope: public
+      tags:
+       - Director
+      description: >-
+      summary: Creates a new Director record.
+      operationId: CreateDirector
+      requestBody:
+        $ref: '#/components/requestBodies/Director'
+      responses:
+        '200':
+          $ref: '#/components/responses/200Director_post'
+    delete:
+      x-scope: public
+      tags:
+       - Director
+      description: >-
+      summary: Deletes an existing Director record based on the provided ID.
+      operationId: DeleteDirector
+      parameters:
+        - $ref: '#/components/parameters/ID'
+      responses:
+        '200':
+          $ref: '#/components/responses/200Director_delete'
+    get:
+      x-scope: public
+      tags:
+       - Director
+      description: >-
+      summary: Retrieves a list of all Director
+      operationId: ListDirector
+      responses:
+        '200':
+          $ref: '#/components/responses/200Director_get'
+    patch:
+      x-scope: public
+      tags:
+       - Director
+      description: >-
+      summary: Updates an existing Director record.
+      operationId: PatchDirector
+      requestBody:
+        $ref: '#/components/requestBodies/Director'
+      responses:
+        '200':
+          $ref: '#/components/responses/200Director_patch'
+  /Date/{id}:
+    get:
+      x-scope: public
+      tags:
+       - Date
+      description: >-
+      summary: retrieve an existing Date record based on the provided ID.
+      operationId: RetreiveDate
+      parameters:
+        - $ref: '#/components/parameters/id'
+      responses:
+        '200':
+          $ref: '#/components/responses/200Date_get'
+  /Actor:
+    post:
+      x-scope: public
+      tags:
+       - Actor
+      description: >-
+      summary: Creates a new Actor record.
+      operationId: CreateActor
+      requestBody:
+        $ref: '#/components/requestBodies/Actor'
+      responses:
+        '200':
+          $ref: '#/components/responses/200Actor_post'
+    delete:
+      x-scope: public
+      tags:
+       - Actor
+      description: >-
+      summary: Deletes an existing Actor record based on the provided ID.
+      operationId: DeleteActor
+      parameters:
+        - $ref: '#/components/parameters/ID'
+      responses:
+        '200':
+          $ref: '#/components/responses/200Actor_delete'
+    get:
+      x-scope: public
+      tags:
+       - Actor
+      description: >-
+      summary: Retrieves a list of all Actor
+      operationId: ListActor
+      responses:
+        '200':
+          $ref: '#/components/responses/200Actor_get'
+    patch:
+      x-scope: public
+      tags:
+       - Actor
+      description: >-
+      summary: Updates an existing Actor record.
+      operationId: PatchActor
+      requestBody:
+        $ref: '#/components/requestBodies/Actor'
+      responses:
+        '200':
+          $ref: '#/components/responses/200Actor_patch'
+  /Movie/{id}:
+    get:
+      x-scope: public
+      tags:
+       - Movie
+      description: >-
+      summary: retrieve an existing Movie record based on the provided ID.
+      operationId: RetreiveMovie
+      parameters:
+        - $ref: '#/components/parameters/id'
+      responses:
+        '200':
+          $ref: '#/components/responses/200Movie_get'
+  /Language:
+    post:
+      x-scope: public
+      tags:
+       - Language
+      description: >-
+      summary: Creates a new Language record.
+      operationId: CreateLanguage
+      requestBody:
+        $ref: '#/components/requestBodies/Language'
+      responses:
+        '200':
+          $ref: '#/components/responses/200Language_post'
+    delete:
+      x-scope: public
+      tags:
+       - Language
+      description: >-
+      summary: Deletes an existing Language record based on the provided ID.
+      operationId: DeleteLanguage
+      parameters:
+        - $ref: '#/components/parameters/ID'
+      responses:
+        '200':
+          $ref: '#/components/responses/200Language_delete'
+    get:
+      x-scope: public
+      tags:
+       - Language
+      description: >-
+      summary: Retrieves a list of all Language
+      operationId: ListLanguage
+      responses:
+        '200':
+          $ref: '#/components/responses/200Language_get'
+    patch:
+      x-scope: public
+      tags:
+       - Language
+      description: >-
+      summary: Updates an existing Language record.
+      operationId: PatchLanguage
+      requestBody:
+        $ref: '#/components/requestBodies/Language'
+      responses:
+        '200':
+          $ref: '#/components/responses/200Language_patch'
+  /Poster/{id}:
+    get:
+      x-scope: public
+      tags:
+       - Poster
+      description: >-
+      summary: retrieve an existing Poster record based on the provided ID.
+      operationId: RetreivePoster
+      parameters:
+        - $ref: '#/components/parameters/id'
+      responses:
+        '200':
+          $ref: '#/components/responses/200Poster_get'
+  /Actor/{id}:
+    get:
+      x-scope: public
+      tags:
+       - Actor
+      description: >-
+      summary: retrieve an existing Actor record based on the provided ID.
+      operationId: RetreiveActor
+      parameters:
+        - $ref: '#/components/parameters/id'
+      responses:
+        '200':
+          $ref: '#/components/responses/200Actor_get'
+  /Genre:
+    post:
+      x-scope: public
+      tags:
+       - Genre
+      description: >-
+      summary: Creates a new Genre record.
+      operationId: CreateGenre
+      requestBody:
+        $ref: '#/components/requestBodies/Genre'
+      responses:
+        '200':
+          $ref: '#/components/responses/200Genre_post'
+    delete:
+      x-scope: public
+      tags:
+       - Genre
+      description: >-
+      summary: Deletes an existing Genre record based on the provided ID.
+      operationId: DeleteGenre
+      parameters:
+        - $ref: '#/components/parameters/ID'
+      responses:
+        '200':
+          $ref: '#/components/responses/200Genre_delete'
+    get:
+      x-scope: public
+      tags:
+       - Genre
+      description: >-
+      summary: Retrieves a list of all Genre
+      operationId: ListGenre
+      responses:
+        '200':
+          $ref: '#/components/responses/200Genre_get'
+    patch:
+      x-scope: public
+      tags:
+       - Genre
+      description: >-
+      summary: Updates an existing Genre record.
+      operationId: PatchGenre
+      requestBody:
+        $ref: '#/components/requestBodies/Genre'
+      responses:
+        '200':
+          $ref: '#/components/responses/200Genre_patch'
+components:
+  schemas:
+    Actor:
+      allOf:
+        - $ref: '#/components/schemas/Person'
+        - type: object
+          properties:
+            CompositionMovie:
+              description: >-
+              nullable: false
+              type: array
+              items:
+                type: string
+                x-reference: '#/components/schemas/Actor'
+    Person:
+      allOf:
+        - $ref: '#/components/schemas/EntityBaseExtended'
+        - type: object
+          properties:
+            surname:
+              type: string
+              description: >-
+            birth:
+              type: string
+              description: >-
+            nationality:
+              type: string
+              description: >-
+    EntityBaseExtended:
+      allOf:
+        - $ref: '#/components/schemas/EntityBase'
+        - type: object
+          properties:
+            name:
+              type: string
+              description: >-
+            description:
+              type: string
+              description: >-
+    EntityBase:
+      allOf:
+        - type: object
+          properties:
+            created:
+              type: string
+              format: date
+              description: >-
+            creator:
+              type: string
+              description: >-
+                user name of the creator
+            last_editor:
+              type: string
+              description: >-
+            modified:
+              type: string
+              description: >-
+    Date:
+      allOf:
+        - type: object
+          properties:
+            year:
+              type: string
+              description: >-
+            DateAggregationMovie:
+              description: >-
+              nullable: false
+              type: array
+              items:
+                type: string
+                x-reference: '#/components/schemas/Movie'
+    Movie:
+      allOf:
+        - $ref: '#/components/schemas/EntityBaseExtended'
+        - type: object
+          properties:
+            alias:
+              type: string
+              description: >-
+            color:
+              type: string
+              description: >-
+            country:
+              type: string
+              description: >-
+            URL:
+              type: string
+              description: >-
+            plot:
+              type: string
+              description: >-
+            runtime:
+              type: string
+              description: >-
+            date:
+              type: string
+              format: date
+              description: >-
+            CompositionActor:
+              description: >-
+              nullable: false
+              type: array
+              items:
+                type: string
+                x-reference: '#/components/schemas/Actor'
+            CompositionPosterPrimary:
+              description: >-
+              nullable: true
+              type: string
+              x-reference: '#/components/schemas/Poster'
+            MovieAggregationDirector:
+              description: >-
+              nullable: false
+              type: array
+              items:
+                type: string
+                x-reference: '#/components/schemas/Movie'
+            MovieAggregationPoster:
+              description: >-
+              nullable: false
+              type: array
+              items:
+                type: string
+                x-reference: '#/components/schemas/Movie'
+    Poster:
+      allOf:
+        - $ref: '#/components/schemas/Image'
+        - type: object
+    Image:
+      allOf:
+        - type: object
+          properties:
+            fileName:
+              type: string
+              description: >-
+    Director:
+      allOf:
+        - $ref: '#/components/schemas/Person'
+        - type: object
+          properties:
+            DirectorAggregationMovie:
+              description: >-
+              nullable: false
+              type: array
+              items:
+                type: string
+                x-reference: '#/components/schemas/Movie'
+    Genre:
+      allOf:
+        - $ref: '#/components/schemas/EntityBaseExtended'
+        - type: object
+    Language:
+      allOf:
+        - $ref: '#/components/schemas/EntityBaseExtended'
+        - type: object
+          properties:
+            shortForm:
+              type: string
+              description: >-
+    Error:
+      description: Error
+  parameters:
+    ID:
+      name: id
+      required: true
+      description: >-
+        TODO
+      schema:
+        type: string
+      in: query
+    id:
+      name: id
+      required: true
+      description: >-
+        TODO
+      schema:
+        type: string
+      in: path
+  responses:
+    200Movie_post:
+      description: Success
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Movie'
+    200Movie_delete:
+      description: Success
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Movie'
+    200Movie_get:
+      description: Success
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Movie'
+    200Movie_patch:
+      description: Success
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Movie'
+    200Director_get:
+      description: Success
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Director'
+    200Poster_post:
+      description: Success
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Poster'
+    200Poster_delete:
+      description: Success
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Poster'
+    200Poster_get:
+      description: Success
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Poster'
+    200Poster_patch:
+      description: Success
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Poster'
+    200Genre_get:
+      description: Success
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Genre'
+    200Date_post:
+      description: Success
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Date'
+    200Date_delete:
+      description: Success
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Date'
+    200Date_get:
+      description: Success
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Date'
+    200Date_patch:
+      description: Success
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Date'
+    200Language_get:
+      description: Success
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Language'
+    200Director_post:
+      description: Success
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Director'
+    200Director_delete:
+      description: Success
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Director'
+    200Director_patch:
+      description: Success
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Director'
+    200Actor_post:
+      description: Success
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Actor'
+    200Actor_delete:
+      description: Success
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Actor'
+    200Actor_get:
+      description: Success
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Actor'
+    200Actor_patch:
+      description: Success
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Actor'
+    200Language_post:
+      description: Success
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Language'
+    200Language_delete:
+      description: Success
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Language'
+    200Language_patch:
+      description: Success
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Language'
+    200Genre_post:
+      description: Success
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Genre'
+    200Genre_delete:
+      description: Success
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Genre'
+    200Genre_patch:
+      description: Success
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Genre'
+    '200':
+      description: OK
+    '201':
+      description: Added Object
+    '202':
+      description: Accepted
+    '204':
+      description: Deleted
+    '400':
+      description: Bad Request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    '401':
+      description: Unauthorized
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    '403':
+      description: Forbidden
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    '404':
+      description: Not Found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    '405':
+      description: Method Not allowed
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    '409':
+      description: Conflict
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    '500':
+      description: Internal Server Error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    '501':
+      description: Not Implemented
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    '503':
+      description: Service Unavailable
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    'Error':
+      description: Error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+  requestBodies:
+    Movie:
+      description: >-
+        A movie is a visual representation released on a particular date where actors play, directed by a Director. A movie has a Primary and a secondary poster
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Movie'
+      required: true
+    Language:
+      description: >-
+        ?
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Language'
+      required: true
+    Actor:
+      description: >-
+        a person acting in a Movie
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Actor'
+      required: true
+    Director:
+      description: >-
+        A director is the person that coordinates the Movie. a director can have several movies
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Director'
+      required: true
+    Poster:
+      description: >-
+        a visual representation of a Movie, can only exist as part of the movie, so has not exposed CRUD operations
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Poster'
+      required: true
+    Genre:
+      description: >-
+        the genre of the Movie (e.g. "Fantasy" of "Action")
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Genre'
+      required: true
+    Date:
+      description: >-
+        ?
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Date'
+      required: true
+x-uml-relationships:
+  
+  - name: "CompositionMovie"
+    x-ea-guid: FE76A1C2-1CE3-42a4-8B7C-D738E7E11781
+    source:
+      schema: "#/components/schemas/Movie"
+      multiplicity: "0..-1"
+      navigability: Unspecified
+    target:
+      schema: "#/components/schemas/Actor"
+      multiplicity: "0..-1"
+      navigability: Unspecified
+  - name: "DateAggregationMovie"
+    x-ea-guid: 173F3957-77BD-4dbf-9BCF-ABC3F33BB147
+    source:
+      schema: "#/components/schemas/Date"
+      multiplicity: "1..1"
+      navigability: Navigable
+    target:
+      schema: "#/components/schemas/Movie"
+      multiplicity: "0..-1"
+      navigability: Navigable
+  - name: "CompositionActor"
+    x-ea-guid: FE76A1C2-1CE3-42a4-8B7C-D738E7E11781
+    source:
+      schema: "#/components/schemas/Movie"
+      multiplicity: "0..-1"
+      navigability: Navigable
+    target:
+      schema: "#/components/schemas/Actor"
+      multiplicity: "0..-1"
+      navigability: Navigable
+  - name: "CompositionPosterPrimary"
+    x-ea-guid: 062CCA3D-7D47-4b27-AE53-1266FE1B3C84
+    source:
+      schema: "#/components/schemas/Movie"
+      multiplicity: "1..1"
+      navigability: Non-Navigable
+    target:
+      schema: "#/components/schemas/Poster"
+      multiplicity: "1..1"
+      navigability: Navigable
+  - name: "MovieAggregationDirector"
+    x-ea-guid: 7F5FC3D6-6D16-4f4f-BA8A-CECA0A779D75
+    source:
+      schema: "#/components/schemas/Director"
+      multiplicity: "1..1"
+      navigability: Unspecified
+    target:
+      schema: "#/components/schemas/Movie"
+      multiplicity: "0..-1"
+      navigability: Unspecified
+  - name: "MovieAggregationPoster"
+    x-ea-guid: 173F3957-77BD-4dbf-9BCF-ABC3F33BB147
+    source:
+      schema: "#/components/schemas/Date"
+      multiplicity: "1..1"
+      navigability: Unspecified
+    target:
+      schema: "#/components/schemas/Movie"
+      multiplicity: "0..-1"
+      navigability: Unspecified
+  - name: "DirectorAggregationMovie"
+    x-ea-guid: 7F5FC3D6-6D16-4f4f-BA8A-CECA0A779D75
+    source:
+      schema: "#/components/schemas/Director"
+      multiplicity: "1..1"
+      navigability: Navigable
+    target:
+      schema: "#/components/schemas/Movie"
+      multiplicity: "0..-1"
+      navigability: Navigable
+
