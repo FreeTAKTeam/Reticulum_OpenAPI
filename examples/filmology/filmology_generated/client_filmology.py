@@ -1,21 +1,13 @@
 import asyncio
 from reticulum_openapi.client import LXMFClient
-from {{modelPackage}} import *
+from model import *
 
 async def main():
     client = LXMFClient()
     server_id = input("Server Identity Hash: ")
-{{#apiInfo}}
-{{#apis}}
-{{#operations}}
-{{#if @first}}
     payload = None
-    response = await client.send_command(server_id, "{{operationId}}", payload, await_response=True)
+    response = await client.send_command(server_id, "", payload, await_response=True)
     print("Response:", response)
-{{/if}}
-{{/operations}}
-{{/apis}}
-{{/apiInfo}}
 
 if __name__ == "__main__":
     asyncio.run(main())
