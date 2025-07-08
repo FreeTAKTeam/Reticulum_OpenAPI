@@ -262,3 +262,16 @@ class LXMFService:
         else:
             # If start wasn't called yet, ensure router cleanup
             self.router.exit_handler()
+
+    async def __aenter__(self):
+        """Start the service when entering an async context."""
+        # Launch the start routine as a background task
+        self._context_task = asyncio.create_task(self.start())
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb):
+        """Stop the service when exiting an async context."""
+        await self.stop()
+        # Ensure the background task has completed
+        if hasattr(self, "_context_task"):
+            await self._context_task
