@@ -5,14 +5,9 @@ from examples.EmergencyManagement.Server.database import init_db
 
 async def main():
     await init_db()
-    svc = EmergencyService()
-    svc.announce()
-    service_task = asyncio.create_task(svc.start())
-    try:
+    async with EmergencyService() as svc:
+        svc.announce()
         await asyncio.sleep(30)  # Run for 30 seconds then stop
-    finally:
-        await svc.stop()
-        await service_task
 
 
 if __name__ == "__main__":

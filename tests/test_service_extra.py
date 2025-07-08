@@ -93,6 +93,20 @@ async def test_start_and_stop(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_context_manager(monkeypatch):
+    svc = service_module.LXMFService.__new__(service_module.LXMFService)
+    svc.router = SimpleNamespace(exit_handler=Mock())
+    svc._loop = asyncio.get_running_loop()
+    monkeypatch.setattr(service_module.RNS, "log", lambda *a, **k: None)
+
+    async with svc:
+        await asyncio.sleep(0.05)
+        assert svc._start_task is not None
+
+    assert svc._start_task is None
+
+
+@pytest.mark.asyncio
 async def test_init_and_add_route(monkeypatch):
     class FakeReticulum:
         storagepath = '/tmp'
