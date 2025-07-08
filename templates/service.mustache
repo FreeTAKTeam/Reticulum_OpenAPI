@@ -1,0 +1,15 @@
+from reticulum_openapi.service import LXMFService
+from {{packageName}}.controllers import *
+from {{modelPackage}} import *
+
+class {{appName}}Service(LXMFService):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+{{#apiInfo}}
+{{#apis}}
+        ctrl_{{classname}} = {{classname}}Controller()
+{{#operations}}
+        self.add_route("{{operationId}}", ctrl_{{classname}}.{{operationId}}{{#bodyParam}}, {{bodyParam.dataType}}{{/bodyParam}})
+{{/operations}}
+{{/apis}}
+{{/apiInfo}}
