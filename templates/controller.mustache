@@ -1,0 +1,21 @@
+{{#apiInfo}}
+{{#apis}}
+from dataclasses import asdict
+from reticulum_openapi.controller import Controller, handle_exceptions
+from {{modelPackage}} import *
+from {{packageName}}.database import async_session
+
+
+class {{classname}}Controller(Controller):
+{{#operations}}
+    @handle_exceptions
+    async def {{operationId}}(self{{#hasParams}}, {{/hasParams}}{{#allParams}}{{paramName}}{{^-last}}, {{/-last}}{{/allParams}}{{#bodyParam}}{{#hasParams}}, {{/hasParams}}{{paramName}}{{/bodyParam}}):
+        self.logger.info("{{operationId}} called")
+        async with async_session() as session:
+            # TODO: implement persistence or other logic
+            pass
+
+{{/operations}}
+
+{{/apis}}
+{{/apiInfo}}

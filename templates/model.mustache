@@ -1,0 +1,23 @@
+{{#models}}
+{{#model}}
+{{#isEnum}}
+class {{classname}}(str):
+{{#allowableValues.values}}
+    {{.}} = "{{.}}"
+{{/allowableValues.values}}
+
+{{/isEnum}}
+{{^isEnum}}
+from dataclasses import dataclass
+from typing import Optional
+from reticulum_openapi.model import BaseModel
+
+@dataclass
+class {{classname}}(BaseModel):
+{{#vars}}
+    {{name}}: {{^required}}Optional[{{/required}}{{{datatype}}}{{^required}}] = None{{/required}}
+{{/vars}}
+
+{{/isEnum}}
+{{/model}}
+{{/models}}

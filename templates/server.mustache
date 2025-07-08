@@ -1,0 +1,12 @@
+import asyncio
+from {{packageName}}.service import {{appName}}Service
+from {{packageName}}.database import init_db
+
+async def main():
+    await init_db()
+    async with {{appName}}Service() as svc:
+        svc.announce()
+        await asyncio.sleep(30)
+
+if __name__ == "__main__":
+    asyncio.run(main())
