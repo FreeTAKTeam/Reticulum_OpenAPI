@@ -117,7 +117,8 @@ async def test_send_command_includes_token(monkeypatch):
 
     await cli.send_command("aa", "CMD", Sample(text="hello"), await_response=False)
 
-    import json, zlib
+    import json
+    import zlib
     payload = json.loads(zlib.decompress(captured["content"]).decode())
     assert payload.get("auth_token") == "secret"
     assert payload.get("text") == "hello"
