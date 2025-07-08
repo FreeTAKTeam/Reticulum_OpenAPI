@@ -9,7 +9,7 @@ from {{packageName}}.database import async_session
 class {{classname}}Controller(Controller):
 {{#operations}}
     @handle_exceptions
-    async def {{operationId}}(self{{#hasParams}}, {{/hasParams}}{{#allParams}}{{paramName}}{{^-last}}, {{/-last}}{{/allParams}}{{#bodyParam}}{{#hasParams}}, {{/hasParams}}{{paramName}}{{/bodyParam}}):
+    async def {{operationId}}(self{{#allParams}}, {{/allParams}}{{#each allParams}}{{paramName}}{{#unless @last}}, {{/unless}}{{/each}}{{#bodyParam}}{{#allParams}}, {{/allParams}}{{paramName}}{{/bodyParam}}):
         self.logger.info("{{operationId}} called")
         async with async_session() as session:
             # TODO: implement persistence or other logic

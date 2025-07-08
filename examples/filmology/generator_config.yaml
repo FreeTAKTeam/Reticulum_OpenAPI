@@ -1,0 +1,20 @@
+generatorName: python
+inputSpec: examples/filmology/API/FilmologyManagement-OAS.yaml
+outputDir: examples/filmology/filmology_generated
+templateDir: templates
+additionalProperties:
+  packageName: examples.filmology
+  appName: Filmology
+files:
+  model.mustache:
+    destinationFilename: models_filmology.py
+  controller.mustache:
+    destinationFilename: controllers_filmology.py
+  service.mustache:
+    destinationFilename: service_filmology.py
+  server.mustache:
+    destinationFilename: server_filmology.py
+  client.mustache:
+    destinationFilename: client_filmology.py
+  database.mustache:
+    destinationFilename: database.py
