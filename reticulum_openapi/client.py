@@ -46,6 +46,11 @@ class LXMFClient:
             content_bytes = b''
         elif isinstance(payload_obj, bytes):
             content_bytes = payload_obj
+        # nit: bad practice to have imports outside of top of file
+        # also this behavior is a mess, we begin by converting the data
+        # to the target json string but then go ahead and convert it back to a dataclass
+        # which we then convert to a dict so we can set an auth_token which is then
+        # recompressed.
         else:
             data = dataclass_to_json(payload_obj)
             if self.auth_token:
@@ -55,6 +60,7 @@ class LXMFClient:
                 obj_dict = obj.__dict__
                 obj_dict['auth_token'] = self.auth_token
                 data = zlib.compress(json.dumps(obj_dict).encode('utf-8'))
+            # nit: arbitrary variable re-naming?
             content_bytes = data
         lxmsg = LXMF.LXMessage(
             RNS.Destination(dest_identity, RNS.Destination.OUT, RNS.Destination.SINGLE, "lxmf", "delivery"),
