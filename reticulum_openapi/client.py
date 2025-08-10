@@ -12,6 +12,7 @@ class LXMFClient:
                  identity: RNS.Identity = None, display_name: str = "OpenAPIClient",
                  auth_token: str = None, timeout: float = 10.0):
         self.reticulum = RNS.Reticulum(config_path)
+        # we should probably think more deeply about the paths being used
         storage_path = storage_path or (RNS.Reticulum.storagepath + "/lxmf_client")
         self.router = LXMF.LXMRouter(storagepath=storage_path)
         self.router.register_delivery_callback(self._callback)
@@ -37,6 +38,7 @@ class LXMFClient:
         dest_hash = bytes.fromhex(dest_hex)
         if not RNS.Transport.has_path(dest_hash):
             RNS.Transport.request_path(dest_hash)
+            # probably better not hardcoded
             for _ in range(50):
                 if RNS.Transport.has_path(dest_hash):
                     break

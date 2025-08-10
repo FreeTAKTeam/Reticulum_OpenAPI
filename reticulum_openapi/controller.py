@@ -23,7 +23,7 @@ class APIException(Exception):
 # not clear on the purpose of a typevar here?
 F = TypeVar('F', bound=Callable[..., Coroutine[Any, Any, Any]])
 
-
+# requires functools.wraps decorator
 def handle_exceptions(func: F) -> F:
     """Decorator to wrap controller methods with logging and exception handling."""
     async def wrapper(*args, **kwargs):
@@ -75,3 +75,4 @@ class Controller:
                 f"Unhandled exception in business logic {logic.__name__}: {e}"
             )
             return {"error": "InternalServerError", "code": 500}
+# no EOF newline?

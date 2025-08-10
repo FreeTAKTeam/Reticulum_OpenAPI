@@ -59,13 +59,16 @@ class LXMFService:
         :param handler: Async function to handle the command.
         :param payload_type: Dataclass type for request payload, or None for raw dict/bytes.
         """
+        # would be better to use a more consistent logging system with a centralized definition
         self._routes[command] = (handler, payload_type, payload_schema)
         RNS.log(f"Route registered: '{command}' -> {handler}")
 
+    # no pascal case?
     def getApiSpecification(self) -> dict:
         """Return a minimal JSON specification of available commands."""
         commands = {}
         for name, (_handler, ptype, schema) in self._routes.items():
+            # why are we skipping the GetSchema endpoint?
             if name == "GetSchema":
                 continue
             entry: dict = {}
@@ -74,6 +77,7 @@ class LXMFService:
             if schema is not None:
                 entry["payload_schema"] = schema
             commands[name] = entry
+        # probably shouldn't hardcode this
         return {"openapi": "3.0.0", "commands": commands}
 
     async def _handle_get_schema(self):
