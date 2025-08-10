@@ -1,3 +1,5 @@
+"""Enumeration of common HTTP-like status codes used by the framework."""
+
 from enum import IntEnum
 
 

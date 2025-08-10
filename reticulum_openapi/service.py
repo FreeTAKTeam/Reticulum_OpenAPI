@@ -4,9 +4,14 @@ import json
 import zlib
 import RNS
 import LXMF
-from typing import Callable, Dict, Optional, Type
-from jsonschema import validate, ValidationError
-from .model import dataclass_from_json, dataclass_to_json
+from typing import Callable
+from typing import Dict
+from typing import Optional
+from typing import Type
+from jsonschema import validate
+from jsonschema import ValidationError
+from .model import dataclass_from_json
+from .model import dataclass_to_json
 
 
 class LXMFService:
@@ -90,6 +95,7 @@ class LXMFService:
 
     async def _handle_get_schema(self):
         """Handler for the built-in GetSchema command."""
+
         return self.get_api_specification()
 
     def _lxmf_delivery_callback(self, message: LXMF.LXMessage):

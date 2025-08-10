@@ -1,9 +1,18 @@
 # reticulum_openapi/model.py
-from dataclasses import dataclass, asdict, is_dataclass, fields
+from dataclasses import dataclass
+from dataclasses import asdict
+from dataclasses import is_dataclass
+from dataclasses import fields
 import json
 import zlib
-from typing import Type, TypeVar, get_origin, get_args, Union
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
+from typing import Type
+from typing import TypeVar
+from typing import get_origin
+from typing import get_args
+from typing import Union
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import create_async_engine
+from sqlalchemy.ext.asyncio import async_sessionmaker
 from sqlalchemy import select
 
 __all__ = [
@@ -14,7 +23,7 @@ __all__ = [
     "async_sessionmaker",
 ]
 
-T = TypeVar('T')
+T = TypeVar("T")
 
 
 def dataclass_to_json(data_obj: T) -> bytes:
@@ -29,7 +38,7 @@ def dataclass_to_json(data_obj: T) -> bytes:
         data_dict = data_obj
     json_str = json.dumps(data_dict)
     # Compress the JSON bytes to minimize payload size
-    json_bytes = json_str.encode('utf-8')
+    json_bytes = json_str.encode("utf-8")
     compressed = zlib.compress(json_bytes)
     return compressed
 
@@ -43,7 +52,7 @@ def dataclass_from_json(cls: Type[T], data: bytes) -> T:
     except zlib.error:
         # Data might not be compressed; use raw bytes if decompression fails
         json_bytes = data
-    json_str = json_bytes.decode('utf-8')
+    json_str = json_bytes.decode("utf-8")
     obj_dict = json.loads(json_str)
 
     def _construct(tp, value):
@@ -75,6 +84,7 @@ class BaseModel:
     Base data model providing serialization utilities and generic CRUD operations
     if __orm_model__ is defined on subclasses.
     """
+
     # Subclasses should set this to their SQLAlchemy ORM model class
     __orm_model__ = None
 
@@ -108,7 +118,9 @@ class BaseModel:
         Returns the dataclass instance.
         """
         if cls.__orm_model__ is None:
-            raise NotImplementedError("Subclasses must define __orm_model__ for persistence")
+            raise NotImplementedError(
+                "Subclasses must define __orm_model__ for persistence"
+            )
         obj = cls.__orm_model__(**kwargs)
         session.add(obj)
         await session.commit()
@@ -122,7 +134,9 @@ class BaseModel:
         Returns the ORM instance or None.
         """
         if cls.__orm_model__ is None:
-            raise NotImplementedError("Subclasses must define __orm_model__ for persistence")
+            raise NotImplementedError(
+                "Subclasses must define __orm_model__ for persistence"
+            )
         orm_obj = await session.get(cls.__orm_model__, id_)
         if orm_obj is None:
             return None
@@ -136,7 +150,9 @@ class BaseModel:
         Returns a list of ORM instances.
         """
         if cls.__orm_model__ is None:
-            raise NotImplementedError("Subclasses must define __orm_model__ for persistence")
+            raise NotImplementedError(
+                "Subclasses must define __orm_model__ for persistence"
+            )
         stmt = select(cls.__orm_model__)
         for attr, value in filters.items():
             stmt = stmt.where(getattr(cls.__orm_model__, attr) == value)
@@ -150,7 +166,9 @@ class BaseModel:
         Returns the updated ORM instance or None if not found.
         """
         if cls.__orm_model__ is None:
-            raise NotImplementedError("Subclasses must define __orm_model__ for persistence")
+            raise NotImplementedError(
+                "Subclasses must define __orm_model__ for persistence"
+            )
         orm_obj = await session.get(cls.__orm_model__, id_)
         if orm_obj is None:
             return None
@@ -168,7 +186,9 @@ class BaseModel:
         Returns True if deleted, False if not found.
         """
         if cls.__orm_model__ is None:
-            raise NotImplementedError("Subclasses must define __orm_model__ for persistence")
+            raise NotImplementedError(
+                "Subclasses must define __orm_model__ for persistence"
+            )
         orm_obj = await session.get(cls.__orm_model__, id_)
         if orm_obj is None:
             return False

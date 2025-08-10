@@ -6,6 +6,7 @@ from reticulum_openapi.model import BaseModel
 from sqlalchemy.orm import declarative_base
 from sqlalchemy import Column, Integer, String, JSON
 
+
 Base = declarative_base()
 
 
@@ -90,6 +91,7 @@ class Event(BaseModel):
 
 
 # --- Additional example models demonstrating allOf/oneOf/anyOf ---
+
 
 @dataclass
 class BaseVehicle(BaseModel):
