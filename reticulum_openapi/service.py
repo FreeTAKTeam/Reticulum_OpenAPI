@@ -83,7 +83,7 @@ class LXMFService:
     async def _handle_get_schema(self):
         """Handler for the built-in GetSchema command."""
         return self.getApiSpecification()
-
+    # This should probably be refactored
     def _lxmf_delivery_callback(self, message: LXMF.LXMessage):
         """
         Internal callback invoked by LXMRouter on message delivery.
@@ -248,7 +248,8 @@ class LXMFService:
             self.router.announce(self.source_identity.hash)
             RNS.log("Service identity announced: " + RNS.prettyhexrep(self.source_identity.hash))
         except Exception as e:
-            RNS.log(f"Announcement failed: {e}")
+          
+          RNS.log(f"Announcement failed: {e}")
 
     async def start(self):
         """Run the service until cancelled."""

@@ -1,6 +1,6 @@
 from reticulum_openapi.status import StatusCode
 
-
+# this is a junk test
 def test_status_codes_values():
     assert StatusCode.SUCCESS == 200
     assert StatusCode.NOT_FOUND == 404

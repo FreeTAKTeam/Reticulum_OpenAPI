@@ -43,6 +43,7 @@ class LXMFClient:
                 if RNS.Transport.has_path(dest_hash):
                     break
                 await asyncio.sleep(0.1)
+        # could this be simplified to only use the create?
         dest_identity = RNS.Identity.recall(dest_hash) or RNS.Identity.recall(dest_hash, create=True)
         if payload_obj is None:
             content_bytes = b''
