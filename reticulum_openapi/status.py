@@ -8,6 +8,7 @@ from enum import IntEnum
 # generation source.
 
 
+
 class StatusCode(IntEnum):
     """Common HTTP-like status codes used by the framework."""
 

@@ -1,6 +1,8 @@
 import asyncio
 import RNS
 import LXMF
+import json
+import zlib
 from dataclasses import asdict
 from dataclasses import is_dataclass
 from typing import Optional

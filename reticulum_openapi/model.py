@@ -26,6 +26,7 @@ __all__ = [
 T = TypeVar("T")
 
 
+
 # not a fan of the design of this file and compromises it makes
 def dataclass_to_json(data_obj: T) -> bytes:
     """
@@ -39,8 +40,10 @@ def dataclass_to_json(data_obj: T) -> bytes:
         data_dict = data_obj
     json_str = json.dumps(data_dict)
     # Compress the JSON bytes to minimize payload size
+
     json_bytes = json_str.encode("utf-8")
     # shouldn't this be done at the edge, also probably not great to have the compression logic baked into
+
     # the logic to go to/from json
     compressed = zlib.compress(json_bytes)
     return compressed
@@ -56,6 +59,7 @@ def dataclass_from_json(cls: Type[T], data: bytes) -> T:
         # Data might not be compressed; use raw bytes if decompression fails
 
         # Using exception handling as a fallback for an inconsistent and/or
+
         # poorly defined interface is bad practice
         json_bytes = data
     json_str = json_bytes.decode("utf-8")
