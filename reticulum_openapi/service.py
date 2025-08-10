@@ -10,10 +10,16 @@ from .model import dataclass_from_json, dataclass_to_json
 
 
 class LXMFService:
-    def __init__(self, config_path: str = None, storage_path: str = None,
-                 identity: RNS.Identity = None, display_name: str = "ReticulumOpenAPI",
-                 stamp_cost: int = 0, auth_token: str = None,
-                 max_payload_size: int = 32_000):
+    def __init__(
+        self,
+        config_path: str = None,
+        storage_path: str = None,
+        identity: RNS.Identity = None,
+        display_name: str = "ReticulumOpenAPI",
+        stamp_cost: int = 0,
+        auth_token: str = None,
+        max_payload_size: int = 32_000,
+    ):
         """
         Initialize the LXMF Service dispatcher.
         :param config_path: Path to Reticulum config directory (None for default).
@@ -23,9 +29,13 @@ class LXMFService:
         :param stamp_cost: LXMF "postage stamp" cost required from senders (anti-spam).
         """
         # Initialize Reticulum (network stack). Reuse existing if already running.
-        self.reticulum = RNS.Reticulum(config_path)  # returns a Reticulum instance (though often not used directly)
+        self.reticulum = RNS.Reticulum(
+            config_path
+        )  # returns a Reticulum instance (though often not used directly)
         # Initialize LXMF router
-        storage_path = storage_path or (RNS.Reticulum.storagepath + "/lxmf")  # default to Reticulum storage path
+        storage_path = storage_path or (
+            RNS.Reticulum.storagepath + "/lxmf"
+        )  # default to Reticulum storage path
         self.router = LXMF.LXMRouter(storagepath=storage_path)
         # Register the delivery callback for incoming messages
         self.router.register_delivery_callback(self._lxmf_delivery_callback)
@@ -42,7 +52,9 @@ class LXMFService:
         self._start_task: Optional[asyncio.Task] = None
         self.auth_token = auth_token
         self.max_payload_size = max_payload_size
-        RNS.log(f"LXMFService initialized (Identity hash: {RNS.prettyhexrep(self.source_identity.hash)})")
+        RNS.log(
+            f"LXMFService initialized (Identity hash: {RNS.prettyhexrep(self.source_identity.hash)})"
+        )
         # register built in route for schema discovery
         self.add_route("GetSchema", self._handle_get_schema)
 
@@ -63,8 +75,7 @@ class LXMFService:
         self._routes[command] = (handler, payload_type, payload_schema)
         RNS.log(f"Route registered: '{command}' -> {handler}")
 
-    # no pascal case?
-    def getApiSpecification(self) -> dict:
+    def get_api_specification(self) -> dict:
         """Return a minimal JSON specification of available commands."""
         commands = {}
         for name, (_handler, ptype, schema) in self._routes.items():
@@ -82,8 +93,8 @@ class LXMFService:
 
     async def _handle_get_schema(self):
         """Handler for the built-in GetSchema command."""
-        return self.getApiSpecification()
-    # This should probably be refactored
+
+        return self.get_api_specification()
     def _lxmf_delivery_callback(self, message: LXMF.LXMessage):
         """
         Internal callback invoked by LXMRouter on message delivery.
@@ -95,7 +106,9 @@ class LXMFService:
         except Exception as e:
             RNS.log(f"Error reading incoming message: {e}")
             return  # Exit if message is malformed
-        RNS.log(f"Received LXMF message - Title: '{cmd}', Size: {len(payload_bytes) if payload_bytes else 0} bytes")
+        RNS.log(
+            f"Received LXMF message - Title: '{cmd}', Size: {len(payload_bytes) if payload_bytes else 0} bytes"
+        )
         # Look up the handler for the command
         if cmd not in self._routes:
             RNS.log(f"No route found for command: {cmd}")
@@ -117,10 +130,10 @@ class LXMFService:
                 # If no type provided, just decode JSON to dict
                 try:
                     json_bytes = zlib.decompress(payload_bytes)
-                    payload_obj = json.loads(json_bytes.decode('utf-8'))
+                    payload_obj = json.loads(json_bytes.decode("utf-8"))
                 except zlib.error:
                     # If not compressed, try directly
-                    payload_obj = json.loads(payload_bytes.decode('utf-8'))
+                    payload_obj = json.loads(payload_bytes.decode("utf-8"))
                 except Exception as e:
                     RNS.log(f"Invalid JSON payload for {cmd}: {e}")
                     return
@@ -131,7 +144,7 @@ class LXMFService:
                     RNS.log(f"Schema validation failed for {cmd}: {e.message}")
                     return
             if self.auth_token and isinstance(payload_obj, dict):
-                if payload_obj.get('auth_token') != self.auth_token:
+                if payload_obj.get("auth_token") != self.auth_token:
                     RNS.log("Authentication failed for message")
                     return
         else:
@@ -165,7 +178,7 @@ class LXMFService:
                         resp_bytes = zlib.compress(json.dumps(result).encode("utf-8"))
                 else:
                     # If result is a simple value (str, number, etc.), wrap it in JSON
-                    resp_bytes = zlib.compress(json.dumps(result).encode('utf-8'))
+                    resp_bytes = zlib.compress(json.dumps(result).encode("utf-8"))
                 # Determine response command name (could be something like "<command>_response" or a generic)
                 resp_title = f"{cmd}_response"
                 dest_identity = message.source  # the sender's identity (if available)
@@ -178,11 +191,17 @@ class LXMFService:
                         RNS.log(f"Failed to send response for {cmd}: {e}")
                 else:
                     RNS.log("No source identity to respond to for message.")
+
         # Schedule the handler execution on the asyncio event loop
         self._loop.call_soon_threadsafe(lambda: asyncio.create_task(handle_and_reply()))
 
-    def _send_lxmf(self, dest_identity: RNS.Identity, title: str, content_bytes: bytes,
-                   propagate: bool = False):
+    def _send_lxmf(
+        self,
+        dest_identity: RNS.Identity,
+        title: str,
+        content_bytes: bytes,
+        propagate: bool = False,
+    ):
         """
         Internal helper to create and dispatch an LXMF message.
         :param dest_identity: Destination identity for the message.
@@ -191,7 +210,13 @@ class LXMFService:
         :param propagate: If True, send via propagation (store-and-forward); if False, direct where possible.
         """
         # Create an RNS Destination for the recipient (using LXMF "delivery" namespace)
-        dest = RNS.Destination(dest_identity, RNS.Destination.OUT, RNS.Destination.SINGLE, "lxmf", "delivery")
+        dest = RNS.Destination(
+            dest_identity,
+            RNS.Destination.OUT,
+            RNS.Destination.SINGLE,
+            "lxmf",
+            "delivery",
+        )
         # Construct the LXMF message
         lxmessage = LXMF.LXMessage(dest, self.source_identity, content_bytes, title)
         # Optionally, we could set desired_method to DIRECT or PROPAGATED based on propagate flag.
@@ -233,7 +258,7 @@ class LXMFService:
             dest_identity = RNS.Identity.recall(dest_hash, create=True)
         # Prepare content bytes
         if payload_obj is None:
-            content_bytes = b''  # no content
+            content_bytes = b""  # no content
         elif isinstance(payload_obj, bytes):
             content_bytes = payload_obj
         else:
@@ -246,7 +271,10 @@ class LXMFService:
         """Announce this service's identity (make its address known on the network)."""
         try:
             self.router.announce(self.source_identity.hash)
-            RNS.log("Service identity announced: " + RNS.prettyhexrep(self.source_identity.hash))
+            RNS.log(
+                "Service identity announced: "
+                + RNS.prettyhexrep(self.source_identity.hash)
+            )
         except Exception as e:
           
           RNS.log(f"Announcement failed: {e}")
