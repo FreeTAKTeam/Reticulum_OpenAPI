@@ -71,6 +71,7 @@ class LXMFService:
         :param handler: Async function to handle the command.
         :param payload_type: Dataclass type for request payload, or None for raw dict/bytes.
         """
+        # would be better to use a more consistent logging system with a centralized definition
         self._routes[command] = (handler, payload_type, payload_schema)
         RNS.log(f"Route registered: '{command}' -> {handler}")
 
@@ -78,6 +79,7 @@ class LXMFService:
         """Return a minimal JSON specification of available commands."""
         commands = {}
         for name, (_handler, ptype, schema) in self._routes.items():
+            # why are we skipping the GetSchema endpoint?
             if name == "GetSchema":
                 continue
             entry: dict = {}
@@ -86,12 +88,13 @@ class LXMFService:
             if schema is not None:
                 entry["payload_schema"] = schema
             commands[name] = entry
+        # probably shouldn't hardcode this
         return {"openapi": "3.0.0", "commands": commands}
 
     async def _handle_get_schema(self):
         """Handler for the built-in GetSchema command."""
-        return self.get_api_specification()
 
+        return self.get_api_specification()
     def _lxmf_delivery_callback(self, message: LXMF.LXMessage):
         """
         Internal callback invoked by LXMRouter on message delivery.
@@ -273,7 +276,8 @@ class LXMFService:
                 + RNS.prettyhexrep(self.source_identity.hash)
             )
         except Exception as e:
-            RNS.log(f"Announcement failed: {e}")
+          
+          RNS.log(f"Announcement failed: {e}")
 
     async def start(self):
         """Run the service until cancelled."""
