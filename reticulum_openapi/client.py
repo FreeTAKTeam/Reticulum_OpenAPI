@@ -5,7 +5,8 @@ import json
 import zlib
 from dataclasses import asdict
 from dataclasses import is_dataclass
-from typing import Optional, Dict
+from typing import Optional
+from typing import Dict
 from .model import dataclass_to_json
 
 

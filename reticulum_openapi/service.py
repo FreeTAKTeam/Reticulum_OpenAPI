@@ -4,9 +4,14 @@ import json
 import zlib
 import RNS
 import LXMF
-from typing import Callable, Dict, Optional, Type
-from jsonschema import validate, ValidationError
-from .model import dataclass_from_json, dataclass_to_json
+from typing import Callable
+from typing import Dict
+from typing import Optional
+from typing import Type
+from jsonschema import validate
+from jsonschema import ValidationError
+from .model import dataclass_from_json
+from .model import dataclass_to_json
 
 
 class LXMFService:
@@ -276,8 +281,9 @@ class LXMFService:
                 + RNS.prettyhexrep(self.source_identity.hash)
             )
         except Exception as e:
-          
-          RNS.log(f"Announcement failed: {e}")
+
+            RNS.log(f"Announcement failed: {e}")
+
 
     async def start(self):
         """Run the service until cancelled."""

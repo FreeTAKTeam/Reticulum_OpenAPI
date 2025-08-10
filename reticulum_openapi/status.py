@@ -1,9 +1,14 @@
+"""Enumeration of common HTTP-like status codes used by the framework."""
+
 from enum import IntEnum
 
 # pretty sure this enumeration is defined in many other frameworks and libraries
 # but more importantly, I don't know why we'd choose to use http error codes
 # apart from trying to accomadate for restrictions of the openapi spec as the
 # generation source.
+
+
+
 class StatusCode(IntEnum):
     """Common HTTP-like status codes used by the framework."""
 
