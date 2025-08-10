@@ -1,4 +1,6 @@
 import asyncio
+import json
+import zlib
 from types import SimpleNamespace
 from unittest.mock import Mock
 import pytest
@@ -181,3 +183,82 @@ async def test_init_and_add_route(monkeypatch):
     assert isinstance(svc.router, FakeLXMRouter)
     svc.add_route('PING', lambda: None)
     assert 'PING' in svc._routes
+
+
+@pytest.mark.asyncio
+async def test_handle_get_schema_method():
+    svc = service_module.LXMFService.__new__(service_module.LXMFService)
+    svc._routes = {}
+    spec = await service_module.LXMFService._handle_get_schema(svc)
+    assert "openapi" in spec
+
+
+def test_lxmf_delivery_callback_no_route(monkeypatch):
+    svc = service_module.LXMFService.__new__(service_module.LXMFService)
+    svc._routes = {}
+    svc.max_payload_size = 10
+    svc._loop = asyncio.get_event_loop()
+    logs = []
+    monkeypatch.setattr(service_module.RNS, "log", lambda msg: logs.append(msg))
+    message = SimpleNamespace(title="UNKNOWN", content=b"{}")
+    svc._lxmf_delivery_callback(message)
+    assert any("No route" in m for m in logs)
+
+
+def test_lxmf_delivery_invalid_json(monkeypatch):
+    async def handler(payload):
+        return None
+
+    svc = service_module.LXMFService.__new__(service_module.LXMFService)
+    svc._routes = {"CMD": (handler, None, None)}
+    svc.max_payload_size = 100
+    svc._loop = asyncio.get_event_loop()
+    svc.auth_token = None
+    logs = []
+    monkeypatch.setattr(service_module.RNS, "log", lambda msg: logs.append(msg))
+    bad = zlib.compress(b"not-json")
+    message = SimpleNamespace(title="CMD", content=bad)
+    svc._lxmf_delivery_callback(message)
+    assert any("Invalid JSON" in m for m in logs)
+
+
+@pytest.mark.asyncio
+async def test_lxmf_delivery_auth_failure(monkeypatch):
+    async def handler(payload):
+        return {"ok": True}
+
+    svc = service_module.LXMFService.__new__(service_module.LXMFService)
+    svc._routes = {"CMD": (handler, None, None)}
+    svc.max_payload_size = 100
+    svc._loop = asyncio.get_running_loop()
+    svc.auth_token = "secret"
+    called = {"flag": False}
+    monkeypatch.setattr(
+        svc._loop, "call_soon_threadsafe", lambda fn: called.update(flag=True)
+    )
+    payload = zlib.compress(json.dumps({"auth_token": "wrong"}).encode())
+    message = SimpleNamespace(title="CMD", content=payload)
+    svc._lxmf_delivery_callback(message)
+    assert called["flag"] is False
+
+
+@pytest.mark.asyncio
+async def test_lxmf_delivery_handler_exception(monkeypatch):
+    async def handler(payload):
+        raise RuntimeError("boom")
+
+    svc = service_module.LXMFService.__new__(service_module.LXMFService)
+    svc._routes = {"CMD": (handler, None, None)}
+    svc.max_payload_size = 100
+    svc._loop = asyncio.get_running_loop()
+    svc.auth_token = None
+    monkeypatch.setattr(service_module.RNS, "log", lambda *a, **k: None)
+    message = SimpleNamespace(
+        title="CMD",
+        content=zlib.compress(json.dumps({}).encode()),
+        source=None,
+    )
+    svc._send_lxmf = Mock()
+    svc._lxmf_delivery_callback(message)
+    await asyncio.sleep(0)
+    svc._send_lxmf.assert_not_called()
