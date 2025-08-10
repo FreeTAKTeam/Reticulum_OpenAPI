@@ -3,7 +3,8 @@ import RNS
 import LXMF
 from dataclasses import asdict
 from dataclasses import is_dataclass
-from typing import Optional, Dict
+from typing import Optional
+from typing import Dict
 from .model import dataclass_to_json
 
 
@@ -20,6 +21,7 @@ class LXMFClient:
         timeout: float = 10.0,
     ):
         self.reticulum = RNS.Reticulum(config_path)
+        # we should probably think more deeply about the paths being used
         storage_path = storage_path or (RNS.Reticulum.storagepath + "/lxmf_client")
         self.router = LXMF.LXMRouter(storagepath=storage_path)
         self.router.register_delivery_callback(self._callback)
@@ -51,10 +53,12 @@ class LXMFClient:
         dest_hash = bytes.fromhex(dest_hex)
         if not RNS.Transport.has_path(dest_hash):
             RNS.Transport.request_path(dest_hash)
+            # probably better not hardcoded
             for _ in range(50):
                 if RNS.Transport.has_path(dest_hash):
                     break
                 await asyncio.sleep(0.1)
+
         dest_identity = RNS.Identity.recall(dest_hash) or RNS.Identity.recall(
             dest_hash, create=True
         )
@@ -62,12 +66,18 @@ class LXMFClient:
             content_bytes = b""
         elif isinstance(payload_obj, bytes):
             content_bytes = payload_obj
+        # nit: bad practice to have imports outside of top of file
+        # also this behavior is a mess, we begin by converting the data
+        # to the target json string but then go ahead and convert it back to a dataclass
+        # which we then convert to a dict so we can set an auth_token which is then
+        # recompressed.
         else:
             if is_dataclass(payload_obj):
                 data_dict = asdict(payload_obj)
             else:
                 data_dict = payload_obj
             if self.auth_token:
+
                 data_dict["auth_token"] = self.auth_token
             content_bytes = dataclass_to_json(data_dict)
         lxmsg = LXMF.LXMessage(

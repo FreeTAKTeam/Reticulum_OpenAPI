@@ -6,7 +6,11 @@ from reticulum_openapi.model import BaseModel
 from sqlalchemy.orm import declarative_base
 from sqlalchemy import Column, Integer, String, JSON
 
+
 Base = declarative_base()
+
+# Am I correct in understanding that the Dataclass' are meant as a sort of DTO
+# to avoid coupling the DB to the internal domain representation?
 
 
 class EmergencyActionMessageORM(Base):
@@ -90,6 +94,7 @@ class Event(BaseModel):
 
 
 # --- Additional example models demonstrating allOf/oneOf/anyOf ---
+
 
 @dataclass
 class BaseVehicle(BaseModel):

@@ -4,9 +4,14 @@ import json
 import zlib
 import RNS
 import LXMF
-from typing import Callable, Dict, Optional, Type
-from jsonschema import validate, ValidationError
-from .model import dataclass_from_json, dataclass_to_json
+from typing import Callable
+from typing import Dict
+from typing import Optional
+from typing import Type
+from jsonschema import validate
+from jsonschema import ValidationError
+from .model import dataclass_from_json
+from .model import dataclass_to_json
 
 
 class LXMFService:
@@ -71,6 +76,7 @@ class LXMFService:
         :param handler: Async function to handle the command.
         :param payload_type: Dataclass type for request payload, or None for raw dict/bytes.
         """
+        # would be better to use a more consistent logging system with a centralized definition
         self._routes[command] = (handler, payload_type, payload_schema)
         RNS.log(f"Route registered: '{command}' -> {handler}")
 
@@ -78,6 +84,7 @@ class LXMFService:
         """Return a minimal JSON specification of available commands."""
         commands = {}
         for name, (_handler, ptype, schema) in self._routes.items():
+            # why are we skipping the GetSchema endpoint?
             if name == "GetSchema":
                 continue
             entry: dict = {}
@@ -86,6 +93,7 @@ class LXMFService:
             if schema is not None:
                 entry["payload_schema"] = schema
             commands[name] = entry
+        # probably shouldn't hardcode this
         return {"openapi": "3.0.0", "commands": commands}
 
     async def _handle_get_schema(self):
@@ -273,6 +281,7 @@ class LXMFService:
                 + RNS.prettyhexrep(self.source_identity.hash)
             )
         except Exception as e:
+
             RNS.log(f"Announcement failed: {e}")
 
     async def start(self):
