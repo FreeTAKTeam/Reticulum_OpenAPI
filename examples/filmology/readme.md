@@ -20,9 +20,16 @@ The API contract resides in
 
 1. Install project dependencies from the repository root:
 
+ ```bash
+ pip install -r requirements.txt
+ ```
+
+2. Install `openapi-generator-cli` using the Python package or Docker.
+
 ```bash
-pip install -r requirements.txt
+pip install openapi-generator-cli
 ```
+
 
 2. Start the server in one terminal:
 
@@ -34,6 +41,35 @@ python Server/server_filmology.py
    `secret` for incoming requests.
 
 3. In another terminal, run the client and supply the hash when prompted:
+
+Or run with Docker:
+
+```bash
+docker run --rm -v "$PWD:/local" openapitools/openapi-generator-cli generate
+```
+
+3. Generate the service and client using the provided templates:
+
+ ```bash
+ openapi-generator-cli generate \
+    -g python \
+    -i examples/filmology/API/FilmologyManagement-OAS.yaml \
+    -t templates \
+    -o examples/filmology/FilmologyService
+ ```
+
+4. After generation, consider enabling `auth_token` in the service and client or
+   adding schemas not defined in the specification.
+
+5. Start the generated server:
+
+```bash
+cd examples/filmology/FilmologyService
+python server.py
+```
+
+6. In another terminal, run the generated client:
+
 
 ```bash
 python client/client_filmology.py

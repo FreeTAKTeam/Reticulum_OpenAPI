@@ -112,8 +112,8 @@ class LinkClient:
             closed_callback=self._on_closed,
         )
         self.link.set_packet_callback(self._handle_packet)
-
         self.packet_queue: asyncio.Queue[bytes] = asyncio.Queue()
+
 
     def _on_established(self, _link: RNS.Link) -> None:
         """Internal callback when link is established."""

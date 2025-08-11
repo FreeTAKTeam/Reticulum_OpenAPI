@@ -1,6 +1,16 @@
 from dataclasses import dataclass
 from typing import List, Union
-from reticulum_openapi.model import dataclass_to_json, dataclass_from_json
+import pytest
+from sqlalchemy.orm import declarative_base
+from sqlalchemy import Column
+from sqlalchemy import Integer
+from sqlalchemy import String
+from sqlalchemy.ext.asyncio import create_async_engine
+from sqlalchemy.ext.asyncio import async_sessionmaker
+from sqlalchemy.ext.asyncio import AsyncSession
+from reticulum_openapi.model import dataclass_to_json
+from reticulum_openapi.model import dataclass_from_json
+from reticulum_openapi.model import BaseModel
 
 
 @dataclass
@@ -64,3 +74,35 @@ def test_union_deserialization_nested():
     data = dataclass_to_json(record)
     obj = dataclass_from_json(TransportRecord, data)
     assert isinstance(obj.vehicle, Bike)
+
+
+Base = declarative_base()
+
+
+class ItemORM(Base):
+    __tablename__ = "items_model"
+    id = Column(Integer, primary_key=True)
+    name = Column(String)
+
+
+@dataclass
+class ItemRecord(BaseModel):
+    id: int
+    name: str
+    __orm_model__ = ItemORM
+
+
+@pytest.mark.asyncio
+async def test_update_returns_dataclass_instance():
+    """Ensure ``update`` returns a dataclass instance."""
+    engine = create_async_engine("sqlite+aiosqlite:///:memory:")
+    session_factory = async_sessionmaker(
+        engine, expire_on_commit=False, class_=AsyncSession
+    )
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    async with session_factory() as session:
+        await ItemRecord.create(session, id=1, name="old")
+        updated = await ItemRecord.update(session, 1, name="new")
+        assert isinstance(updated, ItemRecord)
+        assert updated.name == "new"
