@@ -1,12 +1,12 @@
 import asyncio
-import json
-import zlib
 from types import SimpleNamespace
 from unittest.mock import Mock
+
 import pytest
 
-from reticulum_openapi import service as service_module
 from dataclasses import dataclass
+from reticulum_openapi import service as service_module
+from reticulum_openapi.model import dataclass_to_json
 
 
 @dataclass
@@ -93,6 +93,7 @@ async def test_send_lxmf_uses_router(monkeypatch):
             self.src = src
             self.content = content
             self.title = title
+
     monkeypatch.setattr(service_module.RNS, "Destination", FakeDestination)
     monkeypatch.setattr(service_module.LXMF, "LXMessage", FakeLXMessage)
     svc._send_lxmf(object(), "CMD", b"data")
@@ -140,7 +141,7 @@ async def test_context_manager(monkeypatch):
 @pytest.mark.asyncio
 async def test_init_and_add_route(monkeypatch):
     class FakeReticulum:
-        storagepath = '/tmp'
+        storagepath = "/tmp"
 
         def __init__(self, config_path=None):
             pass
@@ -149,7 +150,7 @@ async def test_init_and_add_route(monkeypatch):
 
         def __init__(self):
 
-            self.hash = b'h'
+            self.hash = b"h"
 
     class FakeRNS:
         Reticulum = FakeReticulum
@@ -161,7 +162,7 @@ async def test_init_and_add_route(monkeypatch):
 
         @staticmethod
         def prettyhexrep(x):
-            return 'h'
+            return "h"
 
     class FakeLXMRouter:
 
@@ -177,12 +178,13 @@ async def test_init_and_add_route(monkeypatch):
     class FakeLXMF:
         LXMRouter = FakeLXMRouter
         LXMessage = object
-    monkeypatch.setattr(service_module, 'RNS', FakeRNS)
-    monkeypatch.setattr(service_module, 'LXMF', FakeLXMF)
+
+    monkeypatch.setattr(service_module, "RNS", FakeRNS)
+    monkeypatch.setattr(service_module, "LXMF", FakeLXMF)
     svc = service_module.LXMFService()
     assert isinstance(svc.router, FakeLXMRouter)
-    svc.add_route('PING', lambda: None)
-    assert 'PING' in svc._routes
+    svc.add_route("PING", lambda: None)
+    assert "PING" in svc._routes
 
 
 @pytest.mark.asyncio
@@ -205,7 +207,7 @@ def test_lxmf_delivery_callback_no_route(monkeypatch):
     assert any("No route" in m for m in logs)
 
 
-def test_lxmf_delivery_invalid_json(monkeypatch):
+def test_lxmf_delivery_invalid_msgpack(monkeypatch):
     async def handler(payload):
         return None
 
@@ -216,10 +218,10 @@ def test_lxmf_delivery_invalid_json(monkeypatch):
     svc.auth_token = None
     logs = []
     monkeypatch.setattr(service_module.RNS, "log", lambda msg: logs.append(msg))
-    bad = zlib.compress(b"not-json")
+    bad = b"not-msgpack"
     message = SimpleNamespace(title="CMD", content=bad)
     svc._lxmf_delivery_callback(message)
-    assert any("Invalid JSON" in m for m in logs)
+    assert any("Invalid MessagePack" in m for m in logs)
 
 
 @pytest.mark.asyncio
@@ -236,7 +238,7 @@ async def test_lxmf_delivery_auth_failure(monkeypatch):
     monkeypatch.setattr(
         svc._loop, "call_soon_threadsafe", lambda fn: called.update(flag=True)
     )
-    payload = zlib.compress(json.dumps({"auth_token": "wrong"}).encode())
+    payload = dataclass_to_json({"auth_token": "wrong"})
     message = SimpleNamespace(title="CMD", content=payload)
     svc._lxmf_delivery_callback(message)
     assert called["flag"] is False
@@ -255,7 +257,7 @@ async def test_lxmf_delivery_handler_exception(monkeypatch):
     monkeypatch.setattr(service_module.RNS, "log", lambda *a, **k: None)
     message = SimpleNamespace(
         title="CMD",
-        content=zlib.compress(json.dumps({}).encode()),
+        content=dataclass_to_json({}),
         source=None,
     )
     svc._send_lxmf = Mock()

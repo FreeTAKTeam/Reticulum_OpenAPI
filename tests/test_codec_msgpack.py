@@ -1,7 +1,7 @@
 import importlib
 import pytest
 
-from reticulum_openapi import codec_msgpack as codec
+import reticulum_openapi.codec_msgpack as codec
 
 
 @pytest.fixture
