@@ -4,10 +4,12 @@ import asyncio
 import os
 import shutil
 
+from typing import Any
+from typing import Awaitable
 from typing import Callable
+from typing import Dict
+from typing import Optional
 
-import asyncio
-from typing import Any, Awaitable, Dict, Optional
 import RNS
 
 
