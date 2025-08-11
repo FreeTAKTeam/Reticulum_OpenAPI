@@ -1,4 +1,3 @@
-
 """
 codec_msgpack.py
 Canonical MessagePack codec for RNS/LXMF OpenAPI runtime.
@@ -21,7 +20,7 @@ MessagePack Canonicalization Rules (Critical for Signatures)
 8) Signature input = UTF-8 bytes of rid|ts|op concatenated with payloadDigest bytes.
 """
 
-from typing import Any, Tuple, Union, Optional
+from typing import Any, Union
 
 # Optional dependencies
 try:
@@ -43,77 +42,87 @@ except Exception:  # pragma: no cover
     VerifyKey = None
     BadSignatureError = Exception
 
+
 class CodecError(Exception):
     pass
 
+
 class DependencyError(CodecError):
     pass
+
 
 ############################
 # Low-level MessagePack enc
 ############################
 
+
 def _pack_nil() -> bytes:
-    return b'\xc0'
+    return b"\xc0"
+
 
 def _pack_bool(v: bool) -> bytes:
-    return b'\xc3' if v else b'\xc2'
+    return b"\xc3" if v else b"\xc2"
+
 
 def _pack_int(n: int) -> bytes:
     # positive fixint
-    if 0 <= n <= 0x7f:
+    if 0 <= n <= 0x7F:
         return bytes([n])
     # negative fixint
     if -32 <= n < 0:
-        return (n & 0xff).to_bytes(1, 'big')
+        return (n & 0xFF).to_bytes(1, "big")
     # choose signed/unsigned minimal width
     if n < 0:
         # signed
         if -128 <= n <= 127:
-            return b'\xd0' + (n & 0xff).to_bytes(1, 'big')
+            return b"\xd0" + (n & 0xFF).to_bytes(1, "big")
         if -32768 <= n <= 32767:
-            return b'\xd1' + (n & 0xffff).to_bytes(2, 'big')
+            return b"\xd1" + (n & 0xFFFF).to_bytes(2, "big")
         if -2147483648 <= n <= 2147483647:
-            return b'\xd2' + (n & 0xffffffff).to_bytes(4, 'big')
-        return b'\xd3' + (n & 0xffffffffffffffff).to_bytes(8, 'big')
+            return b"\xd2" + (n & 0xFFFFFFFF).to_bytes(4, "big")
+        return b"\xd3" + (n & 0xFFFFFFFFFFFFFFFF).to_bytes(8, "big")
     else:
         # unsigned
-        if n <= 0xff:
-            return b'\xcc' + n.to_bytes(1, 'big')
-        if n <= 0xffff:
-            return b'\xcd' + n.to_bytes(2, 'big')
-        if n <= 0xffffffff:
-            return b'\xce' + n.to_bytes(4, 'big')
-        return b'\xcf' + n.to_bytes(8, 'big')
+        if n <= 0xFF:
+            return b"\xcc" + n.to_bytes(1, "big")
+        if n <= 0xFFFF:
+            return b"\xcd" + n.to_bytes(2, "big")
+        if n <= 0xFFFFFFFF:
+            return b"\xce" + n.to_bytes(4, "big")
+        return b"\xcf" + n.to_bytes(8, "big")
+
 
 def _pack_bin(b: bytes) -> bytes:
     n = len(b)
-    if n <= 0xff:
-        return b'\xc4' + bytes([n]) + b
-    if n <= 0xffff:
-        return b'\xc5' + n.to_bytes(2, 'big') + b
-    return b'\xc6' + n.to_bytes(4, 'big') + b
+    if n <= 0xFF:
+        return b"\xc4" + bytes([n]) + b
+    if n <= 0xFFFF:
+        return b"\xc5" + n.to_bytes(2, "big") + b
+    return b"\xc6" + n.to_bytes(4, "big") + b
+
 
 def _pack_str(s: str) -> bytes:
-    b = s.encode('utf-8')
+    b = s.encode("utf-8")
     n = len(b)
     if n <= 31:
-        return bytes([0xa0 | n]) + b
-    if n <= 0xff:
-        return b'\xd9' + bytes([n]) + b
-    if n <= 0xffff:
-        return b'\xda' + n.to_bytes(2, 'big') + b
-    return b'\xdb' + n.to_bytes(4, 'big') + b
+        return bytes([0xA0 | n]) + b
+    if n <= 0xFF:
+        return b"\xd9" + bytes([n]) + b
+    if n <= 0xFFFF:
+        return b"\xda" + n.to_bytes(2, "big") + b
+    return b"\xdb" + n.to_bytes(4, "big") + b
+
 
 def _pack_array(arr: list) -> bytes:
     n = len(arr)
     if n <= 15:
         prefix = bytes([0x90 | n])
-    elif n <= 0xffff:
-        prefix = b'\xdc' + n.to_bytes(2, 'big')
+    elif n <= 0xFFFF:
+        prefix = b"\xdc" + n.to_bytes(2, "big")
     else:
-        prefix = b'\xdd' + n.to_bytes(4, 'big')
-    return prefix + b''.join(_pack(x) for x in arr)
+        prefix = b"\xdd" + n.to_bytes(4, "big")
+    return prefix + b"".join(_pack(x) for x in arr)
+
 
 def _pack_map(d: dict) -> bytes:
     n = len(d)
@@ -122,19 +131,20 @@ def _pack_map(d: dict) -> bytes:
     for k, v in d.items():
         if not isinstance(k, str):
             raise CodecError("Canonical maps require string keys")
-        items.append((k.encode('utf-8'), k, v))
+        items.append((k.encode("utf-8"), k, v))
     items.sort(key=lambda t: t[0])
     if n <= 15:
         prefix = bytes([0x80 | n])
-    elif n <= 0xffff:
-        prefix = b'\xde' + n.to_bytes(2, 'big')
+    elif n <= 0xFFFF:
+        prefix = b"\xde" + n.to_bytes(2, "big")
     else:
-        prefix = b'\xdf' + n.to_bytes(4, 'big')
+        prefix = b"\xdf" + n.to_bytes(4, "big")
     out = [prefix]
     for key_bytes, key_str, val in items:
         out.append(_pack_str(key_str))
         out.append(_pack(val))
-    return b''.join(out)
+    return b"".join(out)
+
 
 def _pack(o: Any) -> bytes:
     if o is None:
@@ -156,15 +166,18 @@ def _pack(o: Any) -> bytes:
     # Float or others are not allowed for canonical/signed bytes
     raise CodecError(f"Type not allowed in canonical MessagePack: {type(o).__name__}")
 
+
 ############################
 # Public API
 ############################
+
 
 def to_canonical_bytes(obj: Any) -> bytes:
     """
     Encode obj to canonical MessagePack bytes with the rules above.
     """
     return _pack(obj)
+
 
 def from_bytes(b: bytes) -> Any:
     """
@@ -173,8 +186,11 @@ def from_bytes(b: bytes) -> Any:
     Note: Decoding does not preserve map key order; canonicalization applies only to encoding.
     """
     if msgpack is None:
-        raise DependencyError("msgpack is required for from_bytes(). Install `msgpack`.")
+        raise DependencyError(
+            "msgpack is required for from_bytes(). Install `msgpack`."
+        )
     return msgpack.unpackb(b, raw=False)
+
 
 def digest(obj: Any) -> bytes:
     """
@@ -184,6 +200,7 @@ def digest(obj: Any) -> bytes:
         raise DependencyError("blake3 is required for digest(). Install `blake3`.")
     data = to_canonical_bytes(obj)
     return blake3.blake3(data).digest()
+
 
 def sign(canon_bytes: bytes, sk: Union[bytes, "SigningKey"]) -> bytes:
     """
@@ -198,6 +215,7 @@ def sign(canon_bytes: bytes, sk: Union[bytes, "SigningKey"]) -> bytes:
         sk = SigningKey(sk)
     signed = sk.sign(canon_bytes)
     return bytes(signed.signature)
+
 
 def verify(canon_bytes: bytes, pk: Union[bytes, "VerifyKey"], sig: bytes) -> bool:
     """

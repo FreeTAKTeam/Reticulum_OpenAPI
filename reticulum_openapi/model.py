@@ -26,7 +26,6 @@ __all__ = [
 T = TypeVar("T")
 
 
-
 # not a fan of the design of this file and compromises it makes
 def dataclass_to_json(data_obj: T) -> bytes:
     """
