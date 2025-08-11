@@ -13,8 +13,8 @@ See [docs/protocol_design.md](docs/protocol_design.md) for the protocol overview
 ## Resource transfers
 
 The package also includes helpers for sending and receiving larger files over Reticulum links. Use
-`LinkClient.send_resource()` to upload a file with progress reporting and
-`LinkService.resource_received_callback()` to store incoming resources in a chosen directory.
+`ResourceClient.send_resource()` to upload a file with progress reporting and
+`ResourceService.resource_received_callback()` to store incoming resources in a chosen directory.
 
 ## Quick start
 

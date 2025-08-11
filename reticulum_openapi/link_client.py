@@ -1,19 +1,19 @@
-
-"""Utilities for sending files over Reticulum links."""
-
-import os
-from typing import Callable
+"""Utilities for communicating over Reticulum links."""
 
 import asyncio
+import os
 from dataclasses import asdict
 from dataclasses import is_dataclass
 from typing import Any
+from typing import Callable
 from typing import Optional
+
 import RNS
 
+from .model import dataclass_to_json
 
 
-class LinkClient:
+class ResourceClient:
     """Client helper for sending resources over an established link."""
 
     def __init__(
@@ -66,8 +66,6 @@ class LinkClient:
             progress_callback=progress_callback,
         )
         return resource
-      
-from .model import dataclass_to_json
 
 
 class LinkClient:
@@ -86,6 +84,8 @@ class LinkClient:
         self.reticulum = RNS.Reticulum(config_path)
         self.identity = identity or RNS.Identity()
         self._loop = asyncio.get_event_loop()
+        self.established = asyncio.Event()
+        self.closed = asyncio.Event()
         remote_hash = bytes.fromhex(dest_hash)
         remote_id = RNS.Identity.recall(remote_hash) or RNS.Identity.recall(
             remote_hash, create=True
@@ -103,8 +103,6 @@ class LinkClient:
             closed_callback=self._on_closed,
         )
         self.link.set_packet_callback(self._handle_packet)
-        self.established = asyncio.Event()
-        self.closed = asyncio.Event()
         self.packet_queue: asyncio.Queue[bytes] = asyncio.Queue()
 
     def _on_established(self, _link: RNS.Link) -> None:

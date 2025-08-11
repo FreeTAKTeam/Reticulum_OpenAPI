@@ -41,7 +41,7 @@ def test_send_resource_callbacks(monkeypatch, tmp_path):
     def hook(res):
         calls["hook"] = True
 
-    cli = link_client.LinkClient(fake_link, on_upload_complete=hook)
+    cli = link_client.ResourceClient(fake_link, on_upload_complete=hook)
     cli.send_resource(
         str(file_path), progress_callback=progress, completion_callback=completion
     )
@@ -59,14 +59,14 @@ def test_send_resource_raises(monkeypatch, tmp_path):
         raise ValueError("boom")
 
     monkeypatch.setattr(link_client.RNS, "Resource", raise_resource)
-    cli = link_client.LinkClient(object())
+    cli = link_client.ResourceClient(object())
     with pytest.raises(ValueError):
         cli.send_resource(str(file_path))
 
 
 def test_resource_received_callback(tmp_path):
     storage = tmp_path / "store"
-    service = link_service.LinkService(str(storage))
+    service = link_service.ResourceService(str(storage))
 
     src_path = tmp_path / "incoming"
     src_path.write_bytes(b"content")
@@ -87,7 +87,7 @@ def test_resource_received_callback_no_metadata(tmp_path):
     def hook(path):
         called["path"] = path
 
-    service = link_service.LinkService(str(storage), on_download_complete=hook)
+    service = link_service.ResourceService(str(storage), on_download_complete=hook)
 
     src_path = tmp_path / "incoming"
     src_path.write_bytes(b"data")
