@@ -58,13 +58,16 @@ class LinkFileClient:
             if self.on_upload_complete:
                 self.on_upload_complete(resource)
 
-        resource = RNS.Resource(
-            path,
-            self.link,
-            metadata=metadata,
-            callback=_wrapped_callback,
-            progress_callback=progress_callback,
-        )
+        try:
+            resource = RNS.Resource(
+                path,
+                self.link,
+                metadata=metadata,
+                callback=_wrapped_callback,
+                progress_callback=progress_callback,
+            )
+        except Exception as exc:
+            raise ValueError(str(exc)) from exc
         return resource
 
 
@@ -109,6 +112,8 @@ class LinkClient:
             closed_callback=self._on_closed,
         )
         self.link.set_packet_callback(self._handle_packet)
+        self.packet_queue: asyncio.Queue[bytes] = asyncio.Queue()
+
 
     def _on_established(self, _link: RNS.Link) -> None:
         """Internal callback when link is established."""

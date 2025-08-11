@@ -125,8 +125,10 @@ class LXMFService:
                 return
             if payload_type:
                 try:
+
                     # Parse bytes into the expected dataclass
                     payload_obj = dataclass_from_msgpack(payload_type, payload_bytes)
+
                 except Exception as e:
                     RNS.log(f"Failed to parse payload for {cmd}: {e}")
                     return
@@ -164,10 +166,10 @@ class LXMFService:
                 RNS.log(f"Exception in handler for {cmd}: {e}")
             # If handler returned a result, attempt to send a response back to sender
             if result is not None:
-                # Prepare response payload (assume result is serializable or a dataclass)
                 if isinstance(result, bytes):
                     resp_bytes = result
                 else:
+
                     try:
                         resp_bytes = dataclass_to_msgpack(result)
                     except Exception as e:
@@ -175,9 +177,8 @@ class LXMFService:
                         return
                 # Determine response command name (could be something like "<command>_response" or a generic)
                 resp_title = f"{cmd}_response"
-                dest_identity = message.source  # the sender's identity (if available)
+                dest_identity = message.source
                 if dest_identity:
-                    # Send the response message
                     try:
                         self._send_lxmf(dest_identity, resp_title, resp_bytes)
                         RNS.log(f"Sent response for {cmd} back to sender.")
@@ -200,7 +201,7 @@ class LXMFService:
         Internal helper to create and dispatch an LXMF message.
         :param dest_identity: Destination identity for the message.
         :param title: Title (command) for the message.
-        :param content_bytes: Compressed content bytes to send.
+        :param content_bytes: Content bytes to send.
         :param propagate: If True, send via propagation (store-and-forward); if False, direct where possible.
         """
         # Create an RNS Destination for the recipient (using LXMF "delivery" namespace)
@@ -256,8 +257,10 @@ class LXMFService:
         elif isinstance(payload_obj, bytes):
             content_bytes = payload_obj
         else:
+
             # Use dataclass utility to get compressed JSON bytes
             content_bytes = dataclass_to_msgpack(payload_obj)
+
         # Use internal send helper
         self._send_lxmf(dest_identity, command, content_bytes, propagate=propagate)
 

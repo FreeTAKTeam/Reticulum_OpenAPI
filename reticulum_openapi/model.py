@@ -13,6 +13,7 @@ from typing import List
 
 import msgpack
 
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.ext.asyncio import async_sessionmaker
@@ -31,6 +32,7 @@ __all__ = [
 T = TypeVar("T")
 
 
+
 def dataclass_to_msgpack(data_obj: T) -> bytes:
     """Serialize a dataclass instance to MessagePack bytes.
 
@@ -40,6 +42,7 @@ def dataclass_to_msgpack(data_obj: T) -> bytes:
     Returns:
         bytes: MessagePack-encoded representation of ``data_obj``.
     """
+
     if is_dataclass(data_obj):
         data_dict = asdict(data_obj)
     else:
@@ -52,6 +55,8 @@ def dataclass_to_json(data_obj: T) -> bytes:
     return dataclass_to_msgpack(data_obj)
 
 
+    return msgpack.packb(data_dict, use_bin_type=True)
+
 def dataclass_from_msgpack(cls: Type[T], data: bytes) -> T:
     """Deserialize a dataclass instance from MessagePack bytes.
 
@@ -62,6 +67,11 @@ def dataclass_from_msgpack(cls: Type[T], data: bytes) -> T:
     Returns:
         T: Instance of ``cls`` populated with decoded data.
     """
+
+def dataclass_from_json(cls: Type[T], data: bytes) -> T:
+    """Deserialize a dataclass instance from MessagePack bytes."""
+
+
     obj_dict = msgpack.unpackb(data, raw=False)
 
     def _construct(tp, value):
@@ -111,6 +121,7 @@ class BaseModel:
         return dataclass_to_msgpack(self)
 
     def to_json_bytes(self) -> bytes:
+
         """Deprecated wrapper for :meth:`to_msgpack`."""
         return self.to_msgpack()
 
@@ -130,6 +141,15 @@ class BaseModel:
     def from_json_bytes(cls: Type[T], data: bytes) -> T:
         """Deprecated wrapper for :meth:`from_msgpack`."""
         return cls.from_msgpack(data)
+
+        """Serialize this dataclass to MessagePack bytes."""
+        return dataclass_to_json(self)
+
+    @classmethod
+    def from_json_bytes(cls: Type[T], data: bytes) -> T:
+        """Deserialize MessagePack bytes to a dataclass instance."""
+        return dataclass_from_json(cls, data)
+
 
     def to_orm(self):
         """Create an ORM instance from this dataclass."""

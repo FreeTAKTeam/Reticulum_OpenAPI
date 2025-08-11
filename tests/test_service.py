@@ -69,7 +69,9 @@ async def test_lxmf_callback_schema_validation():
 
     valid_msg = SimpleNamespace(
         title="SCHEMA",
+
         content=dataclass_to_msgpack({"num": 5}),
+
         source=None,
     )
     service._lxmf_delivery_callback(valid_msg)
@@ -79,7 +81,9 @@ async def test_lxmf_callback_schema_validation():
     called = False
     invalid_msg = SimpleNamespace(
         title="SCHEMA",
+
         content=dataclass_to_msgpack({"num": "bad"}),
+
         source=None,
     )
     service._lxmf_delivery_callback(invalid_msg)

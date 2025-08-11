@@ -15,6 +15,45 @@ The API contract is described in [`API/EmergencyActionMessageManagement-OAS.yaml
 
 ## Components
 
+``` mermaid
+sequenceDiagram
+autonumber
+participant ClientApp as Emergency Client (client_emergency.py)
+participant ApiClient as LXMFApiClient
+participant Codec as MsgPackCodec
+participant LXMF as LXMFTransport
+participant ServerApp as Emergency Server (server_emergency.py)
+participant ApiService as LXMFApiService
+participant Router as RequestRouter
+participant Domain as EmergencyService
+
+note over ServerApp: On start, prints its identity hash (client needs it)
+
+ClientApp->>ApiClient: init(server_hash)
+ApiClient->>Codec: encode(emergency_payload)
+Codec-->>ApiClient: bytes
+ApiClient->>LXMF: send(to=server_hash, content=bytes)
+LXMF-->>ServerApp: deliver(envelope)
+
+ServerApp->>ApiService: onMessage(envelope)
+ApiService->>Codec: decode(bytes)
+Codec-->>ApiService: obj
+ApiService->>Router: route("/emergency/create", obj)
+Router->>Domain: createEmergency(data)
+Domain-->>Router: ack {id, status}
+Router-->>ApiService: Response
+
+ApiService->>Codec: encode(response)
+Codec-->>ApiService: bytes
+ApiService->>LXMF: reply(to=client_hash, content=bytes)
+LXMF-->>ClientApp: deliver(reply)
+
+ClientApp->>ApiClient: receive(reply)
+ApiClient->>Codec: decode(bytes)
+Codec-->>ApiClient: ack/status
+ApiClient-->>ClientApp: display result
+```
+
 | Folder | Description |
 |-------|-------------|
 | `Server/` | Asynchronous service implementation. Defines dataclasses, controllers, a small SQLite database and the service class. |

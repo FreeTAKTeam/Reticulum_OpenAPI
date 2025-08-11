@@ -1,8 +1,7 @@
 import logging
-from typing import Any
-from typing import Callable
-from typing import Coroutine
-from typing import TypeVar
+from typing import Callable, Any, Coroutine, TypeVar
+from functools import wraps
+
 
 # pretty sure every import of this class will trigger a new addHandler event which will result
 # in as many duplicate handlers for the controller logger as there are imports.
@@ -12,7 +11,8 @@ logger.setLevel(logging.INFO)
 handler = logging.StreamHandler()
 formatter = logging.Formatter("[%(asctime)s] %(levelname)s %(name)s: %(message)s")
 handler.setFormatter(formatter)
-logger.addHandler(handler)
+if not logger.handlers:
+    logger.addHandler(handler)
 
 
 class APIException(Exception):
@@ -32,6 +32,8 @@ F = TypeVar("F", bound=Callable[..., Coroutine[Any, Any, Any]])
 def handle_exceptions(func: F) -> F:
     """Decorator to wrap controller methods with logging and exception handling."""
 
+
+    @wraps(func)
     async def wrapper(*args, **kwargs):
         logger.info(f"Executing {func.__name__} with args={args[1:]} kwargs={kwargs}")
         try:

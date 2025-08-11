@@ -56,9 +56,11 @@ class Bike:
 Vehicle = Union[Car, Bike]
 
 
+
 def test_dataclass_from_msgpack():
     data = msgpack.packb({"name": "foo", "value": 1}, use_bin_type=True)
     obj = dataclass_from_msgpack(Simple, data)
+
     assert obj == Simple(name="foo", value=1)
 
 
