@@ -80,7 +80,6 @@ async def test_send_serializes_dict(monkeypatch):
         lambda d: (captured.setdefault("payload", d), b"data")[1],
     )
 
-
     cli = lc_module.LinkClient("aa")
     await cli.send({"k": "v"})
     assert captured["payload"] == {"k": "v"}
