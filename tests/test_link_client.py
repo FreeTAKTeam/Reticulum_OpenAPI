@@ -42,8 +42,9 @@ class FakeLink:
     # helper used in tests
     def respond(self, payload: bytes):
         receipt = SimpleNamespace(response=payload)
-        if self._response_callback:
-            self._response_callback(receipt)
+        callback = getattr(self, "_response_callback", None)
+        if callback:
+            callback(receipt)
 
 
 class FakeDestination:
@@ -58,6 +59,10 @@ class FakeIdentity:
     def __init__(self):
         pass
 
+    @staticmethod
+    def recall(_hash, create=False):
+        return FakeIdentity()
+
 
 @pytest.mark.asyncio
 async def test_send_serializes_dict(monkeypatch):
@@ -68,11 +73,13 @@ async def test_send_serializes_dict(monkeypatch):
     monkeypatch.setattr(lc_module.RNS, "Link", FakeLink)
 
     captured = {}
+
     monkeypatch.setattr(
         lc_module,
         "dataclass_to_json",
         lambda d: (captured.setdefault("payload", d), b"data")[1],
     )
+
 
     cli = lc_module.LinkClient("aa")
     await cli.send({"k": "v"})
