@@ -33,7 +33,9 @@ async def test_lxmf_callback_decodes_dataclass_and_dispatches():
 
     service._routes = {"CMD": (handler, Sample, None)}
 
-    message = SimpleNamespace(title="CMD", content=dataclass_to_json(Sample(text="hello")), source=None)
+    message = SimpleNamespace(
+        title="CMD", content=dataclass_to_json(Sample(text="hello")), source=None
+    )
 
     service._lxmf_delivery_callback(message)
     await asyncio.sleep(0.01)
@@ -122,7 +124,7 @@ def test_get_api_specification_returns_registered_routes():
         "GetSchema": (lambda: None, None, None),
         "Test": (lambda: None, Sample, {"type": "object"}),
     }
-    spec = service.getApiSpecification()
+    spec = service.get_api_specification()
     assert "commands" in spec
     assert "Test" in spec["commands"]
     assert spec["commands"]["Test"]["payload_dataclass"] == "Sample"

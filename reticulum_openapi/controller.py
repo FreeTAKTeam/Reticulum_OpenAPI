@@ -1,6 +1,11 @@
 import logging
-from typing import Callable, Any, Coroutine, TypeVar
+from typing import Any
+from typing import Callable
+from typing import Coroutine
+from typing import TypeVar
 
+# pretty sure every import of this class will trigger a new addHandler event which will result
+# in as many duplicate handlers for the controller logger as there are imports.
 # Setup module logger
 logger = logging.getLogger("reticulum_openapi.controller")
 logger.setLevel(logging.INFO)
@@ -12,21 +17,23 @@ logger.addHandler(handler)
 
 class APIException(Exception):
     """Base exception for API errors, carrying a message and HTTP-like status code."""
+
     def __init__(self, message: str, code: int = 500):
         super().__init__(message)
         self.code = code
         self.message = message
 
 
-F = TypeVar('F', bound=Callable[..., Coroutine[Any, Any, Any]])
+# not clear on the purpose of a typevar here?
+F = TypeVar("F", bound=Callable[..., Coroutine[Any, Any, Any]])
 
 
+# requires functools.wraps decorator
 def handle_exceptions(func: F) -> F:
     """Decorator to wrap controller methods with logging and exception handling."""
+
     async def wrapper(*args, **kwargs):
-        logger.info(
-            f"Executing {func.__name__} with args={args[1:]} kwargs={kwargs}"
-        )
+        logger.info(f"Executing {func.__name__} with args={args[1:]} kwargs={kwargs}")
         try:
             result = await func(*args, **kwargs)
             logger.info(f"{func.__name__} completed successfully.")
@@ -39,6 +46,7 @@ def handle_exceptions(func: F) -> F:
         except Exception as e:
             logger.exception(f"Unhandled exception in {func.__name__}: {e}")
             return {"error": "InternalServerError", "code": 500}
+
     return wrapper  # type: ignore
 
 
@@ -48,10 +56,15 @@ class Controller:
     and async business logic execution helper. Inherit and use @handle_exceptions
     on endpoint methods to ensure consistent behavior.
     """
+
     def __init__(self):
         self.logger = logger
 
-    async def run_business_logic(self, logic: Coroutine[Any, Any, Any], *args, **kwargs) -> Any:
+    # As far as I can tell this isn't actually being used anywhere though maybe I'm missing something.
+
+    async def run_business_logic(
+        self, logic: Coroutine[Any, Any, Any], *args, **kwargs
+    ) -> Any:
         """
         Execute a business logic coroutine with standardized logging and error handling.
         Returns the result or a structured error dict.

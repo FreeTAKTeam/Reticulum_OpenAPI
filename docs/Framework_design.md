@@ -79,6 +79,23 @@ In effect, the Service layer operates like an **async message router and dispatc
 * **Registration of handlers:** Provides an API to register controllers or individual command handlers. For example, during startup the application might call `service.register_controller(NodeController())`, and the service will introspect or use a predefined mapping to associate `"add_node"` command with `NodeController.add_node` coroutine.
 * **Decoupling:** The service is decoupled from specific controllers; it references them via an interface (e.g., an abstract base class or simply through the mapping). This decoupling means new controllers can be added or a different transport service can reuse the controllers.
 
+## Link Establishment, Keep-Alive, and Resource Transfer Flows
+
+Some interactions require a persistent `RNS.Link` instead of single LXMF messages.
+Establishing a link performs a cryptographic handshake and derives ephemeral
+session keys so both parties can exchange packets in real time.
+
+1. **Link establishment:** A client creates a destination for the server and
+   instantiates `RNS.Link(dest)`. Once the `established_callback` fires, the link
+   is ready for packet-based communication.
+2. **Keep-alive:** Links expire if idle. Either side should periodically call
+   `link.send_keepalive()` or send any packet to keep the session open.
+3. **Resource transfer:** Large binary payloads use `RNS.Resource(data, link)`
+   which segments, retransmits, and proves delivery over the established link.
+
+Using link mode enables low-latency exchanges and efficient file transfers while
+maintaining the security guarantees of Reticulum.
+
 ## Message Routing Mechanism
 
 Message routing in the Reticulum OpenAPI framework determines how incoming LXMF messages are directed to the correct controller endpoint and how responses find their way back to the sender. It leverages the LXMF message structure – particularly the **Fields dictionary for routing metadata and the Content for payload** – to emulate a request/response API on top of an asynchronous, store-and-forward network.

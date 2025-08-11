@@ -1,10 +1,16 @@
 # reticulum_openapi/model.py
-from dataclasses import dataclass, asdict, is_dataclass, fields
+from dataclasses import asdict
+from dataclasses import dataclass
+from dataclasses import fields
+from dataclasses import is_dataclass
 import json
 import zlib
 from typing import Type, TypeVar, get_origin, get_args, Union, Optional, List
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
+
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import async_sessionmaker
+from sqlalchemy.ext.asyncio import create_async_engine
 
 __all__ = [
     "dataclass_to_json",
@@ -29,7 +35,12 @@ def dataclass_to_json(data_obj: T) -> bytes:
         data_dict = data_obj
     json_str = json.dumps(data_dict)
     # Compress the JSON bytes to minimize payload size
+
+
     json_bytes = json_str.encode("utf-8")
+    
+    # the logic to go to/from json
+
     compressed = zlib.compress(json_bytes)
     return compressed
 
@@ -42,6 +53,10 @@ def dataclass_from_json(cls: Type[T], data: bytes) -> T:
         json_bytes = zlib.decompress(data)
     except zlib.error:
         # Data might not be compressed; use raw bytes if decompression fails
+
+        # Using exception handling as a fallback for an inconsistent and/or
+
+        # poorly defined interface is bad practice
         json_bytes = data
     json_str = json_bytes.decode("utf-8")
     obj_dict = json.loads(json_str)
