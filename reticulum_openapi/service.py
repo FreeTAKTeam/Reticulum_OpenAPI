@@ -1,7 +1,6 @@
 # reticulum_openapi/service.py
 import asyncio
-import json
-import zlib
+import msgpack
 import RNS
 import LXMF
 from typing import Callable
@@ -10,8 +9,8 @@ from typing import Optional
 from typing import Type
 from jsonschema import validate
 from jsonschema import ValidationError
-from .model import dataclass_from_json
-from .model import dataclass_to_json
+from .model import dataclass_from_msgpack
+from .model import dataclass_to_msgpack
 
 
 class LXMFService:
@@ -127,20 +126,15 @@ class LXMFService:
             if payload_type:
                 try:
                     # Parse bytes into the expected dataclass
-                    payload_obj = dataclass_from_json(payload_type, payload_bytes)
+                    payload_obj = dataclass_from_msgpack(payload_type, payload_bytes)
                 except Exception as e:
                     RNS.log(f"Failed to parse payload for {cmd}: {e}")
                     return
             else:
-                # If no type provided, just decode JSON to dict
                 try:
-                    json_bytes = zlib.decompress(payload_bytes)
-                    payload_obj = json.loads(json_bytes.decode("utf-8"))
-                except zlib.error:
-                    # If not compressed, try directly
-                    payload_obj = json.loads(payload_bytes.decode("utf-8"))
+                    payload_obj = msgpack.unpackb(payload_bytes, raw=False)
                 except Exception as e:
-                    RNS.log(f"Invalid JSON payload for {cmd}: {e}")
+                    RNS.log(f"Invalid MessagePack payload for {cmd}: {e}")
                     return
             if payload_schema is not None:
                 try:
@@ -172,18 +166,13 @@ class LXMFService:
             if result is not None:
                 # Prepare response payload (assume result is serializable or a dataclass)
                 if isinstance(result, bytes):
-                    resp_bytes = result  # assume already bytes (e.g., if handler did its own serialization)
-                elif hasattr(result, "__dict__") or isinstance(result, dict):
-                    # Convert dataclass or dict to JSON bytes
-                    try:
-                        resp_bytes = dataclass_to_json(result)
-                    except Exception as e:
-                        # Fallback: just JSON dump the object (it might not be a dataclass)
-                        RNS.log(f"Failed to serialize result dataclass: {e}")
-                        resp_bytes = zlib.compress(json.dumps(result).encode("utf-8"))
+                    resp_bytes = result
                 else:
-                    # If result is a simple value (str, number, etc.), wrap it in JSON
-                    resp_bytes = zlib.compress(json.dumps(result).encode("utf-8"))
+                    try:
+                        resp_bytes = dataclass_to_msgpack(result)
+                    except Exception as e:
+                        RNS.log(f"Failed to serialize result for {cmd}: {e}")
+                        return
                 # Determine response command name (could be something like "<command>_response" or a generic)
                 resp_title = f"{cmd}_response"
                 dest_identity = message.source  # the sender's identity (if available)
@@ -268,7 +257,7 @@ class LXMFService:
             content_bytes = payload_obj
         else:
             # Use dataclass utility to get compressed JSON bytes
-            content_bytes = dataclass_to_json(payload_obj)
+            content_bytes = dataclass_to_msgpack(payload_obj)
         # Use internal send helper
         self._send_lxmf(dest_identity, command, content_bytes, propagate=propagate)
 

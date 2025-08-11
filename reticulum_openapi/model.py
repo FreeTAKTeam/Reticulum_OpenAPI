@@ -3,9 +3,15 @@ from dataclasses import asdict
 from dataclasses import dataclass
 from dataclasses import fields
 from dataclasses import is_dataclass
-import json
-import zlib
-from typing import Type, TypeVar, get_origin, get_args, Union, Optional, List
+from typing import Type
+from typing import TypeVar
+from typing import get_origin
+from typing import get_args
+from typing import Union
+from typing import Optional
+from typing import List
+
+import msgpack
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -13,6 +19,8 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 from sqlalchemy.ext.asyncio import create_async_engine
 
 __all__ = [
+    "dataclass_to_msgpack",
+    "dataclass_from_msgpack",
     "dataclass_to_json",
     "dataclass_from_json",
     "BaseModel",
@@ -23,43 +31,38 @@ __all__ = [
 T = TypeVar("T")
 
 
-def dataclass_to_json(data_obj: T) -> bytes:
+def dataclass_to_msgpack(data_obj: T) -> bytes:
+    """Serialize a dataclass instance to MessagePack bytes.
+
+    Args:
+        data_obj (T): Dataclass instance or compatible mapping to serialize.
+
+    Returns:
+        bytes: MessagePack-encoded representation of ``data_obj``.
     """
-    Serialize a dataclass instance to a compressed JSON byte string.
-    """
-    # Convert dataclass to dict, then to JSON string
     if is_dataclass(data_obj):
         data_dict = asdict(data_obj)
     else:
-        # If it's already a dict (or primitive), use as is
         data_dict = data_obj
-    json_str = json.dumps(data_dict)
-    # Compress the JSON bytes to minimize payload size
+    return msgpack.packb(data_dict, use_bin_type=True)
 
 
-    json_bytes = json_str.encode("utf-8")
-    
-    # the logic to go to/from json
-
-    compressed = zlib.compress(json_bytes)
-    return compressed
+def dataclass_to_json(data_obj: T) -> bytes:
+    """Deprecated wrapper for :func:`dataclass_to_msgpack`."""
+    return dataclass_to_msgpack(data_obj)
 
 
-def dataclass_from_json(cls: Type[T], data: bytes) -> T:
+def dataclass_from_msgpack(cls: Type[T], data: bytes) -> T:
+    """Deserialize a dataclass instance from MessagePack bytes.
+
+    Args:
+        cls (Type[T]): Target dataclass type for reconstruction.
+        data (bytes): MessagePack-encoded payload.
+
+    Returns:
+        T: Instance of ``cls`` populated with decoded data.
     """
-    Deserialize a dataclass instance from a compressed JSON byte string.
-    """
-    try:
-        json_bytes = zlib.decompress(data)
-    except zlib.error:
-        # Data might not be compressed; use raw bytes if decompression fails
-
-        # Using exception handling as a fallback for an inconsistent and/or
-
-        # poorly defined interface is bad practice
-        json_bytes = data
-    json_str = json_bytes.decode("utf-8")
-    obj_dict = json.loads(json_str)
+    obj_dict = msgpack.unpackb(data, raw=False)
 
     def _construct(tp, value):
         origin = get_origin(tp)
@@ -84,6 +87,11 @@ def dataclass_from_json(cls: Type[T], data: bytes) -> T:
     return _construct(cls, obj_dict)
 
 
+def dataclass_from_json(cls: Type[T], data: bytes) -> T:
+    """Deprecated wrapper for :func:`dataclass_from_msgpack`."""
+    return dataclass_from_msgpack(cls, data)
+
+
 @dataclass
 class BaseModel:
     """
@@ -94,14 +102,34 @@ class BaseModel:
     # Subclasses should set this to their SQLAlchemy ORM model class
     __orm_model__ = None
 
+    def to_msgpack(self) -> bytes:
+        """Serialize this dataclass to MessagePack bytes.
+
+        Returns:
+            bytes: MessagePack-encoded representation of this instance.
+        """
+        return dataclass_to_msgpack(self)
+
     def to_json_bytes(self) -> bytes:
-        """Serialize this dataclass to compressed JSON bytes."""
-        return dataclass_to_json(self)
+        """Deprecated wrapper for :meth:`to_msgpack`."""
+        return self.to_msgpack()
+
+    @classmethod
+    def from_msgpack(cls: Type[T], data: bytes) -> T:
+        """Deserialize MessagePack bytes to a dataclass instance.
+
+        Args:
+            data (bytes): MessagePack-encoded payload.
+
+        Returns:
+            T: Instance of ``cls`` built from ``data``.
+        """
+        return dataclass_from_msgpack(cls, data)
 
     @classmethod
     def from_json_bytes(cls: Type[T], data: bytes) -> T:
-        """Deserialize compressed JSON bytes to a dataclass instance."""
-        return dataclass_from_json(cls, data)
+        """Deprecated wrapper for :meth:`from_msgpack`."""
+        return cls.from_msgpack(data)
 
     def to_orm(self):
         """Create an ORM instance from this dataclass."""

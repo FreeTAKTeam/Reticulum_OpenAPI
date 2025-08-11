@@ -8,8 +8,8 @@ from sqlalchemy import String
 from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy.ext.asyncio import async_sessionmaker
 from sqlalchemy.ext.asyncio import AsyncSession
-from reticulum_openapi.model import dataclass_to_json
-from reticulum_openapi.model import dataclass_from_json
+from reticulum_openapi.model import dataclass_to_msgpack
+from reticulum_openapi.model import dataclass_from_msgpack
 from reticulum_openapi.model import BaseModel
 
 
@@ -26,15 +26,15 @@ class ItemList:
 
 def test_serialization_roundtrip():
     item = Item(name="foo", value=42)
-    data = dataclass_to_json(item)
-    obj = dataclass_from_json(Item, data)
+    data = dataclass_to_msgpack(item)
+    obj = dataclass_from_msgpack(Item, data)
     assert obj == item
 
 
 def test_list_of_items_roundtrip():
     obj = ItemList(items=[Item(name="a", value=1), Item(name="b", value=2)])
-    data = dataclass_to_json(obj)
-    reconstructed = dataclass_from_json(ItemList, data)
+    data = dataclass_to_msgpack(obj)
+    reconstructed = dataclass_from_msgpack(ItemList, data)
     assert reconstructed == obj
 
 
@@ -63,16 +63,16 @@ class TransportRecord:
 
 
 def test_union_deserialization_root():
-    data = dataclass_to_json(Car(manufacturer="Acme", doors=2))
-    obj = dataclass_from_json(Vehicle, data)
+    data = dataclass_to_msgpack(Car(manufacturer="Acme", doors=2))
+    obj = dataclass_from_msgpack(Vehicle, data)
     assert isinstance(obj, Car)
     assert obj.doors == 2
 
 
 def test_union_deserialization_nested():
     record = TransportRecord(owner="bob", vehicle=Bike(handlebar="drop"))
-    data = dataclass_to_json(record)
-    obj = dataclass_from_json(TransportRecord, data)
+    data = dataclass_to_msgpack(record)
+    obj = dataclass_from_msgpack(TransportRecord, data)
     assert isinstance(obj.vehicle, Bike)
 
 
