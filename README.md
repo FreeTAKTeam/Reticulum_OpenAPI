@@ -10,6 +10,12 @@ The project now also exposes primitives for maintaining persistent links via
 
 See [docs/protocol_design.md](docs/protocol_design.md) for the protocol overview and [docs/Framework_design.md](docs/Framework_design.md) for architectural details.
 
+## Resource transfers
+
+The package also includes helpers for sending and receiving larger files over Reticulum links. Use
+`LinkClient.send_resource()` to upload a file with progress reporting and
+`LinkService.resource_received_callback()` to store incoming resources in a chosen directory.
+
 ## Quick start
 
 Install dependencies (requires Python 3.8+):
