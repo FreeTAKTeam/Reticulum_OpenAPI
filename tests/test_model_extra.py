@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from typing import Union
+
 import pytest
 import msgpack
 from sqlalchemy import Column
@@ -13,7 +14,6 @@ from reticulum_openapi.model import async_sessionmaker
 from reticulum_openapi.model import create_async_engine
 from reticulum_openapi.model import dataclass_from_msgpack
 from reticulum_openapi.model import dataclass_to_msgpack
-
 
 Base = declarative_base()
 
@@ -54,7 +54,6 @@ class Bike:
 
 
 Vehicle = Union[Car, Bike]
-
 
 
 def test_dataclass_from_msgpack():

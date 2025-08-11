@@ -3,17 +3,15 @@ from dataclasses import asdict
 from dataclasses import dataclass
 from dataclasses import fields
 from dataclasses import is_dataclass
+from typing import List
+from typing import Optional
 from typing import Type
 from typing import TypeVar
-from typing import get_origin
-from typing import get_args
 from typing import Union
-from typing import Optional
-from typing import List
+from typing import get_args
+from typing import get_origin
 
 import msgpack
-
-
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.ext.asyncio import async_sessionmaker
@@ -30,7 +28,6 @@ __all__ = [
 ]
 
 T = TypeVar("T")
-
 
 
 def dataclass_to_msgpack(data_obj: T) -> bytes:
@@ -55,8 +52,6 @@ def dataclass_to_json(data_obj: T) -> bytes:
     return dataclass_to_msgpack(data_obj)
 
 
-    return msgpack.packb(data_dict, use_bin_type=True)
-
 def dataclass_from_msgpack(cls: Type[T], data: bytes) -> T:
     """Deserialize a dataclass instance from MessagePack bytes.
 
@@ -67,10 +62,6 @@ def dataclass_from_msgpack(cls: Type[T], data: bytes) -> T:
     Returns:
         T: Instance of ``cls`` populated with decoded data.
     """
-
-def dataclass_from_json(cls: Type[T], data: bytes) -> T:
-    """Deserialize a dataclass instance from MessagePack bytes."""
-
 
     obj_dict = msgpack.unpackb(data, raw=False)
 
@@ -121,7 +112,6 @@ class BaseModel:
         return dataclass_to_msgpack(self)
 
     def to_json_bytes(self) -> bytes:
-
         """Deprecated wrapper for :meth:`to_msgpack`."""
         return self.to_msgpack()
 
@@ -141,15 +131,6 @@ class BaseModel:
     def from_json_bytes(cls: Type[T], data: bytes) -> T:
         """Deprecated wrapper for :meth:`from_msgpack`."""
         return cls.from_msgpack(data)
-
-        """Serialize this dataclass to MessagePack bytes."""
-        return dataclass_to_json(self)
-
-    @classmethod
-    def from_json_bytes(cls: Type[T], data: bytes) -> T:
-        """Deserialize MessagePack bytes to a dataclass instance."""
-        return dataclass_from_json(cls, data)
-
 
     def to_orm(self):
         """Create an ORM instance from this dataclass."""

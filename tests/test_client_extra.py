@@ -1,8 +1,6 @@
 import asyncio
 from types import SimpleNamespace
 
-
-
 import msgpack
 import pytest
 
@@ -140,7 +138,9 @@ async def test_send_command_dict_payload(monkeypatch):
         captured["obj"] = obj
         return original(obj)
 
-    monkeypatch.setattr(client_module, "dataclass_to_msgpack", fake_dataclass_to_msgpack)
+    monkeypatch.setattr(
+        client_module, "dataclass_to_msgpack", fake_dataclass_to_msgpack
+    )
 
     await cli.send_command("aa", "CMD", {"x": 1}, await_response=False)
 
