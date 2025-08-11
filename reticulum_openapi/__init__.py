@@ -4,8 +4,8 @@ from .controller import APIException
 from .controller import Controller
 from .controller import handle_exceptions
 from .model import BaseModel
-from .model import dataclass_from_json
-from .model import dataclass_to_json
+from .model import dataclass_from_msgpack
+from .model import dataclass_to_msgpack
 from .link_client import LinkClient
 from .link_service import LinkService
 from .service import LXMFService
@@ -16,8 +16,8 @@ __all__ = [
     "APIException",
     "handle_exceptions",
     "BaseModel",
-    "dataclass_from_json",
-    "dataclass_to_json",
+    "dataclass_from_msgpack",
+    "dataclass_to_msgpack",
     "LinkClient",
     "LinkService",
     "LXMFService",

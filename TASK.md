@@ -13,5 +13,8 @@
 - [x] Extend MessagePack codec tests for misordered maps, boundary vectors, digests, and negative NaN/ext cases.
 
 - [x] Update codec Msgpack test to import from reticulum_openapi.
+- [x] Use MessagePack for dataclass serialization and drop zlib compression.
+- [x] Rename serialization helpers to dataclass_to_msgpack/from_msgpack for clarity.
+- [x] Resolve merge artifacts in service tests.
 
 

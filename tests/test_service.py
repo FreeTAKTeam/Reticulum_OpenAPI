@@ -6,8 +6,8 @@ from unittest.mock import Mock
 import msgpack
 import pytest
 
+from reticulum_openapi.model import dataclass_to_msgpack
 from reticulum_openapi.service import LXMFService
-from reticulum_openapi.model import dataclass_to_json
 
 
 @dataclass
@@ -33,7 +33,7 @@ async def test_lxmf_callback_decodes_dataclass_and_dispatches():
     service._routes = {"CMD": (handler, Sample, None)}
 
     message = SimpleNamespace(
-        title="CMD", content=dataclass_to_json(Sample(text="hello")), source=None
+        title="CMD", content=dataclass_to_msgpack(Sample(text="hello")), source=None
     )
 
     service._lxmf_delivery_callback(message)
@@ -69,7 +69,9 @@ async def test_lxmf_callback_schema_validation():
 
     valid_msg = SimpleNamespace(
         title="SCHEMA",
-        content=dataclass_to_json({"num": 5}),
+
+        content=dataclass_to_msgpack({"num": 5}),
+
         source=None,
     )
     service._lxmf_delivery_callback(valid_msg)
@@ -79,7 +81,9 @@ async def test_lxmf_callback_schema_validation():
     called = False
     invalid_msg = SimpleNamespace(
         title="SCHEMA",
-        content=dataclass_to_json({"num": "bad"}),
+
+        content=dataclass_to_msgpack({"num": "bad"}),
+
         source=None,
     )
     service._lxmf_delivery_callback(invalid_msg)

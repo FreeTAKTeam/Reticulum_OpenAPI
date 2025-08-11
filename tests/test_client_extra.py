@@ -1,5 +1,8 @@
 import asyncio
 from types import SimpleNamespace
+
+
+
 import msgpack
 import pytest
 
@@ -131,13 +134,13 @@ async def test_send_command_dict_payload(monkeypatch):
 
     monkeypatch.setattr(client_module.LXMF, "LXMessage", FakeLXMessage)
 
-    original = client_module.dataclass_to_json
+    original = client_module.dataclass_to_msgpack
 
-    def fake_dataclass_to_json(obj):
+    def fake_dataclass_to_msgpack(obj):
         captured["obj"] = obj
         return original(obj)
 
-    monkeypatch.setattr(client_module, "dataclass_to_json", fake_dataclass_to_json)
+    monkeypatch.setattr(client_module, "dataclass_to_msgpack", fake_dataclass_to_msgpack)
 
     await cli.send_command("aa", "CMD", {"x": 1}, await_response=False)
 

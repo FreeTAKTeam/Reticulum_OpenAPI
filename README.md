@@ -4,7 +4,9 @@ Reticulum OpenAPI is an experimental framework for building lightweight APIs on 
 
 This repository contains the Python implementation of the framework as well as documentation, a full featured example and generator templates. The goal is to provide an easy way to build applications that communicate over Reticulum using structured messages.
 
-All payloads are encoded using MessagePack for compact transfer.
+
+Models and payloads are serialized with MessagePack to minimize bandwidth overhead.
+
 
 The project now also exposes primitives for maintaining persistent links via
 ``LinkClient`` and ``LinkService`` which allow direct communication over an

@@ -3,8 +3,16 @@ from dataclasses import asdict
 from dataclasses import dataclass
 from dataclasses import fields
 from dataclasses import is_dataclass
+from typing import Type
+from typing import TypeVar
+from typing import get_origin
+from typing import get_args
+from typing import Union
+from typing import Optional
+from typing import List
+
 import msgpack
-from typing import List, Optional, Type, TypeVar, Union, get_args, get_origin
+
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -12,6 +20,8 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 from sqlalchemy.ext.asyncio import create_async_engine
 
 __all__ = [
+    "dataclass_to_msgpack",
+    "dataclass_from_msgpack",
     "dataclass_to_json",
     "dataclass_from_json",
     "BaseModel",
@@ -22,19 +32,45 @@ __all__ = [
 T = TypeVar("T")
 
 
-def dataclass_to_json(data_obj: T) -> bytes:
-    """Serialize a dataclass instance to MessagePack bytes."""
+
+def dataclass_to_msgpack(data_obj: T) -> bytes:
+    """Serialize a dataclass instance to MessagePack bytes.
+
+    Args:
+        data_obj (T): Dataclass instance or compatible mapping to serialize.
+
+    Returns:
+        bytes: MessagePack-encoded representation of ``data_obj``.
+    """
 
     if is_dataclass(data_obj):
         data_dict = asdict(data_obj)
     else:
         data_dict = data_obj
-
     return msgpack.packb(data_dict, use_bin_type=True)
 
 
+def dataclass_to_json(data_obj: T) -> bytes:
+    """Deprecated wrapper for :func:`dataclass_to_msgpack`."""
+    return dataclass_to_msgpack(data_obj)
+
+
+    return msgpack.packb(data_dict, use_bin_type=True)
+
+def dataclass_from_msgpack(cls: Type[T], data: bytes) -> T:
+    """Deserialize a dataclass instance from MessagePack bytes.
+
+    Args:
+        cls (Type[T]): Target dataclass type for reconstruction.
+        data (bytes): MessagePack-encoded payload.
+
+    Returns:
+        T: Instance of ``cls`` populated with decoded data.
+    """
+
 def dataclass_from_json(cls: Type[T], data: bytes) -> T:
     """Deserialize a dataclass instance from MessagePack bytes."""
+
 
     obj_dict = msgpack.unpackb(data, raw=False)
 
@@ -61,6 +97,11 @@ def dataclass_from_json(cls: Type[T], data: bytes) -> T:
     return _construct(cls, obj_dict)
 
 
+def dataclass_from_json(cls: Type[T], data: bytes) -> T:
+    """Deprecated wrapper for :func:`dataclass_from_msgpack`."""
+    return dataclass_from_msgpack(cls, data)
+
+
 @dataclass
 class BaseModel:
     """
@@ -71,7 +112,36 @@ class BaseModel:
     # Subclasses should set this to their SQLAlchemy ORM model class
     __orm_model__ = None
 
+    def to_msgpack(self) -> bytes:
+        """Serialize this dataclass to MessagePack bytes.
+
+        Returns:
+            bytes: MessagePack-encoded representation of this instance.
+        """
+        return dataclass_to_msgpack(self)
+
     def to_json_bytes(self) -> bytes:
+
+        """Deprecated wrapper for :meth:`to_msgpack`."""
+        return self.to_msgpack()
+
+    @classmethod
+    def from_msgpack(cls: Type[T], data: bytes) -> T:
+        """Deserialize MessagePack bytes to a dataclass instance.
+
+        Args:
+            data (bytes): MessagePack-encoded payload.
+
+        Returns:
+            T: Instance of ``cls`` built from ``data``.
+        """
+        return dataclass_from_msgpack(cls, data)
+
+    @classmethod
+    def from_json_bytes(cls: Type[T], data: bytes) -> T:
+        """Deprecated wrapper for :meth:`from_msgpack`."""
+        return cls.from_msgpack(data)
+
         """Serialize this dataclass to MessagePack bytes."""
         return dataclass_to_json(self)
 
@@ -79,6 +149,7 @@ class BaseModel:
     def from_json_bytes(cls: Type[T], data: bytes) -> T:
         """Deserialize MessagePack bytes to a dataclass instance."""
         return dataclass_from_json(cls, data)
+
 
     def to_orm(self):
         """Create an ORM instance from this dataclass."""

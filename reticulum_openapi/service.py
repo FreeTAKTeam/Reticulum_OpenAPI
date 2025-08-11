@@ -9,8 +9,8 @@ from typing import Optional
 from typing import Type
 from jsonschema import validate
 from jsonschema import ValidationError
-from .model import dataclass_from_json
-from .model import dataclass_to_json
+from .model import dataclass_from_msgpack
+from .model import dataclass_to_msgpack
 
 
 class LXMFService:
@@ -125,7 +125,10 @@ class LXMFService:
                 return
             if payload_type:
                 try:
-                    payload_obj = dataclass_from_json(payload_type, payload_bytes)
+
+                    # Parse bytes into the expected dataclass
+                    payload_obj = dataclass_from_msgpack(payload_type, payload_bytes)
+
                 except Exception as e:
                     RNS.log(f"Failed to parse payload for {cmd}: {e}")
                     return
@@ -165,14 +168,14 @@ class LXMFService:
             if result is not None:
                 if isinstance(result, bytes):
                     resp_bytes = result
-                elif hasattr(result, "__dict__") or isinstance(result, dict):
-                    try:
-                        resp_bytes = dataclass_to_json(result)
-                    except Exception as e:
-                        RNS.log(f"Failed to serialize result dataclass: {e}")
-                        resp_bytes = msgpack.packb(result, use_bin_type=True)
                 else:
-                    resp_bytes = msgpack.packb(result, use_bin_type=True)
+
+                    try:
+                        resp_bytes = dataclass_to_msgpack(result)
+                    except Exception as e:
+                        RNS.log(f"Failed to serialize result for {cmd}: {e}")
+                        return
+                # Determine response command name (could be something like "<command>_response" or a generic)
                 resp_title = f"{cmd}_response"
                 dest_identity = message.source
                 if dest_identity:
@@ -254,8 +257,10 @@ class LXMFService:
         elif isinstance(payload_obj, bytes):
             content_bytes = payload_obj
         else:
-            # Use dataclass utility to get MessagePack bytes
-            content_bytes = dataclass_to_json(payload_obj)
+
+            # Use dataclass utility to get compressed JSON bytes
+            content_bytes = dataclass_to_msgpack(payload_obj)
+
         # Use internal send helper
         self._send_lxmf(dest_identity, command, content_bytes, propagate=propagate)
 
