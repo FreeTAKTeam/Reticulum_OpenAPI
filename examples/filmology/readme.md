@@ -1,11 +1,20 @@
 # Filmology Example
 
-This directory contains the OpenAPI specification for **Filmology**, a sample
-movie catalog service built for the Reticulum mesh network. The specification
-demonstrates how to describe CRUD operations for a `Movie` resource before
-generating a working service with Reticulum OpenAPI templates.
+This example provides a minimal movie catalog built with **Reticulum OpenAPI**.
+It demonstrates dataclass models, controllers, and an `LXMFService` that
+enforces optional features like authentication tokens and JSON schema
+validation.
 
-The API contract lives in [`API/FilmologyManagement-OAS.yaml`](API/FilmologyManagement-OAS.yaml).
+The API contract resides in
+[`API/FilmologyManagement-OAS.yaml`](API/FilmologyManagement-OAS.yaml).
+
+## Components
+
+| Folder | Description |
+|-------|-------------|
+| `Server/` | Service implementation with dataclasses, controllers and SQLite persistence. |
+| `client/` | Simple `LXMFClient` usage that creates and retrieves a movie. |
+| `API/` | OpenAPI specification. |
 
 ## Running the example
 
@@ -20,6 +29,18 @@ The API contract lives in [`API/FilmologyManagement-OAS.yaml`](API/FilmologyMana
 ```bash
 pip install openapi-generator-cli
 ```
+
+
+2. Start the server in one terminal:
+
+```bash
+python Server/server_filmology.py
+```
+
+   The service prints its identity hash on startup and expects the auth token
+   `secret` for incoming requests.
+
+3. In another terminal, run the client and supply the hash when prompted:
 
 Or run with Docker:
 
@@ -49,10 +70,11 @@ python server.py
 
 6. In another terminal, run the generated client:
 
+
 ```bash
-python client.py
+python client/client_filmology.py
 ```
 
-The client sends requests to the server over LXMF messages, showing how movie
-records can be created and retrieved across the Reticulum network.
-
+The client sends a `CreateMovie` request followed by `RetrieveMovie`, showing
+both persistence and server-side schema validation. The authentication token is
+included in the request payload and must match the server's token.

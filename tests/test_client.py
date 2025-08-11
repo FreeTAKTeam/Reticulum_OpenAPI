@@ -1,6 +1,7 @@
 import asyncio
 from dataclasses import dataclass
 from types import SimpleNamespace
+import msgpack
 import pytest
 
 from reticulum_openapi import client as client_module
@@ -137,10 +138,7 @@ async def test_send_command_includes_token(monkeypatch):
 
     await cli.send_command("aa", "CMD", Sample(text="hello"), await_response=False)
 
-    import json
-    import zlib
-
-    payload = json.loads(zlib.decompress(captured["content"]).decode())
+    payload = msgpack.unpackb(captured["content"], raw=False)
     assert payload.get("auth_token") == "secret"
     assert payload.get("text") == "hello"
     assert call_counter["count"] == 1

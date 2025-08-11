@@ -1,4 +1,3 @@
-import json
 from dataclasses import dataclass
 from typing import Union
 
@@ -57,8 +56,8 @@ class Bike:
 Vehicle = Union[Car, Bike]
 
 
-def test_dataclass_from_json_uncompressed():
-    data = json.dumps({"name": "foo", "value": 1}).encode()
+def test_dataclass_from_json_roundtrip():
+    data = dataclass_to_json({"name": "foo", "value": 1})
     obj = dataclass_from_json(Simple, data)
     assert obj == Simple(name="foo", value=1)
 
@@ -101,7 +100,9 @@ async def test_methods_without_orm_raise():
 @pytest.mark.asyncio
 async def test_crud_edge_cases():
     engine = create_async_engine("sqlite+aiosqlite:///:memory:")
-    session_maker = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
+    session_maker = async_sessionmaker(
+        engine, expire_on_commit=False, class_=AsyncSession
+    )
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     async with session_maker() as session:
