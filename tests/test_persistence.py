@@ -25,16 +25,20 @@ class Item(BaseModel):
 @pytest.mark.asyncio
 async def test_crud_roundtrip():
     engine = create_async_engine("sqlite+aiosqlite:///:memory:")
-    async_session = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
+    async_session = async_sessionmaker(
+        engine, expire_on_commit=False, class_=AsyncSession
+    )
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     async with async_session() as session:
         await Item.create(session, id=1, name="foo")
         item = await Item.get(session, 1)
         assert item.name == "foo"
-        await Item.update(session, 1, name="bar")
-        updated = await Item.get(session, 1)
+        updated = await Item.update(session, 1, name="bar")
+        assert isinstance(updated, Item)
         assert updated.name == "bar"
+        retrieved = await Item.get(session, 1)
+        assert retrieved.name == "bar"
         items = await Item.list(session)
         assert len(items) == 1
         assert items[0].name == "bar"

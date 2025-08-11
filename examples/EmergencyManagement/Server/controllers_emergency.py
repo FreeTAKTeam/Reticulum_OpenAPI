@@ -1,10 +1,10 @@
 from dataclasses import asdict
-from reticulum_openapi.controller import Controller, handle_exceptions
+from typing import Optional
+from reticulum_openapi.controller import Controller
+from reticulum_openapi.controller import handle_exceptions
 from examples.EmergencyManagement.Server.database import async_session
-from examples.EmergencyManagement.Server.models_emergency import (
-    EmergencyActionMessage,
-    Event,
-)
+from examples.EmergencyManagement.Server.models_emergency import EmergencyActionMessage
+from examples.EmergencyManagement.Server.models_emergency import Event
 
 
 class EmergencyController(Controller):
@@ -30,10 +30,22 @@ class EmergencyController(Controller):
         return items
 
     @handle_exceptions
-    async def PutEmergencyActionMessage(self, req: EmergencyActionMessage):
+    async def PutEmergencyActionMessage(
+        self, req: EmergencyActionMessage
+    ) -> Optional[EmergencyActionMessage]:
+        """Update an existing emergency action message.
+
+        Args:
+            req (EmergencyActionMessage): New values for the message.
+
+        Returns:
+            Optional[EmergencyActionMessage]: Updated dataclass instance or ``None`` if not found.
+        """
         self.logger.info(f"PutEAM: {req}")
         async with async_session() as session:
-            updated = await EmergencyActionMessage.update(session, req.callsign, **asdict(req))
+            updated = await EmergencyActionMessage.update(
+                session, req.callsign, **asdict(req)
+            )
         return updated
 
     @handle_exceptions
@@ -67,7 +79,15 @@ class EventController(Controller):
         return events
 
     @handle_exceptions
-    async def PutEvent(self, req: Event):
+    async def PutEvent(self, req: Event) -> Optional[Event]:
+        """Update an event record.
+
+        Args:
+            req (Event): New values for the event.
+
+        Returns:
+            Optional[Event]: Updated dataclass instance or ``None`` if not found.
+        """
         self.logger.info(f"PutEvent: {req}")
         async with async_session() as session:
             updated = await Event.update(session, req.uid, **asdict(req))

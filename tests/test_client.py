@@ -1,6 +1,7 @@
 import asyncio
 from dataclasses import dataclass
 from types import SimpleNamespace
+import msgpack
 import pytest
 
 from reticulum_openapi import client as client_module
@@ -24,7 +25,9 @@ async def test_send_command_receives_response(monkeypatch):
 
     monkeypatch.setattr(client_module.RNS.Transport, "has_path", lambda dest: True)
     monkeypatch.setattr(client_module.RNS.Transport, "request_path", lambda dest: None)
-    monkeypatch.setattr(client_module.RNS.Identity, "recall", lambda h, create=False: object())
+    monkeypatch.setattr(
+        client_module.RNS.Identity, "recall", lambda h, create=False: object()
+    )
 
     class FakeDestination:
         OUT = object()
@@ -32,6 +35,7 @@ async def test_send_command_receives_response(monkeypatch):
 
         def __init__(self, *a, **k):
             pass
+
     monkeypatch.setattr(client_module.RNS, "Destination", FakeDestination)
 
     class FakeLXMessage:
@@ -41,6 +45,7 @@ async def test_send_command_receives_response(monkeypatch):
             self.src = src
             self.content = content
             self.title = title
+
     monkeypatch.setattr(client_module.LXMF, "LXMessage", FakeLXMessage)
 
     async def run_cmd():
@@ -65,7 +70,9 @@ async def test_send_command_timeout(monkeypatch):
     cli.timeout = 0.01
 
     monkeypatch.setattr(client_module.RNS.Transport, "has_path", lambda dest: True)
-    monkeypatch.setattr(client_module.RNS.Identity, "recall", lambda h, create=False: object())
+    monkeypatch.setattr(
+        client_module.RNS.Identity, "recall", lambda h, create=False: object()
+    )
 
     class FakeDestination:
         OUT = object()
@@ -73,6 +80,7 @@ async def test_send_command_timeout(monkeypatch):
 
         def __init__(self, *a, **k):
             pass
+
     monkeypatch.setattr(client_module.RNS, "Destination", FakeDestination)
     monkeypatch.setattr(client_module.LXMF, "LXMessage", lambda *a, **k: None)
 
@@ -92,7 +100,9 @@ async def test_send_command_includes_token(monkeypatch):
     cli.timeout = 0.2
 
     monkeypatch.setattr(client_module.RNS.Transport, "has_path", lambda dest: True)
-    monkeypatch.setattr(client_module.RNS.Identity, "recall", lambda h, create=False: object())
+    monkeypatch.setattr(
+        client_module.RNS.Identity, "recall", lambda h, create=False: object()
+    )
 
     class FakeDestination:
         OUT = object()
@@ -115,10 +125,21 @@ async def test_send_command_includes_token(monkeypatch):
 
     monkeypatch.setattr(client_module.LXMF, "LXMessage", FakeLXMessage)
 
+    call_counter = {"count": 0}
+
+    original_dc_to_json = client_module.dataclass_to_json
+
+    def fake_dataclass_to_json(obj):
+        call_counter["count"] += 1
+        captured["pre"] = obj
+        return original_dc_to_json(obj)
+
+    monkeypatch.setattr(client_module, "dataclass_to_json", fake_dataclass_to_json)
+
     await cli.send_command("aa", "CMD", Sample(text="hello"), await_response=False)
 
-    import json
-    import zlib
-    payload = json.loads(zlib.decompress(captured["content"]).decode())
+    payload = msgpack.unpackb(captured["content"], raw=False)
     assert payload.get("auth_token") == "secret"
     assert payload.get("text") == "hello"
+    assert call_counter["count"] == 1
+    assert captured["pre"]["auth_token"] == "secret"

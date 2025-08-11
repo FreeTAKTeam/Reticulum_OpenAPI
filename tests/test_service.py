@@ -1,10 +1,9 @@
 import asyncio
-import json
-import zlib
 from dataclasses import dataclass
 from types import SimpleNamespace
 from unittest.mock import Mock
 
+import msgpack
 import pytest
 
 from reticulum_openapi.service import LXMFService
@@ -33,7 +32,9 @@ async def test_lxmf_callback_decodes_dataclass_and_dispatches():
 
     service._routes = {"CMD": (handler, Sample, None)}
 
-    message = SimpleNamespace(title="CMD", content=dataclass_to_json(Sample(text="hello")), source=None)
+    message = SimpleNamespace(
+        title="CMD", content=dataclass_to_json(Sample(text="hello")), source=None
+    )
 
     service._lxmf_delivery_callback(message)
     await asyncio.sleep(0.01)
@@ -68,7 +69,7 @@ async def test_lxmf_callback_schema_validation():
 
     valid_msg = SimpleNamespace(
         title="SCHEMA",
-        content=zlib.compress(json.dumps({"num": 5}).encode()),
+        content=dataclass_to_json({"num": 5}),
         source=None,
     )
     service._lxmf_delivery_callback(valid_msg)
@@ -78,7 +79,7 @@ async def test_lxmf_callback_schema_validation():
     called = False
     invalid_msg = SimpleNamespace(
         title="SCHEMA",
-        content=zlib.compress(json.dumps({"num": "bad"}).encode()),
+        content=dataclass_to_json({"num": "bad"}),
         source=None,
     )
     service._lxmf_delivery_callback(invalid_msg)
@@ -113,7 +114,7 @@ async def test_lxmf_callback_dispatches_response():
     dest, title, payload_bytes = send_mock.call_args.args[:3]
     assert dest is src
     assert title == "PING_response"
-    assert json.loads(zlib.decompress(payload_bytes).decode()) == {"status": "ok"}
+    assert msgpack.unpackb(payload_bytes, raw=False) == {"status": "ok"}
 
 
 def test_get_api_specification_returns_registered_routes():
@@ -122,7 +123,7 @@ def test_get_api_specification_returns_registered_routes():
         "GetSchema": (lambda: None, None, None),
         "Test": (lambda: None, Sample, {"type": "object"}),
     }
-    spec = service.getApiSpecification()
+    spec = service.get_api_specification()
     assert "commands" in spec
     assert "Test" in spec["commands"]
     assert spec["commands"]["Test"]["payload_dataclass"] == "Sample"

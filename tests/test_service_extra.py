@@ -1,10 +1,12 @@
 import asyncio
 from types import SimpleNamespace
 from unittest.mock import Mock
+
 import pytest
 
-from reticulum_openapi import service as service_module
 from dataclasses import dataclass
+from reticulum_openapi import service as service_module
+from reticulum_openapi.model import dataclass_to_json
 
 
 @dataclass
@@ -91,6 +93,7 @@ async def test_send_lxmf_uses_router(monkeypatch):
             self.src = src
             self.content = content
             self.title = title
+
     monkeypatch.setattr(service_module.RNS, "Destination", FakeDestination)
     monkeypatch.setattr(service_module.LXMF, "LXMessage", FakeLXMessage)
     svc._send_lxmf(object(), "CMD", b"data")
@@ -138,7 +141,7 @@ async def test_context_manager(monkeypatch):
 @pytest.mark.asyncio
 async def test_init_and_add_route(monkeypatch):
     class FakeReticulum:
-        storagepath = '/tmp'
+        storagepath = "/tmp"
 
         def __init__(self, config_path=None):
             pass
@@ -147,7 +150,7 @@ async def test_init_and_add_route(monkeypatch):
 
         def __init__(self):
 
-            self.hash = b'h'
+            self.hash = b"h"
 
     class FakeRNS:
         Reticulum = FakeReticulum
@@ -159,7 +162,7 @@ async def test_init_and_add_route(monkeypatch):
 
         @staticmethod
         def prettyhexrep(x):
-            return 'h'
+            return "h"
 
     class FakeLXMRouter:
 
@@ -175,9 +178,89 @@ async def test_init_and_add_route(monkeypatch):
     class FakeLXMF:
         LXMRouter = FakeLXMRouter
         LXMessage = object
-    monkeypatch.setattr(service_module, 'RNS', FakeRNS)
-    monkeypatch.setattr(service_module, 'LXMF', FakeLXMF)
+
+    monkeypatch.setattr(service_module, "RNS", FakeRNS)
+    monkeypatch.setattr(service_module, "LXMF", FakeLXMF)
     svc = service_module.LXMFService()
     assert isinstance(svc.router, FakeLXMRouter)
-    svc.add_route('PING', lambda: None)
-    assert 'PING' in svc._routes
+    svc.add_route("PING", lambda: None)
+    assert "PING" in svc._routes
+
+
+@pytest.mark.asyncio
+async def test_handle_get_schema_method():
+    svc = service_module.LXMFService.__new__(service_module.LXMFService)
+    svc._routes = {}
+    spec = await service_module.LXMFService._handle_get_schema(svc)
+    assert "openapi" in spec
+
+
+def test_lxmf_delivery_callback_no_route(monkeypatch):
+    svc = service_module.LXMFService.__new__(service_module.LXMFService)
+    svc._routes = {}
+    svc.max_payload_size = 10
+    svc._loop = asyncio.get_event_loop()
+    logs = []
+    monkeypatch.setattr(service_module.RNS, "log", lambda msg: logs.append(msg))
+    message = SimpleNamespace(title="UNKNOWN", content=b"{}")
+    svc._lxmf_delivery_callback(message)
+    assert any("No route" in m for m in logs)
+
+
+def test_lxmf_delivery_invalid_msgpack(monkeypatch):
+    async def handler(payload):
+        return None
+
+    svc = service_module.LXMFService.__new__(service_module.LXMFService)
+    svc._routes = {"CMD": (handler, None, None)}
+    svc.max_payload_size = 100
+    svc._loop = asyncio.get_event_loop()
+    svc.auth_token = None
+    logs = []
+    monkeypatch.setattr(service_module.RNS, "log", lambda msg: logs.append(msg))
+    bad = b"not-msgpack"
+    message = SimpleNamespace(title="CMD", content=bad)
+    svc._lxmf_delivery_callback(message)
+    assert any("Invalid MessagePack" in m for m in logs)
+
+
+@pytest.mark.asyncio
+async def test_lxmf_delivery_auth_failure(monkeypatch):
+    async def handler(payload):
+        return {"ok": True}
+
+    svc = service_module.LXMFService.__new__(service_module.LXMFService)
+    svc._routes = {"CMD": (handler, None, None)}
+    svc.max_payload_size = 100
+    svc._loop = asyncio.get_running_loop()
+    svc.auth_token = "secret"
+    called = {"flag": False}
+    monkeypatch.setattr(
+        svc._loop, "call_soon_threadsafe", lambda fn: called.update(flag=True)
+    )
+    payload = dataclass_to_json({"auth_token": "wrong"})
+    message = SimpleNamespace(title="CMD", content=payload)
+    svc._lxmf_delivery_callback(message)
+    assert called["flag"] is False
+
+
+@pytest.mark.asyncio
+async def test_lxmf_delivery_handler_exception(monkeypatch):
+    async def handler(payload):
+        raise RuntimeError("boom")
+
+    svc = service_module.LXMFService.__new__(service_module.LXMFService)
+    svc._routes = {"CMD": (handler, None, None)}
+    svc.max_payload_size = 100
+    svc._loop = asyncio.get_running_loop()
+    svc.auth_token = None
+    monkeypatch.setattr(service_module.RNS, "log", lambda *a, **k: None)
+    message = SimpleNamespace(
+        title="CMD",
+        content=dataclass_to_json({}),
+        source=None,
+    )
+    svc._send_lxmf = Mock()
+    svc._lxmf_delivery_callback(message)
+    await asyncio.sleep(0)
+    svc._send_lxmf.assert_not_called()
