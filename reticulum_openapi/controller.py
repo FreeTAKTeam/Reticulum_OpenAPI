@@ -1,5 +1,6 @@
 import logging
 from typing import Callable, Any, Coroutine, TypeVar
+from functools import wraps
 
 # Setup module logger
 logger = logging.getLogger("reticulum_openapi.controller")
@@ -7,7 +8,8 @@ logger.setLevel(logging.INFO)
 handler = logging.StreamHandler()
 formatter = logging.Formatter("[%(asctime)s] %(levelname)s %(name)s: %(message)s")
 handler.setFormatter(formatter)
-logger.addHandler(handler)
+if not logger.handlers:
+    logger.addHandler(handler)
 
 
 class APIException(Exception):
@@ -23,6 +25,8 @@ F = TypeVar('F', bound=Callable[..., Coroutine[Any, Any, Any]])
 
 def handle_exceptions(func: F) -> F:
     """Decorator to wrap controller methods with logging and exception handling."""
+
+    @wraps(func)
     async def wrapper(*args, **kwargs):
         logger.info(
             f"Executing {func.__name__} with args={args[1:]} kwargs={kwargs}"
