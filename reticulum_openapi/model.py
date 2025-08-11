@@ -4,11 +4,7 @@ from dataclasses import dataclass
 from dataclasses import fields
 from dataclasses import is_dataclass
 import msgpack
-from typing import Type
-from typing import TypeVar
-from typing import Union
-from typing import get_args
-from typing import get_origin
+from typing import List, Optional, Type, TypeVar, Union, get_args, get_origin
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
