@@ -10,7 +10,7 @@ from typing import Optional
 
 import RNS
 
-from .model import dataclass_to_json
+from .model import dataclass_to_msgpack
 
 
 class LinkFileClient:
@@ -130,14 +130,14 @@ class LinkClient:
 
         Args:
             data (Any): Payload to transmit. If not ``bytes`` it will be
-                serialised using :func:`dataclass_to_json`.
+                serialised using :func:`dataclass_to_msgpack`.
         """
         if isinstance(data, bytes):
             payload = data
         else:
             if is_dataclass(data):
                 data = asdict(data)
-            payload = dataclass_to_json(data)
+            payload = dataclass_to_msgpack(data)
         self.link.send(payload)
 
     async def request(
@@ -148,7 +148,7 @@ class LinkClient:
         Args:
             path (str): Remote path string.
             data (Any, optional): Optional payload. Uses
-                :func:`dataclass_to_json` if not ``bytes``. Defaults to ``None``.
+                :func:`dataclass_to_msgpack` if not ``bytes``. Defaults to ``None``.
             timeout (float, optional): Request timeout in seconds. Defaults to
                 ``None`` letting Reticulum choose.
 
@@ -163,7 +163,7 @@ class LinkClient:
         else:
             if is_dataclass(data):
                 data = asdict(data)
-            payload = dataclass_to_json(data)
+            payload = dataclass_to_msgpack(data)
 
         fut: asyncio.Future[bytes] = self._loop.create_future()
 
