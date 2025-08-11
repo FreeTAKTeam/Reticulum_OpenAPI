@@ -6,6 +6,22 @@ This repository contains the Python implementation of the framework as well as d
 
 See [docs/protocol_design.md](docs/protocol_design.md) for the protocol overview and [docs/Framework_design.md](docs/Framework_design.md) for architectural details.
 
+## Communication Modes
+
+The framework can operate in two different modes depending on the type of
+interaction required:
+
+- **LXMF messages** – Asynchronous store‑and‑forward messaging. Each request
+  and response fits in a single LXMF envelope, making it ideal for low bandwidth
+  or intermittently connected links.
+- **Link sessions** – A real‑time `RNS.Link` between peers. Links provide lower
+  latency and support streaming data or large transfers at the cost of keeping a
+  connection alive.
+
+Use LXMF for command/response APIs and situations where delivery may be delayed.
+Choose Link mode when you need interactive exchanges or to move large resources
+efficiently.
+
 ## Quick start
 
 Install dependencies (requires Python 3.8+):
