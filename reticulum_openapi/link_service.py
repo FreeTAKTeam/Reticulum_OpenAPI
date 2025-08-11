@@ -1,4 +1,3 @@
-
 """Helpers for handling incoming resources on Reticulum links."""
 
 import os
@@ -6,15 +5,11 @@ import shutil
 from typing import Callable
 
 import asyncio
-from typing import Any
-from typing import Awaitable
-from typing import Callable
-from typing import Dict
-from typing import Optional
+from typing import Any, Awaitable, Dict, Optional
 import RNS
 
 
-class LinkService:
+class LinkResourceService:
     """Service utilities for receiving resources on a link."""
 
     def __init__(
@@ -61,7 +56,9 @@ class LinkService:
                 self.on_download_complete(dest_path)
         except Exception as exc:
             RNS.log(f"Failed to store resource: {exc}")
-            
+
+
+class LinkService:
     """Service accepting incoming ``RNS.Link`` connections."""
 
     def __init__(
@@ -139,5 +136,3 @@ class LinkService:
         for task in self._keepalive_tasks.values():
             task.cancel()
         self._keepalive_tasks.clear()
-
-        

@@ -61,6 +61,7 @@ class FakeIdentity:
 
 @pytest.mark.asyncio
 async def test_send_serializes_dict(monkeypatch):
+    """Bytes should be sent when serializing dictionary payloads."""
     monkeypatch.setattr(lc_module.RNS, "Reticulum", lambda *_: object())
     monkeypatch.setattr(lc_module.RNS, "Identity", FakeIdentity)
     monkeypatch.setattr(lc_module.RNS, "Destination", FakeDestination)
@@ -70,7 +71,7 @@ async def test_send_serializes_dict(monkeypatch):
     monkeypatch.setattr(
         lc_module,
         "dataclass_to_json",
-        lambda d: captured.setdefault("payload", d) or b"data",
+        lambda d: (captured.setdefault("payload", d), b"data")[1],
     )
 
     cli = lc_module.LinkClient("aa")
@@ -81,6 +82,7 @@ async def test_send_serializes_dict(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_request_returns_response(monkeypatch):
+    """LinkClient.request should deliver response bytes."""
     monkeypatch.setattr(lc_module.RNS, "Reticulum", lambda *_: object())
     monkeypatch.setattr(lc_module.RNS, "Identity", FakeIdentity)
     monkeypatch.setattr(lc_module.RNS, "Destination", FakeDestination)
@@ -88,6 +90,7 @@ async def test_request_returns_response(monkeypatch):
 
     cli = lc_module.LinkClient("aa")
     task = asyncio.create_task(cli.request("/path", {"a": 1}))
+    await asyncio.sleep(0)
     cli.link.respond(b"ok")
     resp = await task
     assert resp == b"ok"
@@ -95,6 +98,7 @@ async def test_request_returns_response(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_identify_calls_link(monkeypatch):
+    """Identify should delegate to the underlying link object."""
     monkeypatch.setattr(lc_module.RNS, "Reticulum", lambda *_: object())
     monkeypatch.setattr(lc_module.RNS, "Identity", FakeIdentity)
     monkeypatch.setattr(lc_module.RNS, "Destination", FakeDestination)

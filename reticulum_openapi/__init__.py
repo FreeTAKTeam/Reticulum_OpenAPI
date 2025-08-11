@@ -6,8 +6,6 @@ from .link_client import LinkClient
 from .link_service import LinkService
 from .service import LXMFService
 from .status import StatusCode
-from .link_client import LinkClient
-from .link_service import LinkService
 
 __all__ = [
     "Controller",
@@ -20,6 +18,4 @@ __all__ = [
     "LinkService",
     "LXMFService",
     "StatusCode",
-    "LinkClient",
-    "LinkService",
 ]

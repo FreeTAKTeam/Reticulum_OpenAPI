@@ -98,7 +98,6 @@ class LXMFService:
 
     async def _handle_get_schema(self):
         """Handler for the built-in GetSchema command."""
-
         return self.get_api_specification()
 
     def _lxmf_delivery_callback(self, message: LXMF.LXMessage):
@@ -282,7 +281,6 @@ class LXMFService:
                 + RNS.prettyhexrep(self.source_identity.hash)
             )
         except Exception as e:
-
             RNS.log(f"Announcement failed: {e}")
 
     async def start(self):
