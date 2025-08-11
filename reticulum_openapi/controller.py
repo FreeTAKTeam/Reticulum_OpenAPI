@@ -4,10 +4,7 @@ from typing import Callable
 from typing import Coroutine
 from typing import TypeVar
 
-
-
 # pretty sure every import of this class will trigger a new addHandler event which will result
-
 # in as many duplicate handlers for the controller logger as there are imports.
 # Setup module logger
 logger = logging.getLogger("reticulum_openapi.controller")
@@ -29,7 +26,6 @@ class APIException(Exception):
 
 # not clear on the purpose of a typevar here?
 F = TypeVar("F", bound=Callable[..., Coroutine[Any, Any, Any]])
-
 
 
 # requires functools.wraps decorator
@@ -69,7 +65,6 @@ class Controller:
     async def run_business_logic(
         self, logic: Coroutine[Any, Any, Any], *args, **kwargs
     ) -> Any:
-
         """
         Execute a business logic coroutine with standardized logging and error handling.
         Returns the result or a structured error dict.
@@ -89,4 +84,3 @@ class Controller:
                 f"Unhandled exception in business logic {logic.__name__}: {e}"
             )
             return {"error": "InternalServerError", "code": 500}
-# no EOF newline?

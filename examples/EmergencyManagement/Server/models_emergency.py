@@ -13,7 +13,6 @@ Base = declarative_base()
 # to avoid coupling the DB to the internal domain representation?
 
 
-
 class EmergencyActionMessageORM(Base):
     __tablename__ = "emergency_action_messages"
     callsign = Column(String, primary_key=True)
