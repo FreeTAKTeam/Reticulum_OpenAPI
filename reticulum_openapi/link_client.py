@@ -1,5 +1,8 @@
-"""Utilities for communicating over Reticulum links."""
 
+"""Utilities for working with Reticulum links."""
+
+import os
+from typing import Callable
 import asyncio
 import os
 from dataclasses import asdict
@@ -9,11 +12,12 @@ from typing import Callable
 from typing import Optional
 
 import RNS
+from .model import dataclass_to_json
 
 from .model import dataclass_to_json
 
+class LinkFileClient:
 
-class ResourceClient:
     """Client helper for sending resources over an established link."""
 
     def __init__(
@@ -87,9 +91,12 @@ class LinkClient:
         self.established = asyncio.Event()
         self.closed = asyncio.Event()
         remote_hash = bytes.fromhex(dest_hash)
-        remote_id = RNS.Identity.recall(remote_hash) or RNS.Identity.recall(
-            remote_hash, create=True
-        )
+        if hasattr(RNS.Identity, "recall"):
+            remote_id = RNS.Identity.recall(remote_hash) or RNS.Identity.recall(
+                remote_hash, create=True
+            )
+        else:
+            remote_id = RNS.Identity()
         destination = RNS.Destination(
             remote_id,
             RNS.Destination.OUT,
@@ -97,13 +104,18 @@ class LinkClient:
             "openapi",
             "link",
         )
+        self.established = asyncio.Event()
+        self.closed = asyncio.Event()
+        self.packet_queue: asyncio.Queue[bytes] = asyncio.Queue()
         self.link = RNS.Link(
             destination,
             established_callback=self._on_established,
             closed_callback=self._on_closed,
         )
         self.link.set_packet_callback(self._handle_packet)
+
         self.packet_queue: asyncio.Queue[bytes] = asyncio.Queue()
+
 
     def _on_established(self, _link: RNS.Link) -> None:
         """Internal callback when link is established."""
