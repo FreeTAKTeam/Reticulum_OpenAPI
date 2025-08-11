@@ -5,11 +5,8 @@ from dataclasses import fields
 from dataclasses import is_dataclass
 import json
 import zlib
-from typing import Type
-from typing import TypeVar
-from typing import Union
-from typing import get_args
-from typing import get_origin
+from typing import Type, TypeVar, get_origin, get_args, Union, Optional, List
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.ext.asyncio import async_sessionmaker
@@ -39,10 +36,11 @@ def dataclass_to_json(data_obj: T) -> bytes:
     json_str = json.dumps(data_dict)
     # Compress the JSON bytes to minimize payload size
 
-    json_bytes = json_str.encode("utf-8")
-    # shouldn't this be done at the edge, also probably not great to have the compression logic baked into
 
+    json_bytes = json_str.encode("utf-8")
+    
     # the logic to go to/from json
+
     compressed = zlib.compress(json_bytes)
     return compressed
 
@@ -136,10 +134,15 @@ class BaseModel:
         return cls.from_orm(obj)
 
     @classmethod
-    async def get(cls, session: AsyncSession, id_):
-        """
-        Retrieve a record by primary key using the ORM model.
-        Returns the ORM instance or None.
+    async def get(cls, session: AsyncSession, id_) -> Optional[T]:
+        """Retrieve a record by primary key.
+
+        Args:
+            session (AsyncSession): Database session.
+            id_: Primary key of the record to fetch.
+
+        Returns:
+            Optional[T]: Dataclass instance or ``None`` if not found.
         """
         if cls.__orm_model__ is None:
             raise NotImplementedError(
@@ -151,11 +154,13 @@ class BaseModel:
         return cls.from_orm(orm_obj)
 
     @classmethod
-    async def list(cls, session: AsyncSession, **filters):
-        """
-        List records matching given filters using the ORM model.
+    async def list(cls, session: AsyncSession, **filters) -> List[T]:
+        """List records matching given filters.
+
         Filters should correspond to model attributes.
-        Returns a list of ORM instances.
+
+        Returns:
+            List[T]: Dataclass instances matching the filters.
         """
         if cls.__orm_model__ is None:
             raise NotImplementedError(
@@ -168,10 +173,16 @@ class BaseModel:
         return [cls.from_orm(obj) for obj in result.scalars().all()]
 
     @classmethod
-    async def update(cls, session: AsyncSession, id_, **kwargs):
-        """
-        Update fields of a record identified by primary key.
-        Returns the updated ORM instance or None if not found.
+    async def update(cls, session: AsyncSession, id_, **kwargs) -> Optional[T]:
+        """Update fields on a record by primary key.
+
+        Args:
+            session (AsyncSession): Database session.
+            id_: Primary key of the record to update.
+            **kwargs: Fields and values to set on the record.
+
+        Returns:
+            Optional[T]: Updated dataclass instance or ``None`` if not found.
         """
         if cls.__orm_model__ is None:
             raise NotImplementedError(
@@ -188,7 +199,7 @@ class BaseModel:
         return cls.from_orm(orm_obj)
 
     @classmethod
-    async def delete(cls, session: AsyncSession, id_):
+    async def delete(cls, session: AsyncSession, id_) -> bool:
         """
         Delete a record by primary key.
         Returns True if deleted, False if not found.
