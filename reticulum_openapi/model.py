@@ -3,8 +3,7 @@ from dataclasses import asdict
 from dataclasses import dataclass
 from dataclasses import fields
 from dataclasses import is_dataclass
-import json
-import zlib
+import msgpack
 from typing import Type
 from typing import TypeVar
 from typing import Union
@@ -27,41 +26,19 @@ T = TypeVar("T")
 
 
 def dataclass_to_json(data_obj: T) -> bytes:
-    """
-    Serialize a dataclass instance to a compressed JSON byte string.
-    """
-    # Convert dataclass to dict, then to JSON string
+    """Serialize a dataclass instance to MessagePack bytes."""
+
     if is_dataclass(data_obj):
         data_dict = asdict(data_obj)
     else:
-        # If it's already a dict (or primitive), use as is
         data_dict = data_obj
-    json_str = json.dumps(data_dict)
-    # Compress the JSON bytes to minimize payload size
-
-    json_bytes = json_str.encode("utf-8")
-    # shouldn't this be done at the edge, also probably not great to have the compression logic baked into
-
-    # the logic to go to/from json
-    compressed = zlib.compress(json_bytes)
-    return compressed
+    return msgpack.packb(data_dict, use_bin_type=True)
 
 
 def dataclass_from_json(cls: Type[T], data: bytes) -> T:
-    """
-    Deserialize a dataclass instance from a compressed JSON byte string.
-    """
-    try:
-        json_bytes = zlib.decompress(data)
-    except zlib.error:
-        # Data might not be compressed; use raw bytes if decompression fails
+    """Deserialize a dataclass instance from MessagePack bytes."""
 
-        # Using exception handling as a fallback for an inconsistent and/or
-
-        # poorly defined interface is bad practice
-        json_bytes = data
-    json_str = json_bytes.decode("utf-8")
-    obj_dict = json.loads(json_str)
+    obj_dict = msgpack.unpackb(data, raw=False)
 
     def _construct(tp, value):
         origin = get_origin(tp)
@@ -97,12 +74,12 @@ class BaseModel:
     __orm_model__ = None
 
     def to_json_bytes(self) -> bytes:
-        """Serialize this dataclass to compressed JSON bytes."""
+        """Serialize this dataclass to MessagePack bytes."""
         return dataclass_to_json(self)
 
     @classmethod
     def from_json_bytes(cls: Type[T], data: bytes) -> T:
-        """Deserialize compressed JSON bytes to a dataclass instance."""
+        """Deserialize MessagePack bytes to a dataclass instance."""
         return dataclass_from_json(cls, data)
 
     def to_orm(self):

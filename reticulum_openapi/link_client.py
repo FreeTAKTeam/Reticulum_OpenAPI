@@ -1,8 +1,5 @@
-
 """Utilities for working with Reticulum links."""
 
-import os
-from typing import Callable
 import asyncio
 import os
 from dataclasses import asdict
@@ -12,12 +9,11 @@ from typing import Callable
 from typing import Optional
 
 import RNS
-from .model import dataclass_to_json
 
 from .model import dataclass_to_json
+
 
 class LinkFileClient:
-
     """Client helper for sending resources over an established link."""
 
     def __init__(
@@ -62,13 +58,16 @@ class LinkFileClient:
             if self.on_upload_complete:
                 self.on_upload_complete(resource)
 
-        resource = RNS.Resource(
-            path,
-            self.link,
-            metadata=metadata,
-            callback=_wrapped_callback,
-            progress_callback=progress_callback,
-        )
+        try:
+            resource = RNS.Resource(
+                path,
+                self.link,
+                metadata=metadata,
+                callback=_wrapped_callback,
+                progress_callback=progress_callback,
+            )
+        except Exception as exc:
+            raise ValueError(str(exc)) from exc
         return resource
 
 
@@ -115,7 +114,6 @@ class LinkClient:
         self.link.set_packet_callback(self._handle_packet)
 
         self.packet_queue: asyncio.Queue[bytes] = asyncio.Queue()
-
 
     def _on_established(self, _link: RNS.Link) -> None:
         """Internal callback when link is established."""
