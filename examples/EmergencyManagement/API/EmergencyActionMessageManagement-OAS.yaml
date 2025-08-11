@@ -137,6 +137,9 @@ components:
       allOf:
         - type: object
           properties:
+            auth_token:
+              type: string
+              description: Authentication token
             callsign:
               type: string
               description: >-
@@ -187,11 +190,15 @@ components:
                 Green – No immediate threats and currently in a secure area
               $ref: '#/components/schemas/EAMStatus'
           required:
+            - auth_token
             - callsign
     Event:
       allOf:
         - type: object
           properties:
+            auth_token:
+              type: string
+              description: Authentication token
             uid:
               type: integer
               description: >-
@@ -231,6 +238,7 @@ components:
               type: string
               x-reference: '#/components/schemas/Point'
           required:
+            - auth_token
             - uid
     Point:
       allOf:

@@ -2,16 +2,15 @@
 
 import asyncio
 import os
+import shutil
 
 from typing import Callable
 
-import asyncio
 from typing import Any, Awaitable, Dict, Optional
 import RNS
 
 
 class LinkResourceService:
-
     """Service utilities for receiving resources on a link."""
 
     def __init__(
@@ -138,5 +137,3 @@ class LinkService:
         for task in self._keepalive_tasks.values():
             task.cancel()
         self._keepalive_tasks.clear()
-
-        

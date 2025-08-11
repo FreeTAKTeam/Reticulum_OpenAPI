@@ -53,6 +53,9 @@ python Server/server_emergency.py
 python client/client_emergency.py
 ```
 
+Both server and client use a hardcoded authentication token. Requests will only
+be processed when the tokens match.
+
 The client first sends a `CreateEmergencyActionMessage` request and prints the
 response returned by the server. It then issues a `RetrieveEmergencyActionMessage`
 command for the same callsign and displays the stored record, demonstrating that
