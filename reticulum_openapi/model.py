@@ -3,8 +3,8 @@ from dataclasses import asdict
 from dataclasses import dataclass
 from dataclasses import fields
 from dataclasses import is_dataclass
-import json
-import zlib
+from typing import List
+from typing import Optional
 from typing import Type
 from typing import TypeVar
 from typing import Union
@@ -19,6 +19,8 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 from sqlalchemy.ext.asyncio import create_async_engine
 
 __all__ = [
+    "dataclass_to_msgpack",
+    "dataclass_from_msgpack",
     "dataclass_to_json",
     "dataclass_from_json",
     "dataclass_to_msgpack",
@@ -40,6 +42,7 @@ def dataclass_to_json(data_obj: T) -> bytes:
     Returns:
         bytes: Compressed JSON representation.
     """
+
     if is_dataclass(data_obj):
         data_dict = asdict(data_obj)
     else:
@@ -72,10 +75,10 @@ def _construct(tp, value):
 def dataclass_from_json(cls: Type[T], data: bytes) -> T:
     """Deserialize a dataclass instance from JSON bytes.
 
+
     Args:
         cls (Type[T]): Target dataclass type.
         data (bytes): JSON payload, optionally zlib-compressed.
-
     Returns:
         T: Deserialised dataclass instance.
     """
@@ -107,6 +110,7 @@ def dataclass_to_msgpack(data_obj: T) -> bytes:
 def dataclass_from_msgpack(cls: Type[T], data: bytes) -> T:
     """Deserialize a dataclass instance from MessagePack bytes.
 
+
     Args:
         cls (Type[T]): Target dataclass type.
         data (bytes): MessagePack-encoded payload.
@@ -116,6 +120,11 @@ def dataclass_from_msgpack(cls: Type[T], data: bytes) -> T:
     """
     obj_dict = msgpack_from_bytes(data)
     return _construct(cls, obj_dict)
+
+
+def dataclass_from_json(cls: Type[T], data: bytes) -> T:
+    """Deprecated wrapper for :func:`dataclass_from_msgpack`."""
+    return dataclass_from_msgpack(cls, data)
 
 
 @dataclass
@@ -128,14 +137,34 @@ class BaseModel:
     # Subclasses should set this to their SQLAlchemy ORM model class
     __orm_model__ = None
 
+    def to_msgpack(self) -> bytes:
+        """Serialize this dataclass to MessagePack bytes.
+
+        Returns:
+            bytes: MessagePack-encoded representation of this instance.
+        """
+        return dataclass_to_msgpack(self)
+
     def to_json_bytes(self) -> bytes:
-        """Serialize this dataclass to compressed JSON bytes."""
-        return dataclass_to_json(self)
+        """Deprecated wrapper for :meth:`to_msgpack`."""
+        return self.to_msgpack()
+
+    @classmethod
+    def from_msgpack(cls: Type[T], data: bytes) -> T:
+        """Deserialize MessagePack bytes to a dataclass instance.
+
+        Args:
+            data (bytes): MessagePack-encoded payload.
+
+        Returns:
+            T: Instance of ``cls`` built from ``data``.
+        """
+        return dataclass_from_msgpack(cls, data)
 
     @classmethod
     def from_json_bytes(cls: Type[T], data: bytes) -> T:
-        """Deserialize compressed JSON bytes to a dataclass instance."""
-        return dataclass_from_json(cls, data)
+        """Deprecated wrapper for :meth:`from_msgpack`."""
+        return cls.from_msgpack(data)
 
     def to_msgpack_bytes(self) -> bytes:
         """Serialize this dataclass to MessagePack bytes."""
@@ -177,10 +206,15 @@ class BaseModel:
         return cls.from_orm(obj)
 
     @classmethod
-    async def get(cls, session: AsyncSession, id_):
-        """
-        Retrieve a record by primary key using the ORM model.
-        Returns the ORM instance or None.
+    async def get(cls, session: AsyncSession, id_) -> Optional[T]:
+        """Retrieve a record by primary key.
+
+        Args:
+            session (AsyncSession): Database session.
+            id_: Primary key of the record to fetch.
+
+        Returns:
+            Optional[T]: Dataclass instance or ``None`` if not found.
         """
         if cls.__orm_model__ is None:
             raise NotImplementedError(
@@ -192,11 +226,13 @@ class BaseModel:
         return cls.from_orm(orm_obj)
 
     @classmethod
-    async def list(cls, session: AsyncSession, **filters):
-        """
-        List records matching given filters using the ORM model.
+    async def list(cls, session: AsyncSession, **filters) -> List[T]:
+        """List records matching given filters.
+
         Filters should correspond to model attributes.
-        Returns a list of ORM instances.
+
+        Returns:
+            List[T]: Dataclass instances matching the filters.
         """
         if cls.__orm_model__ is None:
             raise NotImplementedError(
@@ -209,10 +245,16 @@ class BaseModel:
         return [cls.from_orm(obj) for obj in result.scalars().all()]
 
     @classmethod
-    async def update(cls, session: AsyncSession, id_, **kwargs):
-        """
-        Update fields of a record identified by primary key.
-        Returns the updated ORM instance or None if not found.
+    async def update(cls, session: AsyncSession, id_, **kwargs) -> Optional[T]:
+        """Update fields on a record by primary key.
+
+        Args:
+            session (AsyncSession): Database session.
+            id_: Primary key of the record to update.
+            **kwargs: Fields and values to set on the record.
+
+        Returns:
+            Optional[T]: Updated dataclass instance or ``None`` if not found.
         """
         if cls.__orm_model__ is None:
             raise NotImplementedError(
@@ -229,7 +271,7 @@ class BaseModel:
         return cls.from_orm(orm_obj)
 
     @classmethod
-    async def delete(cls, session: AsyncSession, id_):
+    async def delete(cls, session: AsyncSession, id_) -> bool:
         """
         Delete a record by primary key.
         Returns True if deleted, False if not found.

@@ -3,11 +3,14 @@ from dataclasses import dataclass
 from types import SimpleNamespace
 from unittest.mock import Mock
 
+import msgpack
 import pytest
 
+from reticulum_openapi.model import dataclass_to_msgpack
 from reticulum_openapi.service import LXMFService
 from reticulum_openapi.model import dataclass_to_msgpack
 from reticulum_openapi.codec_msgpack import from_bytes as msgpack_from_bytes
+
 
 
 @dataclass
@@ -70,6 +73,7 @@ async def test_lxmf_callback_schema_validation():
     valid_msg = SimpleNamespace(
         title="SCHEMA",
         content=dataclass_to_msgpack({"num": 5}),
+
         source=None,
     )
     service._lxmf_delivery_callback(valid_msg)
@@ -80,6 +84,7 @@ async def test_lxmf_callback_schema_validation():
     invalid_msg = SimpleNamespace(
         title="SCHEMA",
         content=dataclass_to_msgpack({"num": "bad"}),
+
         source=None,
     )
     service._lxmf_delivery_callback(invalid_msg)
@@ -115,6 +120,7 @@ async def test_lxmf_callback_dispatches_response():
     assert dest is src
     assert title == "PING_response"
     assert msgpack_from_bytes(payload_bytes) == {"status": "ok"}
+
 
 
 def test_get_api_specification_returns_registered_routes():

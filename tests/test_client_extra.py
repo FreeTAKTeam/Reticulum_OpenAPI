@@ -1,6 +1,7 @@
 import asyncio
 from types import SimpleNamespace
 
+import msgpack
 import pytest
 
 from reticulum_openapi import client as client_module
@@ -73,7 +74,9 @@ async def test_send_command_waits_for_path_and_bytes(monkeypatch):
     monkeypatch.setattr(client_module.RNS.Transport, "has_path", has_path)
     monkeypatch.setattr(client_module.RNS.Transport, "request_path", lambda d: None)
     monkeypatch.setattr(client_module.asyncio, "sleep", fast_sleep)
-    monkeypatch.setattr(client_module.RNS.Identity, "recall", lambda h, create=False: object())
+    monkeypatch.setattr(
+        client_module.RNS.Identity, "recall", lambda h, create=False: object()
+    )
 
     class FakeDestination:
         OUT = object()
@@ -109,7 +112,9 @@ async def test_send_command_dict_payload(monkeypatch):
     cli.timeout = 0.2
 
     monkeypatch.setattr(client_module.RNS.Transport, "has_path", lambda dest: True)
-    monkeypatch.setattr(client_module.RNS.Identity, "recall", lambda h, create=False: object())
+    monkeypatch.setattr(
+        client_module.RNS.Identity, "recall", lambda h, create=False: object()
+    )
 
     class FakeDestination:
         OUT = object()
@@ -133,7 +138,6 @@ async def test_send_command_dict_payload(monkeypatch):
     def fake_dataclass_to_msgpack(obj):
         captured["obj"] = obj
         return original(obj)
-
     monkeypatch.setattr(client_module, "dataclass_to_msgpack", fake_dataclass_to_msgpack)
 
     await cli.send_command("aa", "CMD", {"x": 1}, await_response=False)

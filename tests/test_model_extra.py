@@ -1,8 +1,8 @@
-import json
 from dataclasses import dataclass
 from typing import Union
 
 import pytest
+import msgpack
 from sqlalchemy import Column
 from sqlalchemy import Integer
 from sqlalchemy import String
@@ -12,9 +12,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from reticulum_openapi.model import BaseModel
 from reticulum_openapi.model import async_sessionmaker
 from reticulum_openapi.model import create_async_engine
-from reticulum_openapi.model import dataclass_from_json
-from reticulum_openapi.model import dataclass_to_json
-
+from reticulum_openapi.model import dataclass_from_msgpack
+from reticulum_openapi.model import dataclass_to_msgpack
 
 Base = declarative_base()
 
@@ -57,22 +56,23 @@ class Bike:
 Vehicle = Union[Car, Bike]
 
 
-def test_dataclass_from_json_uncompressed():
-    data = json.dumps({"name": "foo", "value": 1}).encode()
-    obj = dataclass_from_json(Simple, data)
+def test_dataclass_from_msgpack():
+    data = msgpack.packb({"name": "foo", "value": 1}, use_bin_type=True)
+    obj = dataclass_from_msgpack(Simple, data)
+
     assert obj == Simple(name="foo", value=1)
 
 
 def test_union_deserialization_error():
-    bad = dataclass_to_json({"foo": "bar"})
+    bad = dataclass_to_msgpack({"foo": "bar"})
     with pytest.raises(ValueError):
-        dataclass_from_json(Vehicle, bad)
+        dataclass_from_msgpack(Vehicle, bad)
 
 
 def test_base_model_to_json_and_from():
     item = Item(id=1, name="a")
-    data = item.to_json_bytes()
-    restored = Item.from_json_bytes(data)
+    data = item.to_msgpack()
+    restored = Item.from_msgpack(data)
     assert restored == item
 
 
@@ -101,7 +101,9 @@ async def test_methods_without_orm_raise():
 @pytest.mark.asyncio
 async def test_crud_edge_cases():
     engine = create_async_engine("sqlite+aiosqlite:///:memory:")
-    session_maker = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
+    session_maker = async_sessionmaker(
+        engine, expire_on_commit=False, class_=AsyncSession
+    )
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     async with session_maker() as session:

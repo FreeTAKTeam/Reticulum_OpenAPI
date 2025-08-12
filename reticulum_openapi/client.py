@@ -83,10 +83,11 @@ class LXMFClient:
             )
             if self.auth_token:
                 data_dict["auth_token"] = self.auth_token
-            try:
+              try:
                 content_bytes = dataclass_to_msgpack(data_dict)
             except Exception:
                 content_bytes = dataclass_to_json(data_dict)
+
         lxmsg = LXMF.LXMessage(
             RNS.Destination(
                 dest_identity,

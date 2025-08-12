@@ -1,7 +1,6 @@
 # reticulum_openapi/service.py
 import asyncio
-import json
-import zlib
+import msgpack
 import RNS
 import LXMF
 from typing import Callable
@@ -181,7 +180,6 @@ class LXMFService:
                 RNS.log(f"Exception in handler for {cmd}: {e}")
             # If handler returned a result, attempt to send a response back to sender
             if result is not None:
-                # Prepare response payload (assume result is serializable or a dataclass)
                 if isinstance(result, bytes):
                     resp_bytes = result
                 else:
@@ -197,9 +195,8 @@ class LXMFService:
                             )
                 # Determine response command name (could be something like "<command>_response" or a generic)
                 resp_title = f"{cmd}_response"
-                dest_identity = message.source  # the sender's identity (if available)
+                dest_identity = message.source
                 if dest_identity:
-                    # Send the response message
                     try:
                         self._send_lxmf(dest_identity, resp_title, resp_bytes)
                         RNS.log(f"Sent response for {cmd} back to sender.")
@@ -222,7 +219,7 @@ class LXMFService:
         Internal helper to create and dispatch an LXMF message.
         :param dest_identity: Destination identity for the message.
         :param title: Title (command) for the message.
-        :param content_bytes: Compressed content bytes to send.
+        :param content_bytes: Content bytes to send.
         :param propagate: If True, send via propagation (store-and-forward); if False, direct where possible.
         """
         # Create an RNS Destination for the recipient (using LXMF "delivery" namespace)
