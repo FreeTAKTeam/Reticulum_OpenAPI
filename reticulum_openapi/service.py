@@ -8,10 +8,15 @@ from typing import Callable
 from typing import Dict
 from typing import Optional
 from typing import Type
+from dataclasses import asdict
+from dataclasses import is_dataclass
 from jsonschema import validate
 from jsonschema import ValidationError
+from .codec_msgpack import from_bytes as msgpack_from_bytes
 from .model import dataclass_from_json
+from .model import dataclass_from_msgpack
 from .model import dataclass_to_json
+from .model import dataclass_to_msgpack
 
 
 class LXMFService:
@@ -76,7 +81,6 @@ class LXMFService:
         :param handler: Async function to handle the command.
         :param payload_type: Dataclass type for request payload, or None for raw dict/bytes.
         """
-        # would be better to use a more consistent logging system with a centralized definition
         self._routes[command] = (handler, payload_type, payload_schema)
         RNS.log(f"Route registered: '{command}' -> {handler}")
 
@@ -84,7 +88,6 @@ class LXMFService:
         """Return a minimal JSON specification of available commands."""
         commands = {}
         for name, (_handler, ptype, schema) in self._routes.items():
-            # why are we skipping the GetSchema endpoint?
             if name == "GetSchema":
                 continue
             entry: dict = {}
@@ -93,7 +96,6 @@ class LXMFService:
             if schema is not None:
                 entry["payload_schema"] = schema
             commands[name] = entry
-        # probably shouldn't hardcode this
         return {"openapi": "3.0.0", "commands": commands}
 
     async def _handle_get_schema(self):
@@ -126,25 +128,34 @@ class LXMFService:
                 return
             if payload_type:
                 try:
-                    # Parse bytes into the expected dataclass
-                    payload_obj = dataclass_from_json(payload_type, payload_bytes)
-                except Exception as e:
-                    RNS.log(f"Failed to parse payload for {cmd}: {e}")
-                    return
+                    payload_obj = dataclass_from_msgpack(payload_type, payload_bytes)
+                except Exception:
+                    try:
+                        payload_obj = dataclass_from_json(payload_type, payload_bytes)
+                    except Exception as e:
+                        RNS.log(f"Failed to parse payload for {cmd}: {e}")
+                        return
             else:
-                # If no type provided, just decode JSON to dict
                 try:
-                    json_bytes = zlib.decompress(payload_bytes)
-                    payload_obj = json.loads(json_bytes.decode("utf-8"))
-                except zlib.error:
-                    # If not compressed, try directly
-                    payload_obj = json.loads(payload_bytes.decode("utf-8"))
-                except Exception as e:
-                    RNS.log(f"Invalid JSON payload for {cmd}: {e}")
-                    return
+                    payload_obj = msgpack_from_bytes(payload_bytes)
+                except Exception:
+                    try:
+                        json_bytes = zlib.decompress(payload_bytes)
+                        payload_obj = json.loads(json_bytes.decode("utf-8"))
+                    except (zlib.error, json.JSONDecodeError):
+                        try:
+                            payload_obj = json.loads(payload_bytes.decode("utf-8"))
+                        except Exception as e:
+                            RNS.log(f"Invalid JSON payload for {cmd}: {e}")
+                            return
             if payload_schema is not None:
                 try:
-                    validate(payload_obj, payload_schema)
+                    obj = (
+                        asdict(payload_obj)
+                        if is_dataclass(payload_obj)
+                        else payload_obj
+                    )
+                    validate(obj, payload_schema)
                 except ValidationError as e:
                     RNS.log(f"Schema validation failed for {cmd}: {e.message}")
                     return
@@ -172,18 +183,18 @@ class LXMFService:
             if result is not None:
                 # Prepare response payload (assume result is serializable or a dataclass)
                 if isinstance(result, bytes):
-                    resp_bytes = result  # assume already bytes (e.g., if handler did its own serialization)
-                elif hasattr(result, "__dict__") or isinstance(result, dict):
-                    # Convert dataclass or dict to JSON bytes
-                    try:
-                        resp_bytes = dataclass_to_json(result)
-                    except Exception as e:
-                        # Fallback: just JSON dump the object (it might not be a dataclass)
-                        RNS.log(f"Failed to serialize result dataclass: {e}")
-                        resp_bytes = zlib.compress(json.dumps(result).encode("utf-8"))
+                    resp_bytes = result
                 else:
-                    # If result is a simple value (str, number, etc.), wrap it in JSON
-                    resp_bytes = zlib.compress(json.dumps(result).encode("utf-8"))
+                    try:
+                        resp_bytes = dataclass_to_msgpack(result)
+                    except Exception:
+                        try:
+                            resp_bytes = dataclass_to_json(result)
+                        except Exception as e:
+                            RNS.log(f"Failed to serialize result dataclass: {e}")
+                            resp_bytes = zlib.compress(
+                                json.dumps(result).encode("utf-8")
+                            )
                 # Determine response command name (could be something like "<command>_response" or a generic)
                 resp_title = f"{cmd}_response"
                 dest_identity = message.source  # the sender's identity (if available)
@@ -267,8 +278,10 @@ class LXMFService:
         elif isinstance(payload_obj, bytes):
             content_bytes = payload_obj
         else:
-            # Use dataclass utility to get compressed JSON bytes
-            content_bytes = dataclass_to_json(payload_obj)
+            try:
+                content_bytes = dataclass_to_msgpack(payload_obj)
+            except Exception:
+                content_bytes = dataclass_to_json(payload_obj)
         # Use internal send helper
         self._send_lxmf(dest_identity, command, content_bytes, propagate=propagate)
 

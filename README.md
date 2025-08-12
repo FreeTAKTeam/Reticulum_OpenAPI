@@ -1,6 +1,6 @@
 # Reticulum OpenAPI
 
-Reticulum OpenAPI is an experimental framework for building lightweight APIs on top of the Reticulum mesh network using LXMF messages. It allows you to expose simple command based or REST style services that work in delay tolerant and very low bandwidth environments.
+Reticulum OpenAPI is an experimental framework for building lightweight APIs on top of the Reticulum mesh network using LXMF messages. It allows you to expose simple command based or REST style services that work in delay tolerant and very low bandwidth environments. Payloads are encoded with canonical MessagePack by default with JSON as a fallback for interoperability.
 
 This repository contains the Python implementation of the framework as well as documentation, a full featured example and generator templates. The goal is to provide an easy way to build applications that communicate over Reticulum using structured messages.
 

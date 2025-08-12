@@ -1,5 +1,4 @@
 import asyncio
-import json
 import zlib
 from types import SimpleNamespace
 from unittest.mock import Mock
@@ -7,6 +6,7 @@ import pytest
 
 from reticulum_openapi import service as service_module
 from dataclasses import dataclass
+from reticulum_openapi.model import dataclass_to_msgpack
 
 
 @dataclass
@@ -236,7 +236,7 @@ async def test_lxmf_delivery_auth_failure(monkeypatch):
     monkeypatch.setattr(
         svc._loop, "call_soon_threadsafe", lambda fn: called.update(flag=True)
     )
-    payload = zlib.compress(json.dumps({"auth_token": "wrong"}).encode())
+    payload = dataclass_to_msgpack({"auth_token": "wrong"})
     message = SimpleNamespace(title="CMD", content=payload)
     svc._lxmf_delivery_callback(message)
     assert called["flag"] is False
@@ -255,7 +255,7 @@ async def test_lxmf_delivery_handler_exception(monkeypatch):
     monkeypatch.setattr(service_module.RNS, "log", lambda *a, **k: None)
     message = SimpleNamespace(
         title="CMD",
-        content=zlib.compress(json.dumps({}).encode()),
+        content=dataclass_to_msgpack({}),
         source=None,
     )
     svc._send_lxmf = Mock()

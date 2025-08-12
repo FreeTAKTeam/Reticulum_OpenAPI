@@ -4,6 +4,7 @@ from types import SimpleNamespace
 import pytest
 
 from reticulum_openapi import client as client_module
+from reticulum_openapi.codec_msgpack import from_bytes as msgpack_from_bytes
 
 
 @pytest.mark.asyncio
@@ -127,20 +128,17 @@ async def test_send_command_dict_payload(monkeypatch):
 
     monkeypatch.setattr(client_module.LXMF, "LXMessage", FakeLXMessage)
 
-    original = client_module.dataclass_to_json
+    original = client_module.dataclass_to_msgpack
 
-    def fake_dataclass_to_json(obj):
+    def fake_dataclass_to_msgpack(obj):
         captured["obj"] = obj
         return original(obj)
 
-    monkeypatch.setattr(client_module, "dataclass_to_json", fake_dataclass_to_json)
+    monkeypatch.setattr(client_module, "dataclass_to_msgpack", fake_dataclass_to_msgpack)
 
     await cli.send_command("aa", "CMD", {"x": 1}, await_response=False)
 
-    import json
-    import zlib
-
-    payload = json.loads(zlib.decompress(captured["content"]).decode())
+    payload = msgpack_from_bytes(captured["content"])
     assert payload["x"] == 1
     assert payload["auth_token"] == "secret"
     assert captured["obj"]["x"] == 1

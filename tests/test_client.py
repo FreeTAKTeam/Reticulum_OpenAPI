@@ -4,6 +4,7 @@ from types import SimpleNamespace
 import pytest
 
 from reticulum_openapi import client as client_module
+from reticulum_openapi.codec_msgpack import from_bytes as msgpack_from_bytes
 
 
 @dataclass
@@ -126,21 +127,18 @@ async def test_send_command_includes_token(monkeypatch):
 
     call_counter = {"count": 0}
 
-    original_dc_to_json = client_module.dataclass_to_json
+    original_dc_to_msgpack = client_module.dataclass_to_msgpack
 
-    def fake_dataclass_to_json(obj):
+    def fake_dataclass_to_msgpack(obj):
         call_counter["count"] += 1
         captured["pre"] = obj
-        return original_dc_to_json(obj)
+        return original_dc_to_msgpack(obj)
 
-    monkeypatch.setattr(client_module, "dataclass_to_json", fake_dataclass_to_json)
+    monkeypatch.setattr(client_module, "dataclass_to_msgpack", fake_dataclass_to_msgpack)
 
     await cli.send_command("aa", "CMD", Sample(text="hello"), await_response=False)
 
-    import json
-    import zlib
-
-    payload = json.loads(zlib.decompress(captured["content"]).decode())
+    payload = msgpack_from_bytes(captured["content"])
     assert payload.get("auth_token") == "secret"
     assert payload.get("text") == "hello"
     assert call_counter["count"] == 1

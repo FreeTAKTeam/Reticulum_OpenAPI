@@ -1,6 +1,11 @@
 from dataclasses import dataclass
 from typing import List, Union
-from reticulum_openapi.model import dataclass_to_json, dataclass_from_json
+from reticulum_openapi.model import (
+    dataclass_from_json,
+    dataclass_from_msgpack,
+    dataclass_to_json,
+    dataclass_to_msgpack,
+)
 
 
 @dataclass
@@ -26,6 +31,13 @@ def test_list_of_items_roundtrip():
     data = dataclass_to_json(obj)
     reconstructed = dataclass_from_json(ItemList, data)
     assert reconstructed == obj
+
+
+def test_msgpack_roundtrip():
+    item = Item(name="foo", value=42)
+    data = dataclass_to_msgpack(item)
+    obj = dataclass_from_msgpack(Item, data)
+    assert obj == item
 
 
 @dataclass
