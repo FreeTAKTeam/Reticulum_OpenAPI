@@ -1,6 +1,7 @@
 # reticulum_openapi/service.py
 import asyncio
-import msgpack
+import json
+import zlib
 import RNS
 import LXMF
 from typing import Callable
@@ -137,15 +138,16 @@ class LXMFService:
             else:
                 try:
                     payload_obj = msgpack_from_bytes(payload_bytes)
-                except Exception:
+                except Exception as e:
+                    RNS.log(f"Invalid MessagePack payload for {cmd}: {e}")
                     try:
                         json_bytes = zlib.decompress(payload_bytes)
                         payload_obj = json.loads(json_bytes.decode("utf-8"))
                     except (zlib.error, json.JSONDecodeError):
                         try:
                             payload_obj = json.loads(payload_bytes.decode("utf-8"))
-                        except Exception as e:
-                            RNS.log(f"Invalid JSON payload for {cmd}: {e}")
+                        except Exception as json_exc:
+                            RNS.log(f"Invalid JSON payload for {cmd}: {json_exc}")
                             return
             if payload_schema is not None:
                 try:

@@ -23,3 +23,7 @@
 - [x] Resolve merge artifacts in service tests.
 
 
+## 2025-08-12
+- [x] Resolve flake8 errors in services, models, and tests.
+
+

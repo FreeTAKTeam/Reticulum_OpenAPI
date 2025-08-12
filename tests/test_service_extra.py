@@ -1,11 +1,11 @@
-
-import zlib
+import asyncio
+from dataclasses import dataclass
 from types import SimpleNamespace
 from unittest.mock import Mock
 
 import pytest
+
 from reticulum_openapi import service as service_module
-from dataclasses import dataclass
 from reticulum_openapi.model import dataclass_to_msgpack
 
 

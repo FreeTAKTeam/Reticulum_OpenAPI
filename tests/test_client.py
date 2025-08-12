@@ -1,7 +1,6 @@
 import asyncio
 from dataclasses import dataclass
 from types import SimpleNamespace
-import msgpack
 import pytest
 
 from reticulum_openapi import client as client_module
@@ -135,7 +134,9 @@ async def test_send_command_includes_token(monkeypatch):
         captured["pre"] = obj
         return original_dc_to_msgpack(obj)
 
-    monkeypatch.setattr(client_module, "dataclass_to_msgpack", fake_dataclass_to_msgpack)
+    monkeypatch.setattr(
+        client_module, "dataclass_to_msgpack", fake_dataclass_to_msgpack
+    )
 
     await cli.send_command("aa", "CMD", Sample(text="hello"), await_response=False)
 
