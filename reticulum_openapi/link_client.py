@@ -178,7 +178,6 @@ class LinkClient:
             except Exception:
                 payload = dataclass_to_json(data)
 
-
         fut: asyncio.Future[bytes] = self._loop.create_future()
 
         def resp_cb(receipt: Any) -> None:

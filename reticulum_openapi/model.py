@@ -3,6 +3,8 @@ from dataclasses import asdict
 from dataclasses import dataclass
 from dataclasses import fields
 from dataclasses import is_dataclass
+import json
+import zlib
 from typing import List
 from typing import Optional
 from typing import Type
@@ -23,8 +25,6 @@ __all__ = [
     "dataclass_from_msgpack",
     "dataclass_to_json",
     "dataclass_from_json",
-    "dataclass_to_msgpack",
-    "dataclass_from_msgpack",
     "BaseModel",
     "create_async_engine",
     "async_sessionmaker",
@@ -120,11 +120,6 @@ def dataclass_from_msgpack(cls: Type[T], data: bytes) -> T:
     """
     obj_dict = msgpack_from_bytes(data)
     return _construct(cls, obj_dict)
-
-
-def dataclass_from_json(cls: Type[T], data: bytes) -> T:
-    """Deprecated wrapper for :func:`dataclass_from_msgpack`."""
-    return dataclass_from_msgpack(cls, data)
 
 
 @dataclass
