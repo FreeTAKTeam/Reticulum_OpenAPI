@@ -5,6 +5,7 @@ import msgpack
 import pytest
 
 from reticulum_openapi import client as client_module
+from reticulum_openapi.codec_msgpack import from_bytes as msgpack_from_bytes
 
 
 @pytest.mark.asyncio
@@ -137,14 +138,11 @@ async def test_send_command_dict_payload(monkeypatch):
     def fake_dataclass_to_msgpack(obj):
         captured["obj"] = obj
         return original(obj)
-
-    monkeypatch.setattr(
-        client_module, "dataclass_to_msgpack", fake_dataclass_to_msgpack
-    )
+    monkeypatch.setattr(client_module, "dataclass_to_msgpack", fake_dataclass_to_msgpack)
 
     await cli.send_command("aa", "CMD", {"x": 1}, await_response=False)
 
-    payload = msgpack.unpackb(captured["content"], raw=False)
+    payload = msgpack_from_bytes(captured["content"])
     assert payload["x"] == 1
     assert payload["auth_token"] == "secret"
     assert captured["obj"]["x"] == 1

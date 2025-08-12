@@ -11,7 +11,8 @@ from typing import Union
 from typing import get_args
 from typing import get_origin
 
-import msgpack
+from .codec_msgpack import from_bytes as msgpack_from_bytes
+from .codec_msgpack import to_canonical_bytes
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.ext.asyncio import async_sessionmaker
@@ -22,6 +23,8 @@ __all__ = [
     "dataclass_from_msgpack",
     "dataclass_to_json",
     "dataclass_from_json",
+    "dataclass_to_msgpack",
+    "dataclass_from_msgpack",
     "BaseModel",
     "create_async_engine",
     "async_sessionmaker",
@@ -30,61 +33,92 @@ __all__ = [
 T = TypeVar("T")
 
 
-def dataclass_to_msgpack(data_obj: T) -> bytes:
-    """Serialize a dataclass instance to MessagePack bytes.
+def dataclass_to_json(data_obj: T) -> bytes:
+    """Serialize a dataclass instance to compressed JSON bytes.
 
     Args:
-        data_obj (T): Dataclass instance or compatible mapping to serialize.
+        data_obj (T): Dataclass instance or primitive to serialise.
 
     Returns:
-        bytes: MessagePack-encoded representation of ``data_obj``.
+        bytes: Compressed JSON representation.
     """
 
     if is_dataclass(data_obj):
         data_dict = asdict(data_obj)
     else:
         data_dict = data_obj
-    return msgpack.packb(data_dict, use_bin_type=True)
+    json_bytes = json.dumps(data_dict).encode("utf-8")
+    return zlib.compress(json_bytes)
 
 
-def dataclass_to_json(data_obj: T) -> bytes:
-    """Deprecated wrapper for :func:`dataclass_to_msgpack`."""
-    return dataclass_to_msgpack(data_obj)
+def _construct(tp, value):
+    origin = get_origin(tp)
+    if origin is Union:
+        for sub in get_args(tp):
+            try:
+                return _construct(sub, value)
+            except Exception:
+                continue
+        raise ValueError(f"No matching type for Union {tp}")
+    if is_dataclass(tp):
+        kwargs = {}
+        for f in fields(tp):
+            if isinstance(value, dict) and f.name in value:
+                kwargs[f.name] = _construct(f.type, value[f.name])
+        return tp(**kwargs)  # type: ignore
+    if origin is list and isinstance(value, list):
+        item_type = get_args(tp)[0]
+        return [_construct(item_type, v) for v in value]
+    return value
+
+
+def dataclass_from_json(cls: Type[T], data: bytes) -> T:
+    """Deserialize a dataclass instance from JSON bytes.
+
+
+    Args:
+        cls (Type[T]): Target dataclass type.
+        data (bytes): JSON payload, optionally zlib-compressed.
+    Returns:
+        T: Deserialised dataclass instance.
+    """
+    if len(data) >= 2 and data[0] == 0x78:
+        try:
+            json_bytes = zlib.decompress(data)
+        except zlib.error:
+            json_bytes = data
+    else:
+        json_bytes = data
+    obj_dict = json.loads(json_bytes.decode("utf-8"))
+    return _construct(cls, obj_dict)
+
+
+def dataclass_to_msgpack(data_obj: T) -> bytes:
+    """Serialize a dataclass or primitive to canonical MessagePack bytes.
+
+    Args:
+        data_obj (T): Dataclass instance or primitive to serialise.
+
+    Returns:
+        bytes: Canonical MessagePack representation.
+    """
+    if is_dataclass(data_obj):
+        data_obj = asdict(data_obj)
+    return to_canonical_bytes(data_obj)
 
 
 def dataclass_from_msgpack(cls: Type[T], data: bytes) -> T:
     """Deserialize a dataclass instance from MessagePack bytes.
 
+
     Args:
-        cls (Type[T]): Target dataclass type for reconstruction.
+        cls (Type[T]): Target dataclass type.
         data (bytes): MessagePack-encoded payload.
 
     Returns:
-        T: Instance of ``cls`` populated with decoded data.
+        T: Deserialised dataclass instance.
     """
-
-    obj_dict = msgpack.unpackb(data, raw=False)
-
-    def _construct(tp, value):
-        origin = get_origin(tp)
-        if origin is Union:
-            for sub in get_args(tp):
-                try:
-                    return _construct(sub, value)
-                except Exception:
-                    continue
-            raise ValueError(f"No matching type for Union {tp}")
-        if is_dataclass(tp):
-            kwargs = {}
-            for f in fields(tp):
-                if isinstance(value, dict) and f.name in value:
-                    kwargs[f.name] = _construct(f.type, value[f.name])
-            return tp(**kwargs)  # type: ignore
-        if origin is list and isinstance(value, list):
-            item_type = get_args(tp)[0]
-            return [_construct(item_type, v) for v in value]
-        return value
-
+    obj_dict = msgpack_from_bytes(data)
     return _construct(cls, obj_dict)
 
 
@@ -131,6 +165,15 @@ class BaseModel:
     def from_json_bytes(cls: Type[T], data: bytes) -> T:
         """Deprecated wrapper for :meth:`from_msgpack`."""
         return cls.from_msgpack(data)
+
+    def to_msgpack_bytes(self) -> bytes:
+        """Serialize this dataclass to MessagePack bytes."""
+        return dataclass_to_msgpack(self)
+
+    @classmethod
+    def from_msgpack_bytes(cls: Type[T], data: bytes) -> T:
+        """Deserialize MessagePack bytes to a dataclass instance."""
+        return dataclass_from_msgpack(cls, data)
 
     def to_orm(self):
         """Create an ORM instance from this dataclass."""

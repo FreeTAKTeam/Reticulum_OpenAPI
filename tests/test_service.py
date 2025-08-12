@@ -8,6 +8,9 @@ import pytest
 
 from reticulum_openapi.model import dataclass_to_msgpack
 from reticulum_openapi.service import LXMFService
+from reticulum_openapi.model import dataclass_to_msgpack
+from reticulum_openapi.codec_msgpack import from_bytes as msgpack_from_bytes
+
 
 
 @dataclass
@@ -69,7 +72,6 @@ async def test_lxmf_callback_schema_validation():
 
     valid_msg = SimpleNamespace(
         title="SCHEMA",
-
         content=dataclass_to_msgpack({"num": 5}),
 
         source=None,
@@ -81,7 +83,6 @@ async def test_lxmf_callback_schema_validation():
     called = False
     invalid_msg = SimpleNamespace(
         title="SCHEMA",
-
         content=dataclass_to_msgpack({"num": "bad"}),
 
         source=None,
@@ -118,7 +119,8 @@ async def test_lxmf_callback_dispatches_response():
     dest, title, payload_bytes = send_mock.call_args.args[:3]
     assert dest is src
     assert title == "PING_response"
-    assert msgpack.unpackb(payload_bytes, raw=False) == {"status": "ok"}
+    assert msgpack_from_bytes(payload_bytes) == {"status": "ok"}
+
 
 
 def test_get_api_specification_returns_registered_routes():

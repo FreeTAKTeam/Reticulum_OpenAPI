@@ -1,16 +1,11 @@
 from dataclasses import dataclass
-from typing import List, Union
-import pytest
-from sqlalchemy.orm import declarative_base
-from sqlalchemy import Column
-from sqlalchemy import Integer
-from sqlalchemy import String
-from sqlalchemy.ext.asyncio import create_async_engine
-from sqlalchemy.ext.asyncio import async_sessionmaker
-from sqlalchemy.ext.asyncio import AsyncSession
-from reticulum_openapi.model import dataclass_to_msgpack
-from reticulum_openapi.model import dataclass_from_msgpack
-from reticulum_openapi.model import BaseModel
+
+from reticulum_openapi.model import (
+    dataclass_from_json,
+    dataclass_from_msgpack,
+    dataclass_to_json,
+    dataclass_to_msgpack
+)
 
 
 @dataclass
@@ -36,6 +31,13 @@ def test_list_of_items_roundtrip():
     data = dataclass_to_msgpack(obj)
     reconstructed = dataclass_from_msgpack(ItemList, data)
     assert reconstructed == obj
+
+
+def test_msgpack_roundtrip():
+    item = Item(name="foo", value=42)
+    data = dataclass_to_msgpack(item)
+    obj = dataclass_from_msgpack(Item, data)
+    assert obj == item
 
 
 @dataclass

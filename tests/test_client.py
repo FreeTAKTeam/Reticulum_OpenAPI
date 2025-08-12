@@ -5,6 +5,7 @@ import msgpack
 import pytest
 
 from reticulum_openapi import client as client_module
+from reticulum_openapi.codec_msgpack import from_bytes as msgpack_from_bytes
 
 
 @dataclass
@@ -138,7 +139,8 @@ async def test_send_command_includes_token(monkeypatch):
 
     await cli.send_command("aa", "CMD", Sample(text="hello"), await_response=False)
 
-    payload = msgpack.unpackb(captured["content"], raw=False)
+    payload = msgpack_from_bytes(captured["content"])
+
     assert payload.get("auth_token") == "secret"
     assert payload.get("text") == "hello"
     assert call_counter["count"] == 1

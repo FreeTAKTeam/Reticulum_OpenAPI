@@ -14,6 +14,10 @@
 - [x] Extend MessagePack codec tests for misordered maps, boundary vectors, digests, and negative NaN/ext cases.
 
 - [x] Update codec Msgpack test to import from reticulum_openapi.
+- [x] Introduce MessagePack utilities and refactor service/client to use them by default.
+- [ ] Evaluate separating compression from JSON serialization helpers.
+- [ ] Introduce centralised logging configuration for services and clients.
+
 - [x] Use MessagePack for dataclass serialization and drop zlib compression.
 - [x] Rename serialization helpers to dataclass_to_msgpack/from_msgpack for clarity.
 - [x] Resolve merge artifacts in service tests.
