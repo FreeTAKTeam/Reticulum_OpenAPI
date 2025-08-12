@@ -1,4 +1,5 @@
 # Reticulum OpenAPI
+[![Python](https://github.com/FreeTAKTeam/Reticulum_OpenAPI/actions/workflows/python.yml/badge.svg?branch=main)](https://github.com/FreeTAKTeam/Reticulum_OpenAPI/actions/workflows/python.yml)
 
 Reticulum OpenAPI is an experimental framework for building lightweight APIs on top of the Reticulum mesh network using LXMF messages. It allows you to expose simple command based or REST style services that work in delay tolerant and very low bandwidth environments.
 
