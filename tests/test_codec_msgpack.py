@@ -39,7 +39,6 @@ def test_basic_integers():
     assert b == b"\xff"
 
 
-
 def test_int64_bounds_and_overflow():
     """Check 64-bit integer boundaries and overflow handling."""
     min_signed = -(2**63)
