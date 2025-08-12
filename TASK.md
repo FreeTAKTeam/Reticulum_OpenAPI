@@ -9,6 +9,7 @@
 - [x] Implement MessagePack decoding in EmergencyManagement client.
 - [x] Add loopback link tests for client requests and resource transfer.
 - [x] Update generator docs to use Python tooling and note post-generation tweaks.
+- [x] Add integer range checks for MessagePack encoding.
 
 - [x] Extend MessagePack codec tests for misordered maps, boundary vectors, digests, and negative NaN/ext cases.
 
