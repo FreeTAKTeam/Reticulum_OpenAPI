@@ -52,6 +52,7 @@ def test_int64_bounds_and_overflow():
     with pytest.raises(codec.CodecError):
         codec.to_canonical_bytes(max_unsigned + 1)
 
+
 def test_cross_language_boundaries(int_boundary_vectors):
     """Ensure 127/128 encodings match across implementations."""
     for num, vectors in int_boundary_vectors.items():
