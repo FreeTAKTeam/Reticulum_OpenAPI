@@ -16,7 +16,12 @@ async def test_send_command_receives_response(monkeypatch):
     loop = asyncio.get_running_loop()
     cli = client_module.LXMFClient.__new__(client_module.LXMFClient)
     cli._loop = loop
-    cli.router = SimpleNamespace(handle_outbound=lambda msg: None)
+    captured = {}
+
+    def handle_outbound(msg):
+        captured["msg"] = msg
+
+    cli.router = SimpleNamespace(handle_outbound=handle_outbound)
     cli.source_identity = object()
     cli._futures = {}
     cli.auth_token = None
@@ -24,7 +29,9 @@ async def test_send_command_receives_response(monkeypatch):
 
     monkeypatch.setattr(client_module.RNS.Transport, "has_path", lambda dest: True)
     monkeypatch.setattr(client_module.RNS.Transport, "request_path", lambda dest: None)
-    monkeypatch.setattr(client_module.RNS.Identity, "recall", lambda h, create=False: object())
+    monkeypatch.setattr(
+        client_module.RNS.Identity, "recall", lambda h, create=False: object()
+    )
 
     class FakeDestination:
         OUT = object()
@@ -32,15 +39,20 @@ async def test_send_command_receives_response(monkeypatch):
 
         def __init__(self, *a, **k):
             pass
+
     monkeypatch.setattr(client_module.RNS, "Destination", FakeDestination)
 
     class FakeLXMessage:
-
-        def __init__(self, dest, src, content, title):
+        def __init__(self, dest, src, content, title, fields=None):
             self.dest = dest
             self.src = src
             self.content = content
             self.title = title
+            self.fields = fields
+
+        def pack(self):
+            pass
+
     monkeypatch.setattr(client_module.LXMF, "LXMessage", FakeLXMessage)
 
     async def run_cmd():
@@ -48,7 +60,8 @@ async def test_send_command_receives_response(monkeypatch):
 
     task = asyncio.create_task(run_cmd())
     await asyncio.sleep(0.01)
-    cli._callback(SimpleNamespace(title="CMD_response", content=b"ok"))
+    req_id = captured["msg"].fields["request_id"]
+    cli._callback(SimpleNamespace(fields={"request_id": req_id}, content=b"ok"))
     result = await task
     assert result == b"ok"
 
@@ -65,7 +78,9 @@ async def test_send_command_timeout(monkeypatch):
     cli.timeout = 0.01
 
     monkeypatch.setattr(client_module.RNS.Transport, "has_path", lambda dest: True)
-    monkeypatch.setattr(client_module.RNS.Identity, "recall", lambda h, create=False: object())
+    monkeypatch.setattr(
+        client_module.RNS.Identity, "recall", lambda h, create=False: object()
+    )
 
     class FakeDestination:
         OUT = object()
@@ -73,8 +88,17 @@ async def test_send_command_timeout(monkeypatch):
 
         def __init__(self, *a, **k):
             pass
+
     monkeypatch.setattr(client_module.RNS, "Destination", FakeDestination)
-    monkeypatch.setattr(client_module.LXMF, "LXMessage", lambda *a, **k: None)
+
+    class FakeLXMessage:
+        def __init__(self, *a, **k):
+            self.fields = k.get("fields")
+
+        def pack(self):
+            pass
+
+    monkeypatch.setattr(client_module.LXMF, "LXMessage", FakeLXMessage)
 
     with pytest.raises(TimeoutError):
         await cli.send_command("aa", "CMD")
@@ -85,6 +109,7 @@ async def test_send_command_includes_token(monkeypatch):
     loop = asyncio.get_running_loop()
     cli = client_module.LXMFClient.__new__(client_module.LXMFClient)
     cli._loop = loop
+    captured = {}
     cli.router = SimpleNamespace(handle_outbound=lambda msg: None)
     cli.source_identity = object()
     cli._futures = {}
@@ -92,7 +117,9 @@ async def test_send_command_includes_token(monkeypatch):
     cli.timeout = 0.2
 
     monkeypatch.setattr(client_module.RNS.Transport, "has_path", lambda dest: True)
-    monkeypatch.setattr(client_module.RNS.Identity, "recall", lambda h, create=False: object())
+    monkeypatch.setattr(
+        client_module.RNS.Identity, "recall", lambda h, create=False: object()
+    )
 
     class FakeDestination:
         OUT = object()
@@ -103,15 +130,17 @@ async def test_send_command_includes_token(monkeypatch):
 
     monkeypatch.setattr(client_module.RNS, "Destination", FakeDestination)
 
-    captured = {}
-
     class FakeLXMessage:
-        def __init__(self, dest, src, content, title):
+        def __init__(self, dest, src, content, title, fields=None):
             captured["content"] = content
             self.dest = dest
             self.src = src
             self.content = content
             self.title = title
+            self.fields = fields
+
+        def pack(self):
+            pass
 
     monkeypatch.setattr(client_module.LXMF, "LXMessage", FakeLXMessage)
 
@@ -119,6 +148,7 @@ async def test_send_command_includes_token(monkeypatch):
 
     import json
     import zlib
+
     payload = json.loads(zlib.decompress(captured["content"]).decode())
     assert payload.get("auth_token") == "secret"
     assert payload.get("text") == "hello"
