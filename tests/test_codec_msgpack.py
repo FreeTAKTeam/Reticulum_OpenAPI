@@ -14,6 +14,20 @@ def test_basic_integers():
     assert b == b"\xff"
 
 
+def test_int64_bounds_and_overflow():
+    """Check 64-bit integer boundaries and overflow handling."""
+    min_signed = -(2**63)
+    max_unsigned = 2**64 - 1
+    b = codec.to_canonical_bytes(min_signed)
+    assert b == b"\xd3" + (min_signed & 0xFFFFFFFFFFFFFFFF).to_bytes(8, "big")
+    b = codec.to_canonical_bytes(max_unsigned)
+    assert b == b"\xcf" + max_unsigned.to_bytes(8, "big")
+    with pytest.raises(codec.CodecError):
+        codec.to_canonical_bytes(min_signed - 1)
+    with pytest.raises(codec.CodecError):
+        codec.to_canonical_bytes(max_unsigned + 1)
+
+
 def test_basic_strings_and_bins():
     """Ensure strings and binary data are encoded correctly."""
     b = codec.to_canonical_bytes("a")
