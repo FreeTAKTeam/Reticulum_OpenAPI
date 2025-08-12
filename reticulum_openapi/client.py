@@ -5,7 +5,7 @@ from dataclasses import asdict
 from dataclasses import is_dataclass
 from typing import Optional
 from typing import Dict
-from .model import dataclass_to_json
+from .model import dataclass_to_msgpack
 
 
 class LXMFClient:
@@ -79,7 +79,7 @@ class LXMFClient:
             if self.auth_token:
 
                 data_dict["auth_token"] = self.auth_token
-            content_bytes = dataclass_to_json(data_dict)
+            content_bytes = dataclass_to_msgpack(data_dict)
         lxmsg = LXMF.LXMessage(
             RNS.Destination(
                 dest_identity,

@@ -78,7 +78,7 @@ async def test_send_serializes_dict(monkeypatch):
 
     monkeypatch.setattr(
         lc_module,
-        "dataclass_to_json",
+        "dataclass_to_msgpack",
         lambda d: (captured.setdefault("payload", d), b"data")[1],
     )
 

@@ -2,7 +2,9 @@ RNS
 LXMF
 SQLAlchemy
 jsonschema
+msgpack
 pytest
 pytest-asyncio
 flake8
 aiosqlite
+msgpack

@@ -19,7 +19,7 @@ paths:
       summary: retrieve an existing Event record based on the provided ID.
       operationId: RetreiveEvent
       parameters:
-        - $ref: '#/components/parameters/id'
+        - $ref: '#/components/parameters/ID'
       responses:
         '200':
           $ref: '#/components/responses/200Event_get'
@@ -127,7 +127,7 @@ paths:
       summary: retrieve an existing EmergencyActionMessage record based on the provided ID.
       operationId: RetreiveEmergencyActionMessage
       parameters:
-        - $ref: '#/components/parameters/id'
+        - $ref: '#/components/parameters/ID'
       responses:
         '200':
           $ref: '#/components/responses/200EmergencyActionMessage_get'
@@ -269,14 +269,7 @@ components:
       schema:
         type: string
       in: query
-    id:
-      name: id
-      required: true
-      description: >-
-        TODO
-      schema:
-        type: string
-      in: path
+      
   responses:
     200Event_get:
       description: Success
