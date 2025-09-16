@@ -88,8 +88,9 @@ class LinkClient:
         self.reticulum = RNS.Reticulum(config_path)
         self.identity = identity or RNS.Identity()
         self._loop = asyncio.get_event_loop()
-        self.established = asyncio.Event()
-        self.closed = asyncio.Event()
+        self.established: asyncio.Event = asyncio.Event()
+        self.closed: asyncio.Event = asyncio.Event()
+        self.packet_queue: asyncio.Queue[bytes] = asyncio.Queue()
         remote_hash = bytes.fromhex(dest_hash)
         if hasattr(RNS.Identity, "recall"):
             remote_id = RNS.Identity.recall(remote_hash) or RNS.Identity.recall(
@@ -104,16 +105,12 @@ class LinkClient:
             "openapi",
             "link",
         )
-        self.established = asyncio.Event()
-        self.closed = asyncio.Event()
-        self.packet_queue: asyncio.Queue[bytes] = asyncio.Queue()
         self.link = RNS.Link(
             destination,
             established_callback=self._on_established,
             closed_callback=self._on_closed,
         )
         self.link.set_packet_callback(self._handle_packet)
-        self.packet_queue: asyncio.Queue[bytes] = asyncio.Queue()
 
     def _on_established(self, _link: RNS.Link) -> None:
         """Internal callback when link is established."""
