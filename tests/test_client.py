@@ -188,3 +188,52 @@ async def test_send_command_includes_token(monkeypatch):
     assert payload.get("text") == "hello"
     assert call_counter["count"] == 1
     assert captured["pre"]["auth_token"] == "secret"
+
+
+@pytest.mark.asyncio
+async def test_callback_normalises_byte_titles():
+    loop = asyncio.get_running_loop()
+    cli = client_module.LXMFClient.__new__(client_module.LXMFClient)
+    cli._loop = loop
+    cli.router = SimpleNamespace(handle_outbound=lambda msg: None)
+    cli.source_identity = object()
+    cli._futures = {}
+    cli.auth_token = None
+    cli.timeout = 0.1
+
+    future = loop.create_future()
+    cli._futures["CMD_response"] = future
+
+    cli._callback(SimpleNamespace(title=b"CMD_response", content=b"data"))
+
+    await asyncio.sleep(0)
+    assert future.done()
+    assert future.result() == b"data"
+
+
+@pytest.mark.asyncio
+async def test_callback_ignores_invalid_byte_titles(monkeypatch):
+    loop = asyncio.get_running_loop()
+    cli = client_module.LXMFClient.__new__(client_module.LXMFClient)
+    cli._loop = loop
+    cli.router = SimpleNamespace(handle_outbound=lambda msg: None)
+    cli.source_identity = object()
+    cli._futures = {}
+    cli.auth_token = None
+    cli.timeout = 0.1
+
+    future = loop.create_future()
+    cli._futures["CMD_response"] = future
+
+    messages = []
+
+    def fake_log(message):
+        messages.append(message)
+
+    monkeypatch.setattr(client_module.RNS, "log", fake_log)
+
+    cli._callback(SimpleNamespace(title=b"\xff", content=b"ignored"))
+
+    assert not future.done()
+    assert cli._futures["CMD_response"] is future
+    assert messages and "Invalid response title" in messages[0]
