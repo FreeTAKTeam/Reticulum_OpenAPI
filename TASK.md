@@ -29,5 +29,6 @@
 
 ## 2025-09-16
 - [x] Align LXMF client path discovery with configurable timeouts and cover success/timeout cases in tests.
+- [x] Evaluate EmergencyManagement example to resolve import issues and extend automated coverage.
 
 
