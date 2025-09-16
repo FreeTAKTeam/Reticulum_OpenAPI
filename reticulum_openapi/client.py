@@ -47,6 +47,7 @@ class LXMFClient:
         dest_hex: str,
         command: str,
         payload_obj: object = None,
+        path_timeout: Optional[float] = None,
         await_response: bool = True,
         response_title: Optional[str] = None,
     ) -> Optional[bytes]:
@@ -56,18 +57,28 @@ class LXMFClient:
             dest_hex (str): Destination identity hash as hex string.
             command (str): Command name placed in the LXMF title.
             payload_obj (object, optional): Dataclass, dict or bytes payload. Defaults to ``None``.
+            path_timeout (float, optional): Maximum seconds to wait for path discovery. Defaults to ``self.timeout``.
             await_response (bool, optional): Wait for a response message. Defaults to ``True``.
             response_title (str, optional): Expected response title. Defaults to ``<command>_response``.
 
         Returns:
             Optional[bytes]: Response payload if ``await_response`` is ``True``.
+
+        Raises:
+            TimeoutError: If a transport path cannot be established before ``path_timeout`` elapses.
         """
         dest_hash = bytes.fromhex(dest_hex)
+        if path_timeout is None:
+            path_timeout = self.timeout
+
         if not RNS.Transport.has_path(dest_hash):
             RNS.Transport.request_path(dest_hash)
-            for _ in range(50):
-                if RNS.Transport.has_path(dest_hash):
-                    break
+            deadline = None if path_timeout is None else self._loop.time() + path_timeout
+            while not RNS.Transport.has_path(dest_hash):
+                if deadline is not None and self._loop.time() >= deadline:
+                    raise TimeoutError(
+                        f"Path to {dest_hex} not available after {path_timeout} seconds"
+                    )
                 await asyncio.sleep(0.1)
 
         dest_identity = RNS.Identity.recall(dest_hash) or RNS.Identity.recall(

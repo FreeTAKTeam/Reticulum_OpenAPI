@@ -23,8 +23,21 @@ async def test_send_command_receives_response(monkeypatch):
     cli.auth_token = None
     cli.timeout = 0.2
 
-    monkeypatch.setattr(client_module.RNS.Transport, "has_path", lambda dest: True)
-    monkeypatch.setattr(client_module.RNS.Transport, "request_path", lambda dest: None)
+    path_state = {"ready": False}
+    path_requests = {"count": 0}
+
+    def fake_has_path(dest):
+        return path_state["ready"]
+
+    def fake_request_path(dest):
+        path_requests["count"] += 1
+
+    async def enable_path():
+        await asyncio.sleep(0.01)
+        path_state["ready"] = True
+
+    monkeypatch.setattr(client_module.RNS.Transport, "has_path", fake_has_path)
+    monkeypatch.setattr(client_module.RNS.Transport, "request_path", fake_request_path)
     monkeypatch.setattr(
         client_module.RNS.Identity, "recall", lambda h, create=False: object()
     )
@@ -51,11 +64,14 @@ async def test_send_command_receives_response(monkeypatch):
     async def run_cmd():
         return await cli.send_command("aa", "CMD", Sample(text="hi"))
 
+    path_task = asyncio.create_task(enable_path())
     task = asyncio.create_task(run_cmd())
-    await asyncio.sleep(0.01)
+    await asyncio.sleep(0.2)
     cli._callback(SimpleNamespace(title="CMD_response", content=b"ok"))
     result = await task
+    await path_task
     assert result == b"ok"
+    assert path_requests["count"] == 1
 
 
 @pytest.mark.asyncio
@@ -86,6 +102,32 @@ async def test_send_command_timeout(monkeypatch):
 
     with pytest.raises(TimeoutError):
         await cli.send_command("aa", "CMD")
+
+
+@pytest.mark.asyncio
+async def test_send_command_path_discovery_timeout(monkeypatch):
+    loop = asyncio.get_running_loop()
+    cli = client_module.LXMFClient.__new__(client_module.LXMFClient)
+    cli._loop = loop
+    cli.router = SimpleNamespace(handle_outbound=lambda msg: None)
+    cli.source_identity = object()
+    cli._futures = {}
+    cli.auth_token = None
+    cli.timeout = 0.05
+
+    monkeypatch.setattr(client_module.RNS.Transport, "has_path", lambda dest: False)
+    request_calls = {"count": 0}
+
+    def fake_request_path(dest):
+        request_calls["count"] += 1
+
+    monkeypatch.setattr(client_module.RNS.Transport, "request_path", fake_request_path)
+
+    with pytest.raises(TimeoutError) as exc:
+        await cli.send_command("aa", "CMD", await_response=False)
+
+    assert "Path to aa" in str(exc.value)
+    assert request_calls["count"] == 1
 
 
 @pytest.mark.asyncio

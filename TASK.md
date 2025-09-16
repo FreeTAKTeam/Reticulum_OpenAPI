@@ -27,3 +27,7 @@
 - [x] Resolve flake8 errors in services, models, and tests.
 
 
+## 2025-09-16
+- [x] Align LXMF client path discovery with configurable timeouts and cover success/timeout cases in tests.
+
+
