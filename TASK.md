@@ -30,5 +30,7 @@
 ## 2025-09-16
 - [x] Align LXMF client path discovery with configurable timeouts and cover success/timeout cases in tests.
 - [x] Normalise LXMF command titles to handle byte-encoded message routes.
+- [x] Evaluate EmergencyManagement example to resolve import issues and extend automated coverage.
+
 
 
