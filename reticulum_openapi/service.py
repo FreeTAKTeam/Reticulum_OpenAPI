@@ -13,6 +13,7 @@ from dataclasses import is_dataclass
 from jsonschema import validate
 from jsonschema import ValidationError
 from .codec_msgpack import from_bytes as msgpack_from_bytes
+from .identity import load_or_create_identity
 from .model import dataclass_from_json
 from .model import dataclass_from_msgpack
 from .model import dataclass_to_json
@@ -51,7 +52,8 @@ class LXMFService:
         self.router.register_delivery_callback(self._lxmf_delivery_callback)
         # Set up identity and destination for this service
         if identity is None:
-            identity = RNS.Identity()  # generate a new random identity (keypair)
+            identity = load_or_create_identity(config_path)
+        self.identity = identity
         # Register identity with LXMF for message delivery
         self.source_identity = self.router.register_delivery_identity(
             identity, display_name=display_name, stamp_cost=stamp_cost

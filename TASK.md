@@ -31,3 +31,7 @@
 - [x] Align LXMF client path discovery with configurable timeouts and cover success/timeout cases in tests.
 
 
+## 2025-09-17
+- [x] Persist and reuse Reticulum identities for services and clients when available in configuration.
+
+
