@@ -1,17 +1,11 @@
 import logging
-from typing import Any, Callable, Coroutine, TypeVar
 from functools import wraps
+from typing import Any, Callable, Coroutine, TypeVar
 
-# pretty sure every import of this class will trigger a new addHandler event which will result
-# in as many duplicate handlers for the controller logger as there are imports.
-# Setup module logger
-logger = logging.getLogger("reticulum_openapi.controller")
-logger.setLevel(logging.INFO)
-handler = logging.StreamHandler()
-formatter = logging.Formatter("[%(asctime)s] %(levelname)s %(name)s: %(message)s")
-handler.setFormatter(formatter)
-if not logger.handlers:
-    logger.addHandler(handler)
+from .logging import configure_logging
+
+configure_logging()
+logger = logging.getLogger(__name__)
 
 
 class APIException(Exception):
