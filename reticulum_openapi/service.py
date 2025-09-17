@@ -103,7 +103,6 @@ class LXMFService:
         self._routes[normalised_command] = (handler, payload_type, payload_schema)
         RNS.log(f"Route registered: '{normalised_command}' -> {handler}")
 
-
     def get_api_specification(self) -> dict:
         """Return a minimal JSON specification of available commands."""
         commands = {}
@@ -147,17 +146,18 @@ class LXMFService:
             logger.exception("Error reading incoming message: %s", exc)
             return  # Exit if message is malformed
 
-        logger.info(
-            "Received LXMF message - Title: '%s', Size: %d bytes",
-            cmd,
-            len(payload_bytes) if payload_bytes else 0,
-
         cmd = self._normalise_command_title(raw_title)
         if cmd is None:
             RNS.log(f"Invalid command title received: {raw_title!r}")
             return
+        payload_length = len(payload_bytes) if payload_bytes else 0
+        logger.info(
+            "Received LXMF message - Title: '%s', Size: %d bytes",
+            cmd,
+            payload_length,
+        )
         RNS.log(
-            f"Received LXMF message - Title: '{cmd}', Size: {len(payload_bytes) if payload_bytes else 0} bytes"
+            f"Received LXMF message - Title: '{cmd}', Size: {payload_length} bytes"
         )
         # Look up the handler for the command
         if cmd not in self._routes:
