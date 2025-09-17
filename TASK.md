@@ -39,3 +39,7 @@
 - [x] Handle dataclass auth tokens in LXMF service delivery callback and extend tests.
 
 
+## 2025-09-18
+- [x] Refresh EmergencyManagement README with current client/service/controller flow terminology.
+
+

@@ -19,13 +19,12 @@ The API contract is described in [`API/EmergencyActionMessageManagement-OAS.yaml
 sequenceDiagram
 autonumber
 participant ClientApp as Emergency Client (client_emergency.py)
-participant ApiClient as LXMFApiClient
+participant ApiClient as LXMFClient
 participant Codec as MsgPackCodec
 participant LXMF as LXMFTransport
 participant ServerApp as Emergency Server (server_emergency.py)
-participant ApiService as LXMFApiService
-participant Router as RequestRouter
-participant Domain as EmergencyService
+participant Service as EmergencyService (LXMFService)
+participant Controller as Emergency/Event Controllers
 
 note over ServerApp: On start, prints its identity hash (client needs it)
 
@@ -35,17 +34,15 @@ Codec-->>ApiClient: bytes
 ApiClient->>LXMF: send(to=server_hash, content=bytes)
 LXMF-->>ServerApp: deliver(envelope)
 
-ServerApp->>ApiService: onMessage(envelope)
-ApiService->>Codec: decode(bytes)
-Codec-->>ApiService: obj
-ApiService->>Router: route("/emergency/create", obj)
-Router->>Domain: createEmergency(data)
-Domain-->>Router: ack {id, status}
-Router-->>ApiService: Response
+ServerApp->>Service: on_message(envelope)
+Service->>Codec: decode(bytes)
+Codec-->>Service: obj
+Service->>Controller: invoke "CreateEmergencyActionMessage"
+Controller-->>Service: ack {id, status}
 
-ApiService->>Codec: encode(response)
-Codec-->>ApiService: bytes
-ApiService->>LXMF: reply(to=client_hash, content=bytes)
+Service->>Codec: encode(response)
+Codec-->>Service: bytes
+Service->>LXMF: reply(to=client_hash, content=bytes)
 LXMF-->>ClientApp: deliver(reply)
 
 ClientApp->>ApiClient: receive(reply)
@@ -53,6 +50,12 @@ ApiClient->>Codec: decode(bytes)
 Codec-->>ApiClient: ack/status
 ApiClient-->>ClientApp: display result
 ```
+
+The `LXMFClient` in `client_emergency.py` handles MessagePack encoding for the
+requests and forwards them over the LXMF transport. On the server side,
+`EmergencyService` subclasses `LXMFService`, decodes the payload, and dispatches
+each command to the appropriate controller (`EmergencyController` or
+`EventController`) before packaging the response for the client.
 
 | Folder | Description |
 |-------|-------------|
