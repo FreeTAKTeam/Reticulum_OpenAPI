@@ -15,6 +15,12 @@ class Sample:
     text: str
 
 
+@dataclass
+class AuthSample:
+    auth_token: str
+    text: str
+
+
 @pytest.mark.asyncio
 async def test_lxmf_callback_decodes_dataclass_and_dispatches():
     """Dataclass payloads are decoded and passed to the handler."""
@@ -139,6 +145,66 @@ async def test_lxmf_callback_schema_validation():
     service._lxmf_delivery_callback(invalid_msg)
     await asyncio.sleep(0.01)
     assert not called
+
+
+@pytest.mark.asyncio
+async def test_lxmf_callback_rejects_dataclass_with_incorrect_token():
+    """Dataclass payloads with wrong auth tokens are rejected."""
+    loop = asyncio.get_running_loop()
+    service = LXMFService.__new__(LXMFService)
+    service._loop = loop
+    service.auth_token = "token"
+    service.max_payload_size = 32000
+    service._send_lxmf = Mock()
+
+    called = False
+
+    async def handler(payload: AuthSample):
+        nonlocal called
+        called = True
+
+    service._routes = {"AUTH": (handler, AuthSample, None)}
+
+    message = SimpleNamespace(
+        title="AUTH",
+        content=dataclass_to_msgpack(AuthSample(auth_token="wrong", text="hi")),
+        source=None,
+    )
+
+    service._lxmf_delivery_callback(message)
+    await asyncio.sleep(0.01)
+
+    assert not called
+
+
+@pytest.mark.asyncio
+async def test_lxmf_callback_accepts_dataclass_with_valid_token():
+    """Dataclass payloads with a valid auth token reach the handler."""
+    loop = asyncio.get_running_loop()
+    service = LXMFService.__new__(LXMFService)
+    service._loop = loop
+    service.auth_token = "token"
+    service.max_payload_size = 32000
+    service._send_lxmf = Mock()
+
+    received = {}
+
+    async def handler(payload: AuthSample):
+        received["payload"] = payload
+
+    service._routes = {"AUTH": (handler, AuthSample, None)}
+
+    message = SimpleNamespace(
+        title="AUTH",
+        content=dataclass_to_msgpack(AuthSample(auth_token="token", text="hi")),
+        source=None,
+    )
+
+    service._lxmf_delivery_callback(message)
+    await asyncio.sleep(0.01)
+
+    assert isinstance(received.get("payload"), AuthSample)
+    assert received["payload"].text == "hi"
 
 
 @pytest.mark.asyncio
