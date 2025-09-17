@@ -36,5 +36,6 @@
 
 ## 2025-09-17
 - [x] Persist and reuse Reticulum identities for services and clients when available in configuration.
+- [x] Handle dataclass auth tokens in LXMF service delivery callback and extend tests.
 
 

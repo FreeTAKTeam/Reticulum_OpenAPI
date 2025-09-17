@@ -207,10 +207,17 @@ class LXMFService:
                         exc.message,
                     )
                     return
-            if self.auth_token and isinstance(payload_obj, dict):
-                if payload_obj.get("auth_token") != self.auth_token:
-                    logger.warning("Authentication failed for message: %s", cmd)
-                    return
+            if self.auth_token:
+                payload_dict = None
+                if is_dataclass(payload_obj):
+                    payload_dict = asdict(payload_obj)
+                elif isinstance(payload_obj, dict):
+                    payload_dict = payload_obj
+
+                if payload_dict is not None:
+                    if payload_dict.get("auth_token") != self.auth_token:
+                        logger.warning("Authentication failed for message: %s", cmd)
+                        return
         else:
             payload_obj = None  # No payload content
 
