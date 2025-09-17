@@ -51,3 +51,9 @@ async def test_run_business_logic_error():
         raise c.APIException("fail", 401)
     result = await ctrl.run_business_logic(logic)
     assert result == {"error": "fail", "code": 401}
+
+
+def test_controller_logger_uses_shared_configuration():
+    ctrl = c.Controller()
+    assert ctrl.logger is c.logger
+    assert ctrl.logger.name == "reticulum_openapi.controller"

@@ -1,22 +1,31 @@
 # reticulum_openapi/service.py
 import asyncio
 import json
+import logging
 import zlib
-import RNS
-import LXMF
+from dataclasses import asdict
+from dataclasses import is_dataclass
 from typing import Callable
 from typing import Dict
 from typing import Optional
 from typing import Type
-from dataclasses import asdict
-from dataclasses import is_dataclass
-from jsonschema import validate
+
+import LXMF
+import RNS
+
 from jsonschema import ValidationError
+from jsonschema import validate
+
 from .codec_msgpack import from_bytes as msgpack_from_bytes
+from .logging import configure_logging
 from .model import dataclass_from_json
 from .model import dataclass_from_msgpack
 from .model import dataclass_to_json
 from .model import dataclass_to_msgpack
+
+
+configure_logging()
+logger = logging.getLogger(__name__)
 
 
 class LXMFService:
@@ -62,8 +71,9 @@ class LXMFService:
         self._start_task: Optional[asyncio.Task] = None
         self.auth_token = auth_token
         self.max_payload_size = max_payload_size
-        RNS.log(
-            f"LXMFService initialized (Identity hash: {RNS.prettyhexrep(self.source_identity.hash)})"
+        logger.info(
+            "LXMFService initialized (Identity hash: %s)",
+            RNS.prettyhexrep(self.source_identity.hash),
         )
         # register built in route for schema discovery
         self.add_route("GetSchema", self._handle_get_schema)
@@ -82,7 +92,7 @@ class LXMFService:
         :param payload_type: Dataclass type for request payload, or None for raw dict/bytes.
         """
         self._routes[command] = (handler, payload_type, payload_schema)
-        RNS.log(f"Route registered: '{command}' -> {handler}")
+        logger.info("Route registered: '%s' -> %s", command, handler)
 
     def get_api_specification(self) -> dict:
         """Return a minimal JSON specification of available commands."""
@@ -110,21 +120,23 @@ class LXMFService:
         try:
             cmd = message.title  # command name
             payload_bytes = message.content  # raw payload (possibly bytes)
-        except Exception as e:
-            RNS.log(f"Error reading incoming message: {e}")
+        except Exception as exc:
+            logger.exception("Error reading incoming message: %s", exc)
             return  # Exit if message is malformed
-        RNS.log(
-            f"Received LXMF message - Title: '{cmd}', Size: {len(payload_bytes) if payload_bytes else 0} bytes"
+        logger.info(
+            "Received LXMF message - Title: '%s', Size: %d bytes",
+            cmd,
+            len(payload_bytes) if payload_bytes else 0,
         )
         # Look up the handler for the command
         if cmd not in self._routes:
-            RNS.log(f"No route found for command: {cmd}")
+            logger.warning("No route found for command: %s", cmd)
             return
         handler, payload_type, payload_schema = self._routes[cmd]
         # Decode payload
         if payload_bytes:
             if len(payload_bytes) > self.max_payload_size:
-                RNS.log(f"Payload for {cmd} exceeds maximum size")
+                logger.warning("Payload for %s exceeds maximum size", cmd)
                 return
             if payload_type:
                 try:
@@ -132,14 +144,14 @@ class LXMFService:
                 except Exception:
                     try:
                         payload_obj = dataclass_from_json(payload_type, payload_bytes)
-                    except Exception as e:
-                        RNS.log(f"Failed to parse payload for {cmd}: {e}")
+                    except Exception as exc:
+                        logger.error("Failed to parse payload for %s: %s", cmd, exc)
                         return
             else:
                 try:
                     payload_obj = msgpack_from_bytes(payload_bytes)
-                except Exception as e:
-                    RNS.log(f"Invalid MessagePack payload for {cmd}: {e}")
+                except Exception as exc:
+                    logger.error("Invalid MessagePack payload for %s: %s", cmd, exc)
                     try:
                         json_bytes = zlib.decompress(payload_bytes)
                         payload_obj = json.loads(json_bytes.decode("utf-8"))
@@ -147,7 +159,7 @@ class LXMFService:
                         try:
                             payload_obj = json.loads(payload_bytes.decode("utf-8"))
                         except Exception as json_exc:
-                            RNS.log(f"Invalid JSON payload for {cmd}: {json_exc}")
+                            logger.error("Invalid JSON payload for %s: %s", cmd, json_exc)
                             return
             if payload_schema is not None:
                 try:
@@ -157,12 +169,16 @@ class LXMFService:
                         else payload_obj
                     )
                     validate(obj, payload_schema)
-                except ValidationError as e:
-                    RNS.log(f"Schema validation failed for {cmd}: {e.message}")
+                except ValidationError as exc:
+                    logger.warning(
+                        "Schema validation failed for %s: %s",
+                        cmd,
+                        exc.message,
+                    )
                     return
             if self.auth_token and isinstance(payload_obj, dict):
                 if payload_obj.get("auth_token") != self.auth_token:
-                    RNS.log("Authentication failed for message")
+                    logger.warning("Authentication failed for message: %s", cmd)
                     return
         else:
             payload_obj = None  # No payload content
@@ -178,8 +194,8 @@ class LXMFService:
                 else:
                     # Handler might accept no arguments or an explicit None
                     result = await handler()
-            except Exception as e:
-                RNS.log(f"Exception in handler for {cmd}: {e}")
+            except Exception as exc:
+                logger.exception("Exception in handler for %s: %s", cmd, exc)
             # If handler returned a result, attempt to send a response back to sender
             if result is not None:
                 if isinstance(result, bytes):
@@ -190,8 +206,12 @@ class LXMFService:
                     except Exception:
                         try:
                             resp_bytes = dataclass_to_json(result)
-                        except Exception as e:
-                            RNS.log(f"Failed to serialize result dataclass: {e}")
+                        except Exception as exc:
+                            logger.exception(
+                                "Failed to serialize result dataclass for %s: %s",
+                                cmd,
+                                exc,
+                            )
                             resp_bytes = zlib.compress(
                                 json.dumps(result).encode("utf-8")
                             )
@@ -201,11 +221,11 @@ class LXMFService:
                 if dest_identity:
                     try:
                         self._send_lxmf(dest_identity, resp_title, resp_bytes)
-                        RNS.log(f"Sent response for {cmd} back to sender.")
-                    except Exception as e:
-                        RNS.log(f"Failed to send response for {cmd}: {e}")
+                        logger.info("Sent response for %s back to sender.", cmd)
+                    except Exception as exc:
+                        logger.exception("Failed to send response for %s: %s", cmd, exc)
                 else:
-                    RNS.log("No source identity to respond to for message.")
+                    logger.warning("No source identity to respond to for message: %s", cmd)
 
         # Schedule the handler execution on the asyncio event loop
         self._loop.call_soon_threadsafe(lambda: asyncio.create_task(handle_and_reply()))
@@ -260,7 +280,7 @@ class LXMFService:
         dest_hash = bytes.fromhex(dest_hex)
         # Ensure we have a path to the destination (if a direct route is not known, optionally request it)
         if await_path and not RNS.Transport.has_path(dest_hash):
-            RNS.log("Destination not in routing table, requesting path...")
+            logger.info("Destination not in routing table, requesting path...")
             RNS.Transport.request_path(dest_hash)
             attempts = 0
             while attempts < 50 and not RNS.Transport.has_path(dest_hash):
@@ -288,22 +308,22 @@ class LXMFService:
         """Announce this service's identity (make its address known on the network)."""
         try:
             self.router.announce(self.source_identity.hash)
-            RNS.log(
-                "Service identity announced: "
-                + RNS.prettyhexrep(self.source_identity.hash)
+            logger.info(
+                "Service identity announced: %s",
+                RNS.prettyhexrep(self.source_identity.hash),
             )
-        except Exception as e:
-            RNS.log(f"Announcement failed: {e}")
+        except Exception as exc:
+            logger.exception("Announcement failed: %s", exc)
 
     async def start(self):
         """Run the service until cancelled."""
-        RNS.log("LXMFService started and listening for messages...")
+        logger.info("LXMFService started and listening for messages...")
         self._start_task = asyncio.current_task()
         try:
             while True:
                 await asyncio.sleep(1)
         except asyncio.CancelledError:
-            RNS.log("Service stopping (Cancelled)")
+            logger.info("Service stopping (Cancelled)")
         finally:
             self.router.exit_handler()
             self._start_task = None

@@ -1,6 +1,7 @@
 """Helpers for handling incoming resources on Reticulum links."""
 
 import asyncio
+import logging
 import os
 import shutil
 
@@ -11,6 +12,12 @@ from typing import Dict
 from typing import Optional
 
 import RNS
+
+from .logging import configure_logging
+
+
+configure_logging()
+logger = logging.getLogger(__name__)
 
 
 class LinkResourceService:
@@ -59,7 +66,7 @@ class LinkResourceService:
             if self.on_download_complete:
                 self.on_download_complete(dest_path)
         except Exception as exc:
-            RNS.log(f"Failed to store resource: {exc}")
+            logger.exception("Failed to store resource: %s", exc)
 
 
 class LinkService:

@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from dataclasses import dataclass
 from types import SimpleNamespace
 from unittest.mock import Mock
@@ -195,19 +196,29 @@ async def test_handle_get_schema_method():
     assert "openapi" in spec
 
 
-def test_lxmf_delivery_callback_no_route(monkeypatch):
+def test_lxmf_delivery_callback_no_route():
     svc = service_module.LXMFService.__new__(service_module.LXMFService)
     svc._routes = {}
     svc.max_payload_size = 10
     svc._loop = asyncio.get_event_loop()
-    logs = []
-    monkeypatch.setattr(service_module.RNS, "log", lambda msg: logs.append(msg))
     message = SimpleNamespace(title="UNKNOWN", content=b"{}")
-    svc._lxmf_delivery_callback(message)
-    assert any("No route" in m for m in logs)
+    records = []
+
+    class RecordingHandler(logging.Handler):
+        def emit(self, record: logging.LogRecord) -> None:
+            records.append(record.getMessage())
+
+    handler = RecordingHandler()
+    service_module.logger.addHandler(handler)
+    try:
+        svc._lxmf_delivery_callback(message)
+    finally:
+        service_module.logger.removeHandler(handler)
+        handler.close()
+    assert any("No route" in message for message in records)
 
 
-def test_lxmf_delivery_invalid_msgpack(monkeypatch):
+def test_lxmf_delivery_invalid_msgpack():
     async def handler(payload):
         return None
 
@@ -216,12 +227,22 @@ def test_lxmf_delivery_invalid_msgpack(monkeypatch):
     svc.max_payload_size = 100
     svc._loop = asyncio.get_event_loop()
     svc.auth_token = None
-    logs = []
-    monkeypatch.setattr(service_module.RNS, "log", lambda msg: logs.append(msg))
     bad = b"not-msgpack"
     message = SimpleNamespace(title="CMD", content=bad)
-    svc._lxmf_delivery_callback(message)
-    assert any("Invalid MessagePack" in m for m in logs)
+    records = []
+
+    class RecordingHandler(logging.Handler):
+        def emit(self, record: logging.LogRecord) -> None:
+            records.append(record.getMessage())
+
+    handler = RecordingHandler()
+    service_module.logger.addHandler(handler)
+    try:
+        svc._lxmf_delivery_callback(message)
+    finally:
+        service_module.logger.removeHandler(handler)
+        handler.close()
+    assert any("Invalid MessagePack" in message for message in records)
 
 
 @pytest.mark.asyncio
