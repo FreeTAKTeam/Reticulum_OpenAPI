@@ -43,6 +43,11 @@ async def test_client_init(monkeypatch):
     monkeypatch.setattr(client_module.RNS, "Destination", DummyDestination)
     monkeypatch.setattr(client_module.LXMF, "LXMRouter", DummyRouter)
     monkeypatch.setattr(client_module.LXMF, "LXMessage", object)
+    monkeypatch.setattr(
+        client_module,
+        "load_or_create_identity",
+        lambda *a, **k: DummyIdentity(),
+    )
 
     cli = client_module.LXMFClient()
     assert isinstance(cli.router, DummyRouter)

@@ -5,6 +5,7 @@ from dataclasses import asdict
 from dataclasses import is_dataclass
 from typing import Optional
 from typing import Dict
+from .identity import load_or_create_identity
 from .model import dataclass_to_json
 from .model import dataclass_to_msgpack
 
@@ -26,7 +27,7 @@ class LXMFClient:
         self.router = LXMF.LXMRouter(storagepath=storage_path)
         self.router.register_delivery_callback(self._callback)
         if identity is None:
-            identity = RNS.Identity()
+            identity = load_or_create_identity(config_path)
         self.identity = identity
         self.source_identity = self.router.register_delivery_identity(
             identity, display_name=display_name, stamp_cost=0

@@ -12,6 +12,8 @@ from typing import Optional
 
 import RNS
 
+from .identity import load_or_create_identity
+
 
 class LinkResourceService:
     """Service utilities for receiving resources on a link."""
@@ -84,7 +86,9 @@ class LinkService:
                 transmissions.
         """
         self.reticulum = RNS.Reticulum(config_path)
-        self.identity = identity or RNS.Identity()
+        if identity is None:
+            identity = load_or_create_identity(config_path)
+        self.identity = identity
         self._loop = asyncio.get_event_loop()
         self.destination = RNS.Destination(
             self.identity,
