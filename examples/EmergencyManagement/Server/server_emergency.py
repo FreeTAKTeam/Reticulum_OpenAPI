@@ -1,3 +1,7 @@
+"""Run the emergency management server example."""
+
+import asyncio
+from pathlib import Path
 import sys
 
 
@@ -41,21 +45,23 @@ def _ensure_standard_library_on_path() -> None:
                     sys.path.append(candidate)
 
 
-_ensure_standard_library_on_path()
+def _ensure_project_root_on_path() -> None:
+    """Ensure the repository root is importable when run as a script."""
 
-import asyncio
-from pathlib import Path
+    # Reason: Allow running the server example from its directory by ensuring
+    # project-level imports resolve when executed as a script.
+    if __package__ is None or __package__ == "":
+        project_root = Path(__file__).resolve().parents[3]
+        project_root_str = str(project_root)
+        if project_root_str not in sys.path:
+            sys.path.insert(0, project_root_str)
 
-# Reason: Allow running the server example from its directory by ensuring
-# project-level imports resolve when executed as a script.
-if __package__ is None or __package__ == "":
-    project_root = Path(__file__).resolve().parents[3]
-    project_root_str = str(project_root)
-    if project_root_str not in sys.path:
-        sys.path.insert(0, project_root_str)
 
-from examples.EmergencyManagement.Server.service_emergency import EmergencyService
-from examples.EmergencyManagement.Server.database import init_db
+def _configure_environment() -> None:
+    """Prepare import paths required for the example service."""
+
+    _ensure_standard_library_on_path()
+    _ensure_project_root_on_path()
 
 
 async def main() -> None:
@@ -65,6 +71,10 @@ async def main() -> None:
         None: The coroutine completes after announcing the service and
         idling for a brief period.
     """
+
+    _configure_environment()
+    from examples.EmergencyManagement.Server.database import init_db
+    from examples.EmergencyManagement.Server.service_emergency import EmergencyService
 
     await init_db()
     async with EmergencyService() as svc:
