@@ -44,6 +44,60 @@ async def test_lxmf_callback_decodes_dataclass_and_dispatches():
 
 
 @pytest.mark.asyncio
+async def test_lxmf_callback_accepts_byte_titles():
+    """Byte titles are normalised before route lookup."""
+    loop = asyncio.get_running_loop()
+    service = LXMFService.__new__(LXMFService)
+    service._loop = loop
+    service.auth_token = None
+    service.max_payload_size = 32000
+    service._send_lxmf = Mock()
+
+    called = {}
+
+    async def handler(payload: Sample):
+        called["payload"] = payload
+
+    service._routes = {"CMD": (handler, Sample, None)}
+
+    message = SimpleNamespace(
+        title=b"CMD", content=dataclass_to_msgpack(Sample(text="hi")), source=None
+    )
+
+    service._lxmf_delivery_callback(message)
+    await asyncio.sleep(0.01)
+
+    assert isinstance(called.get("payload"), Sample)
+    assert called["payload"].text == "hi"
+
+
+@pytest.mark.asyncio
+async def test_lxmf_callback_rejects_invalid_byte_titles():
+    """Invalid UTF-8 titles are ignored without dispatch."""
+    loop = asyncio.get_running_loop()
+    service = LXMFService.__new__(LXMFService)
+    service._loop = loop
+    service.auth_token = None
+    service.max_payload_size = 32000
+    service._send_lxmf = Mock()
+
+    called = False
+
+    async def handler():
+        nonlocal called
+        called = True
+
+    service._routes = {"CMD": (handler, None, None)}
+
+    message = SimpleNamespace(title=b"\xff", content=b"", source=None)
+
+    service._lxmf_delivery_callback(message)
+    await asyncio.sleep(0.01)
+
+    assert not called
+
+
+@pytest.mark.asyncio
 async def test_lxmf_callback_schema_validation():
     """Payload schema is enforced before dispatch."""
     loop = asyncio.get_running_loop()

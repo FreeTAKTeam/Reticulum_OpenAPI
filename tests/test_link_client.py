@@ -73,6 +73,11 @@ async def test_send_serializes_dict(monkeypatch):
     monkeypatch.setattr(lc_module.RNS, "Identity", FakeIdentity)
     monkeypatch.setattr(lc_module.RNS, "Destination", FakeDestination)
     monkeypatch.setattr(lc_module.RNS, "Link", FakeLink)
+    monkeypatch.setattr(
+        lc_module,
+        "load_or_create_identity",
+        lambda *a, **k: FakeIdentity(),
+    )
 
     captured = {}
 
@@ -95,6 +100,11 @@ async def test_request_returns_response(monkeypatch):
     monkeypatch.setattr(lc_module.RNS, "Identity", FakeIdentity)
     monkeypatch.setattr(lc_module.RNS, "Destination", FakeDestination)
     monkeypatch.setattr(lc_module.RNS, "Link", FakeLink)
+    monkeypatch.setattr(
+        lc_module,
+        "load_or_create_identity",
+        lambda *a, **k: FakeIdentity(),
+    )
 
     cli = lc_module.LinkClient("aa")
     task = asyncio.create_task(cli.request("/path", {"a": 1}))
@@ -111,6 +121,11 @@ async def test_identify_calls_link(monkeypatch):
     monkeypatch.setattr(lc_module.RNS, "Identity", FakeIdentity)
     monkeypatch.setattr(lc_module.RNS, "Destination", FakeDestination)
     monkeypatch.setattr(lc_module.RNS, "Link", FakeLink)
+    monkeypatch.setattr(
+        lc_module,
+        "load_or_create_identity",
+        lambda *a, **k: FakeIdentity(),
+    )
 
     cli = lc_module.LinkClient("aa")
     ident = FakeIdentity()
@@ -243,6 +258,11 @@ async def test_loopback_request_receives_response(monkeypatch):
         monkeypatch.setattr(module.RNS, "Identity", LoopbackIdentity)
         monkeypatch.setattr(module.RNS, "Destination", LoopbackDestination)
         monkeypatch.setattr(module.RNS, "Link", LoopbackLink)
+        monkeypatch.setattr(
+            module,
+            "load_or_create_identity",
+            lambda *a, **k: LoopbackIdentity(),
+        )
 
     handler_called = asyncio.Event()
 
@@ -272,6 +292,11 @@ async def test_loopback_send_resource(monkeypatch, tmp_path):
         monkeypatch.setattr(module.RNS, "Identity", LoopbackIdentity)
         monkeypatch.setattr(module.RNS, "Destination", LoopbackDestination)
         monkeypatch.setattr(module.RNS, "Link", LoopbackLink)
+        monkeypatch.setattr(
+            module,
+            "load_or_create_identity",
+            lambda *a, **k: LoopbackIdentity(),
+        )
     monkeypatch.setattr(lc_module.RNS, "Resource", FakeResource)
 
     storage = tmp_path / "store"

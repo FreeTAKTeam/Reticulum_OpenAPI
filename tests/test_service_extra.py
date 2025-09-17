@@ -182,6 +182,11 @@ async def test_init_and_add_route(monkeypatch):
 
     monkeypatch.setattr(service_module, "RNS", FakeRNS)
     monkeypatch.setattr(service_module, "LXMF", FakeLXMF)
+    monkeypatch.setattr(
+        service_module,
+        "load_or_create_identity",
+        lambda *a, **k: FakeIdentity(),
+    )
     svc = service_module.LXMFService()
     assert isinstance(svc.router, FakeLXMRouter)
     svc.add_route("PING", lambda: None)

@@ -18,6 +18,7 @@ from jsonschema import validate
 
 from .codec_msgpack import from_bytes as msgpack_from_bytes
 from .logging import configure_logging
+from .identity import load_or_create_identity
 from .model import dataclass_from_json
 from .model import dataclass_from_msgpack
 from .model import dataclass_to_json
@@ -60,7 +61,8 @@ class LXMFService:
         self.router.register_delivery_callback(self._lxmf_delivery_callback)
         # Set up identity and destination for this service
         if identity is None:
-            identity = RNS.Identity()  # generate a new random identity (keypair)
+            identity = load_or_create_identity(config_path)
+        self.identity = identity
         # Register identity with LXMF for message delivery
         self.source_identity = self.router.register_delivery_identity(
             identity, display_name=display_name, stamp_cost=stamp_cost
@@ -91,8 +93,16 @@ class LXMFService:
         :param handler: Async function to handle the command.
         :param payload_type: Dataclass type for request payload, or None for raw dict/bytes.
         """
+
         self._routes[command] = (handler, payload_type, payload_schema)
         logger.info("Route registered: '%s' -> %s", command, handler)
+
+        normalised_command = self._normalise_command_title(command)
+        if normalised_command is None:
+            raise ValueError("Command names must be UTF-8 decodable")
+        self._routes[normalised_command] = (handler, payload_type, payload_schema)
+        RNS.log(f"Route registered: '{normalised_command}' -> {handler}")
+
 
     def get_api_specification(self) -> dict:
         """Return a minimal JSON specification of available commands."""
@@ -112,21 +122,42 @@ class LXMFService:
         """Handler for the built-in GetSchema command."""
         return self.get_api_specification()
 
+    @staticmethod
+    def _normalise_command_title(command_title) -> Optional[str]:
+        """Convert a message title into a string or ``None`` if invalid."""
+
+        if isinstance(command_title, str):
+            return command_title
+        if isinstance(command_title, bytes):
+            try:
+                return command_title.decode("utf-8")
+            except UnicodeDecodeError:
+                return None
+        return str(command_title)
+
     def _lxmf_delivery_callback(self, message: LXMF.LXMessage):
         """
         Internal callback invoked by LXMRouter on message delivery.
         This runs in the context of LXMF's thread; we dispatch to the asyncio loop.
         """
         try:
-            cmd = message.title  # command name
+            raw_title = message.title  # command name (can be bytes or str)
             payload_bytes = message.content  # raw payload (possibly bytes)
         except Exception as exc:
             logger.exception("Error reading incoming message: %s", exc)
             return  # Exit if message is malformed
+
         logger.info(
             "Received LXMF message - Title: '%s', Size: %d bytes",
             cmd,
             len(payload_bytes) if payload_bytes else 0,
+
+        cmd = self._normalise_command_title(raw_title)
+        if cmd is None:
+            RNS.log(f"Invalid command title received: {raw_title!r}")
+            return
+        RNS.log(
+            f"Received LXMF message - Title: '{cmd}', Size: {len(payload_bytes) if payload_bytes else 0} bytes"
         )
         # Look up the handler for the command
         if cmd not in self._routes:

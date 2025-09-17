@@ -13,11 +13,14 @@ from typing import Optional
 
 import RNS
 
-from .logging import configure_logging
 
+from .logging import configure_logging
 
 configure_logging()
 logger = logging.getLogger(__name__)
+
+from .identity import load_or_create_identity
+
 
 
 class LinkResourceService:
@@ -91,7 +94,9 @@ class LinkService:
                 transmissions.
         """
         self.reticulum = RNS.Reticulum(config_path)
-        self.identity = identity or RNS.Identity()
+        if identity is None:
+            identity = load_or_create_identity(config_path)
+        self.identity = identity
         self._loop = asyncio.get_event_loop()
         self.destination = RNS.Destination(
             self.identity,

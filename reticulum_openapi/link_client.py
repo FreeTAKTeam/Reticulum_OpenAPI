@@ -10,6 +10,7 @@ from typing import Optional
 
 import RNS
 
+from .identity import load_or_create_identity
 from .model import dataclass_to_json
 from .model import dataclass_to_msgpack
 
@@ -86,7 +87,9 @@ class LinkClient:
             identity (RNS.Identity, optional): Local identity. Defaults to a new identity.
         """
         self.reticulum = RNS.Reticulum(config_path)
-        self.identity = identity or RNS.Identity()
+        if identity is None:
+            identity = load_or_create_identity(config_path)
+        self.identity = identity
         self._loop = asyncio.get_event_loop()
         self.established: asyncio.Event = asyncio.Event()
         self.closed: asyncio.Event = asyncio.Event()

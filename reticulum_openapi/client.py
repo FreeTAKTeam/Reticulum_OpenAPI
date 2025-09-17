@@ -5,6 +5,7 @@ from dataclasses import asdict
 from dataclasses import is_dataclass
 from typing import Optional
 from typing import Dict
+from .identity import load_or_create_identity
 from .model import dataclass_to_json
 from .model import dataclass_to_msgpack
 
@@ -26,7 +27,7 @@ class LXMFClient:
         self.router = LXMF.LXMRouter(storagepath=storage_path)
         self.router.register_delivery_callback(self._callback)
         if identity is None:
-            identity = RNS.Identity()
+            identity = load_or_create_identity(config_path)
         self.identity = identity
         self.source_identity = self.router.register_delivery_identity(
             identity, display_name=display_name, stamp_cost=0
@@ -36,8 +37,24 @@ class LXMFClient:
         self.auth_token = auth_token
         self.timeout = timeout
 
+    @staticmethod
+    def _normalise_message_title(title) -> Optional[str]:
+        """Return a string title or ``None`` if it cannot be decoded."""
+
+        if isinstance(title, str):
+            return title
+        if isinstance(title, bytes):
+            try:
+                return title.decode("utf-8")
+            except UnicodeDecodeError:
+                return None
+        return str(title)
+
     def _callback(self, message: LXMF.LXMessage):
-        title = message.title
+        title = self._normalise_message_title(message.title)
+        if title is None:
+            RNS.log(f"Invalid response title received: {message.title!r}")
+            return
         future = self._futures.pop(title, None)
         if future is not None and not future.done():
             future.set_result(message.content)
@@ -73,7 +90,9 @@ class LXMFClient:
 
         if not RNS.Transport.has_path(dest_hash):
             RNS.Transport.request_path(dest_hash)
-            deadline = None if path_timeout is None else self._loop.time() + path_timeout
+            deadline = (
+                None if path_timeout is None else self._loop.time() + path_timeout
+            )
             while not RNS.Transport.has_path(dest_hash):
                 if deadline is not None and self._loop.time() >= deadline:
                     raise TimeoutError(
