@@ -19,9 +19,10 @@ from jsonschema import validate
 from .codec_msgpack import from_bytes as msgpack_from_bytes
 from .logging import configure_logging
 from .identity import load_or_create_identity
+from .model import compress_json
 from .model import dataclass_from_json
 from .model import dataclass_from_msgpack
-from .model import dataclass_to_json
+from .model import dataclass_to_json_bytes
 from .model import dataclass_to_msgpack
 
 
@@ -243,16 +244,16 @@ class LXMFService:
                         resp_bytes = dataclass_to_msgpack(result)
                     except Exception:
                         try:
-                            resp_bytes = dataclass_to_json(result)
+                            json_bytes = dataclass_to_json_bytes(result)
+                            resp_bytes = compress_json(json_bytes)
                         except Exception as exc:
                             logger.exception(
                                 "Failed to serialize result dataclass for %s: %s",
                                 cmd,
                                 exc,
                             )
-                            resp_bytes = zlib.compress(
-                                json.dumps(result).encode("utf-8")
-                            )
+                            fallback_json = json.dumps(result).encode("utf-8")
+                            resp_bytes = compress_json(fallback_json)
                 # Determine response command name (could be something like "<command>_response" or a generic)
                 resp_title = f"{cmd}_response"
                 dest_identity = message.source
@@ -338,7 +339,8 @@ class LXMFService:
             try:
                 content_bytes = dataclass_to_msgpack(payload_obj)
             except Exception:
-                content_bytes = dataclass_to_json(payload_obj)
+                json_bytes = dataclass_to_json_bytes(payload_obj)
+                content_bytes = compress_json(json_bytes)
         # Use internal send helper
         self._send_lxmf(dest_identity, command, content_bytes, propagate=propagate)
 

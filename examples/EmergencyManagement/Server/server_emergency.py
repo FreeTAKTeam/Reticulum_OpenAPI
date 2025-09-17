@@ -64,6 +64,18 @@ def _configure_environment() -> None:
     _ensure_project_root_on_path()
 
 
+_configure_environment()
+
+try:
+    from examples.EmergencyManagement.Server.database import init_db
+    from examples.EmergencyManagement.Server.service_emergency import (
+        EmergencyService,
+    )
+except Exception:  # pragma: no cover - best effort for optional imports
+    init_db = None
+    EmergencyService = None
+
+
 async def main() -> None:
     """Run the emergency management service for a short demonstration.
 
@@ -73,9 +85,6 @@ async def main() -> None:
     """
 
     _configure_environment()
-    from examples.EmergencyManagement.Server.database import init_db
-    from examples.EmergencyManagement.Server.service_emergency import EmergencyService
-
     await init_db()
     async with EmergencyService() as svc:
         svc.announce()

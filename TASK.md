@@ -15,7 +15,7 @@
 
 - [x] Update codec Msgpack test to import from reticulum_openapi.
 - [x] Introduce MessagePack utilities and refactor service/client to use them by default.
-- [ ] Evaluate separating compression from JSON serialization helpers.
+- [x] Evaluate separating compression from JSON serialization helpers.
 - [x] Introduce centralised logging configuration for services and clients.
 
 - [x] Use MessagePack for dataclass serialization and drop zlib compression.
