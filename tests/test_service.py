@@ -237,6 +237,38 @@ async def test_lxmf_callback_dispatches_response():
     assert msgpack_from_bytes(payload_bytes) == {"status": "ok"}
 
 
+@pytest.mark.asyncio
+async def test_lxmf_callback_serialises_list_of_dataclasses():
+    """Handlers returning lists of dataclasses are serialised correctly."""
+
+    loop = asyncio.get_running_loop()
+    service = LXMFService.__new__(LXMFService)
+    service._loop = loop
+    service.auth_token = None
+    service.max_payload_size = 32000
+
+    send_mock = Mock()
+    service._send_lxmf = send_mock
+
+    async def handler():
+        return [Sample(text="one"), Sample(text="two")]
+
+    service._routes = {"LIST": (handler, None, None)}
+
+    src = object()
+    message = SimpleNamespace(title="LIST", content=b"", source=src)
+
+    service._lxmf_delivery_callback(message)
+    await asyncio.sleep(0.01)
+
+    send_mock.assert_called_once()
+    dest, title, payload_bytes = send_mock.call_args.args[:3]
+    assert dest is src
+    assert title == "LIST_response"
+    payload = msgpack_from_bytes(payload_bytes)
+    assert payload == [{"text": "one"}, {"text": "two"}]
+
+
 def test_get_api_specification_returns_registered_routes():
     service = LXMFService.__new__(LXMFService)
     service._routes = {
