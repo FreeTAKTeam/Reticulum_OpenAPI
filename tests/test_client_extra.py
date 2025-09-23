@@ -33,9 +33,6 @@ async def test_client_init(monkeypatch):
         def handle_outbound(self, msg):
             pass
 
-        def handle_outbound(self, msg):
-            pass
-
     class DummyDestination:
         OUT = object()
         SINGLE = object()
@@ -175,7 +172,6 @@ def test_client_announce(monkeypatch):
     cli.source_identity = SimpleNamespace(hash=b"\x01", announce=ann_mock)
     monkeypatch.setattr(client_module.RNS, "prettyhexrep", lambda data: "01")
     cli.announce()
-    
     cli.router.announce.assert_called_once_with(cli.source_identity.hash)
 
 
@@ -258,4 +254,3 @@ async def test_listen_for_announces_prints(monkeypatch):
     assert output
     assert "<aabb>" in output[0]
     assert "<0102>" in output[0]
-
