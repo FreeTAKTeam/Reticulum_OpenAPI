@@ -14,7 +14,8 @@ dependencies = [
     "LXMF",
     "SQLAlchemy",
     "jsonschema",
-    "aiosqlite"
+    "aiosqlite",
+    "python-dotenv"
 ]
 
 [project.optional-dependencies]

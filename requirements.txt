@@ -5,6 +5,7 @@ jsonschema
 fastapi
 httpx
 msgpack
+python-dotenv
 pytest
 pytest-asyncio
 flake8
