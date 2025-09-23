@@ -238,10 +238,8 @@ async def test_lxmf_callback_dispatches_response():
 
 
 @pytest.mark.asyncio
-
 async def test_lxmf_callback_serialises_iterable_dataclasses():
     """Handlers returning iterables of dataclasses are encoded correctly."""
-
 
     loop = asyncio.get_running_loop()
     service = LXMFService.__new__(LXMFService)
@@ -253,9 +251,7 @@ async def test_lxmf_callback_serialises_iterable_dataclasses():
     service._send_lxmf = send_mock
 
     async def handler():
-
         return [Sample(text="alpha"), Sample(text="beta")]
-
 
     service._routes = {"LIST": (handler, None, None)}
 
@@ -306,7 +302,6 @@ async def test_lxmf_callback_handles_normalisation_errors(monkeypatch):
     _, title, payload_bytes = send_mock.call_args.args[:3]
     assert title == "PING_response"
     assert msgpack_from_bytes(payload_bytes) == {"status": "ok"}
-
 
 
 def test_get_api_specification_returns_registered_routes():
