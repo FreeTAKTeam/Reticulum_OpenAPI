@@ -11,7 +11,8 @@ from typing import Optional
 import RNS
 
 from .identity import load_or_create_identity
-from .model import dataclass_to_json
+from .model import compress_json
+from .model import dataclass_to_json_bytes
 from .model import dataclass_to_msgpack
 
 
@@ -145,7 +146,8 @@ class LinkClient:
             try:
                 payload = dataclass_to_msgpack(data)
             except Exception:
-                payload = dataclass_to_json(data)
+                json_bytes = dataclass_to_json_bytes(data)
+                payload = compress_json(json_bytes)
 
         self.link.send(payload)
 
@@ -176,7 +178,8 @@ class LinkClient:
             try:
                 payload = dataclass_to_msgpack(data)
             except Exception:
-                payload = dataclass_to_json(data)
+                json_bytes = dataclass_to_json_bytes(data)
+                payload = compress_json(json_bytes)
 
         fut: asyncio.Future[bytes] = self._loop.create_future()
 

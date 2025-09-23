@@ -24,6 +24,8 @@ __all__ = [
     "dataclass_to_msgpack",
     "dataclass_from_msgpack",
     "dataclass_to_json",
+    "dataclass_to_json_bytes",
+    "compress_json",
     "dataclass_from_json",
     "BaseModel",
     "create_async_engine",
@@ -33,22 +35,54 @@ __all__ = [
 T = TypeVar("T")
 
 
-def dataclass_to_json(data_obj: T) -> bytes:
-    """Serialize a dataclass instance to compressed JSON bytes.
+def dataclass_to_json_bytes(data_obj: T) -> bytes:
+    """Serialize a dataclass instance or primitive to JSON bytes.
 
     Args:
         data_obj (T): Dataclass instance or primitive to serialise.
 
     Returns:
-        bytes: Compressed JSON representation.
+        bytes: UTF-8 encoded JSON representation.
     """
 
     if is_dataclass(data_obj):
         data_dict = asdict(data_obj)
     else:
         data_dict = data_obj
-    json_bytes = json.dumps(data_dict).encode("utf-8")
-    return zlib.compress(json_bytes)
+    return json.dumps(data_dict).encode("utf-8")
+
+
+def compress_json(data: bytes, *, enabled: bool = True) -> bytes:
+    """Optionally compress JSON bytes using zlib.
+
+    Args:
+        data (bytes): Raw JSON bytes.
+        enabled (bool): If ``True`` compress using ``zlib``. Defaults to ``True``.
+
+    Returns:
+        bytes: The compressed payload when ``enabled`` is ``True`` otherwise the
+        original ``data``.
+    """
+
+    if not enabled:
+        return data
+    return zlib.compress(data)
+
+
+def dataclass_to_json(data_obj: T, *, compress: bool = True) -> bytes:
+    """Serialize a dataclass instance to JSON with optional compression.
+
+    Args:
+        data_obj (T): Dataclass instance or primitive to serialise.
+        compress (bool): When ``True`` apply zlib compression. Defaults to
+            ``True``.
+
+    Returns:
+        bytes: JSON payload, optionally compressed.
+    """
+
+    json_bytes = dataclass_to_json_bytes(data_obj)
+    return compress_json(json_bytes, enabled=compress)
 
 
 def _construct(tp, value):

@@ -15,7 +15,7 @@
 
 - [x] Update codec Msgpack test to import from reticulum_openapi.
 - [x] Introduce MessagePack utilities and refactor service/client to use them by default.
-- [ ] Evaluate separating compression from JSON serialization helpers.
+- [x] Evaluate separating compression from JSON serialization helpers.
 - [x] Introduce centralised logging configuration for services and clients.
 
 - [x] Use MessagePack for dataclass serialization and drop zlib compression.
@@ -38,5 +38,9 @@
 - [x] Persist and reuse Reticulum identities for services and clients when available in configuration.
 - [x] Handle dataclass auth tokens in LXMF service delivery callback and extend tests.
 - [x] Convert LXMF handler responses with nested dataclasses before encoding.
+
+
+## 2025-09-18
+- [x] Refresh EmergencyManagement README with current client/service/controller flow terminology.
 
 

@@ -6,7 +6,8 @@ from dataclasses import is_dataclass
 from typing import Optional
 from typing import Dict
 from .identity import load_or_create_identity
-from .model import dataclass_to_json
+from .model import compress_json
+from .model import dataclass_to_json_bytes
 from .model import dataclass_to_msgpack
 
 
@@ -116,7 +117,8 @@ class LXMFClient:
             try:
                 content_bytes = dataclass_to_msgpack(data_dict)
             except Exception:
-                content_bytes = dataclass_to_json(data_dict)
+                json_bytes = dataclass_to_json_bytes(data_dict)
+                content_bytes = compress_json(json_bytes)
 
         lxmsg = LXMF.LXMessage(
             RNS.Destination(

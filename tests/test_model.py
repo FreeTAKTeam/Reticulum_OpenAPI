@@ -2,7 +2,10 @@ from dataclasses import dataclass
 
 from reticulum_openapi.model import (
     BaseModel,
+    compress_json,
+    dataclass_from_json,
     dataclass_from_msgpack,
+    dataclass_to_json_bytes,
     dataclass_to_msgpack,
 )
 from typing import List, Union
@@ -28,6 +31,22 @@ def test_serialization_roundtrip():
     data = dataclass_to_msgpack(item)
     obj = dataclass_from_msgpack(Item, data)
     assert obj == item
+
+
+def test_json_roundtrip_without_compression():
+    item = Item(name="foo", value=42)
+    json_bytes = dataclass_to_json_bytes(item)
+    obj = dataclass_from_json(Item, json_bytes)
+    assert obj == item
+
+
+def test_json_roundtrip_with_compression():
+    item = Item(name="bar", value=7)
+    json_bytes = dataclass_to_json_bytes(item)
+    compressed = compress_json(json_bytes)
+    obj = dataclass_from_json(Item, compressed)
+    assert obj == item
+    assert compress_json(json_bytes, enabled=False) == json_bytes
 
 
 def test_list_of_items_roundtrip():
