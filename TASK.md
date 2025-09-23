@@ -65,5 +65,5 @@
 - [x] Extend Emergency Management web UI with React Query, SSE updates, and CRUD
   coverage for messages/events with automated Vitest suites.
 - [x] Ensure EmergencyManagement server announces its identity using the Reticulum Destination API. (2025-09-25)
-
+- [x] Add DestinationAnnouncer helper for LXMF services to broadcast identities.
 
