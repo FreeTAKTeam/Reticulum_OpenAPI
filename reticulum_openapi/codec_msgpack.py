@@ -206,7 +206,7 @@ def digest(obj: Any) -> bytes:
     return blake3.blake3(data).digest()
 
 
-def sign(canon_bytes: bytes, sk: Union[bytes, "SigningKey"]) -> bytes:
+def sign(canon_bytes: bytes, sk: Union[bytes, SigningKeyType]) -> bytes:
     """
     Sign canonical bytes with Ed25519. `sk` can be a 32-byte seed or a nacl.signing.SigningKey.
     Returns signature bytes (64B).
@@ -221,7 +221,7 @@ def sign(canon_bytes: bytes, sk: Union[bytes, "SigningKey"]) -> bytes:
     return bytes(signed.signature)
 
 
-def verify(canon_bytes: bytes, pk: Union[bytes, VerifyKey], sig: bytes) -> bool:
+def verify(canon_bytes: bytes, pk: Union[bytes, VerifyKeyType], sig: bytes) -> bool:
     """
     Verify an Ed25519 signature over canonical bytes. `pk` can be 32-byte public key or VerifyKey.
     """
