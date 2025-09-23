@@ -59,3 +59,5 @@
 
 - [x] Refactor EmergencyManagement client to use shared helper library for API interactions. (2025-09-24)
 
+- [x] Add FastAPI web gateway and API tests for EmergencyManagement example. (2025-09-23)
+

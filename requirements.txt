@@ -2,6 +2,8 @@ RNS
 LXMF
 SQLAlchemy
 jsonschema
+fastapi
+httpx
 msgpack
 pytest
 pytest-asyncio
