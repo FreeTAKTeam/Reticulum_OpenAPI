@@ -15,11 +15,15 @@ PROJECT_ROOT = Path(__file__).resolve().parents[3]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from examples.EmergencyManagement.Server.models_emergency import (
-    EmergencyActionMessage,
-    Event,
+_models_module = importlib.import_module(
+    "examples.EmergencyManagement.Server.models_emergency"
 )
-from examples.EmergencyManagement.client.client import LXMFClient as RealLXMFClient
+EmergencyActionMessage = _models_module.EmergencyActionMessage
+Event = _models_module.Event
+
+RealLXMFClient = importlib.import_module(
+    "examples.EmergencyManagement.client.client"
+).LXMFClient
 from reticulum_openapi.codec_msgpack import to_canonical_bytes
 
 
