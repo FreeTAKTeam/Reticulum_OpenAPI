@@ -3,27 +3,17 @@
 from __future__ import annotations
 
 import importlib
-import sys
-from pathlib import Path
 from typing import List
 from unittest.mock import AsyncMock
 
 import pytest
 from fastapi.testclient import TestClient
 
-PROJECT_ROOT = Path(__file__).resolve().parents[3]
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
-
-_models_module = importlib.import_module(
-    "examples.EmergencyManagement.Server.models_emergency"
+from examples.EmergencyManagement.Server.models_emergency import (
+    EmergencyActionMessage,
+    Event,
 )
-EmergencyActionMessage = _models_module.EmergencyActionMessage
-Event = _models_module.Event
-
-RealLXMFClient = importlib.import_module(
-    "examples.EmergencyManagement.client.client"
-).LXMFClient
+from examples.EmergencyManagement.client.client import LXMFClient as RealLXMFClient
 from reticulum_openapi.codec_msgpack import to_canonical_bytes
 
 
