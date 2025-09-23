@@ -238,8 +238,10 @@ async def test_lxmf_callback_dispatches_response():
 
 
 @pytest.mark.asyncio
-async def test_lxmf_callback_serialises_list_of_dataclasses():
-    """Handlers returning lists of dataclasses are serialised correctly."""
+
+async def test_lxmf_callback_serialises_iterable_dataclasses():
+    """Handlers returning iterables of dataclasses are encoded correctly."""
+
 
     loop = asyncio.get_running_loop()
     service = LXMFService.__new__(LXMFService)
@@ -251,7 +253,9 @@ async def test_lxmf_callback_serialises_list_of_dataclasses():
     service._send_lxmf = send_mock
 
     async def handler():
-        return [Sample(text="one"), Sample(text="two")]
+
+        return [Sample(text="alpha"), Sample(text="beta")]
+
 
     service._routes = {"LIST": (handler, None, None)}
 
@@ -262,11 +266,47 @@ async def test_lxmf_callback_serialises_list_of_dataclasses():
     await asyncio.sleep(0.01)
 
     send_mock.assert_called_once()
-    dest, title, payload_bytes = send_mock.call_args.args[:3]
-    assert dest is src
+
+    _, title, payload_bytes = send_mock.call_args.args[:3]
     assert title == "LIST_response"
-    payload = msgpack_from_bytes(payload_bytes)
-    assert payload == [{"text": "one"}, {"text": "two"}]
+    decoded = msgpack_from_bytes(payload_bytes)
+    assert decoded == [{"text": "alpha"}, {"text": "beta"}]
+
+
+@pytest.mark.asyncio
+async def test_lxmf_callback_handles_normalisation_errors(monkeypatch):
+    """Normalisation failures fall back to the original handler result."""
+
+    loop = asyncio.get_running_loop()
+    service = LXMFService.__new__(LXMFService)
+    service._loop = loop
+    service.auth_token = None
+    service.max_payload_size = 32000
+
+    send_mock = Mock()
+    service._send_lxmf = send_mock
+
+    async def handler():
+        return {"status": "ok"}
+
+    service._routes = {"PING": (handler, None, None)}
+
+    def raise_normalise(value):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr("reticulum_openapi.service._normalise_for_msgpack", raise_normalise)
+
+    src = object()
+    message = SimpleNamespace(title="PING", content=b"", source=src)
+
+    service._lxmf_delivery_callback(message)
+    await asyncio.sleep(0.01)
+
+    send_mock.assert_called_once()
+    _, title, payload_bytes = send_mock.call_args.args[:3]
+    assert title == "PING_response"
+    assert msgpack_from_bytes(payload_bytes) == {"status": "ok"}
+
 
 
 def test_get_api_specification_returns_registered_routes():
