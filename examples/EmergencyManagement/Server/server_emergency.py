@@ -1,6 +1,8 @@
 """Run the emergency management server example."""
 
 import asyncio
+import signal
+from contextlib import suppress
 from pathlib import Path
 import sys
 
@@ -66,6 +68,34 @@ def _configure_environment() -> None:
 
 _configure_environment()
 
+
+def _register_shutdown_signals(stop_event: asyncio.Event) -> None:
+    """Register signal handlers that set ``stop_event`` when triggered.
+
+    Args:
+        stop_event (asyncio.Event): Event set when a termination signal is
+            received.
+    """
+
+    loop = asyncio.get_running_loop()
+
+    def _notify_shutdown() -> None:
+        """Schedule ``stop_event`` to be set from signal handlers."""
+
+        loop.call_soon_threadsafe(stop_event.set)
+
+    for sig in (signal.SIGINT, signal.SIGTERM):
+        with suppress(AttributeError, NotImplementedError, ValueError):
+            loop.add_signal_handler(sig, _notify_shutdown)
+            continue
+
+        def _sync_handler(*_: int, **__: object) -> None:
+            loop.call_soon_threadsafe(stop_event.set)
+
+        with suppress(ValueError, AttributeError, OSError):
+            signal.signal(sig, _sync_handler)
+
+
 try:
     from examples.EmergencyManagement.Server.database import init_db
     from examples.EmergencyManagement.Server.service_emergency import (
@@ -77,18 +107,20 @@ except Exception:  # pragma: no cover - best effort for optional imports
 
 
 async def main() -> None:
-    """Run the emergency management service for a short demonstration.
+    """Run the emergency management service until interrupted.
 
     Returns:
-        None: The coroutine completes after announcing the service and
-        idling for a brief period.
+        None: The coroutine completes once a termination signal is received
+        and the service begins shutting down.
     """
 
     _configure_environment()
     await init_db()
     async with EmergencyService() as svc:
         svc.announce()
-        await asyncio.sleep(30)  # Run for 30 seconds then stop
+        stop_event = asyncio.Event()
+        _register_shutdown_signals(stop_event)
+        await stop_event.wait()
 
 
 if __name__ == "__main__":
