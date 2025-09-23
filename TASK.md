@@ -49,9 +49,11 @@
 - [x] Harden LXMF iterable normalisation error handling for response serialization.
 
 
-
 ## 2025-09-23
+- [x] Allow the EmergencyManagement client to reuse a stored server identity hash before prompting users.
 - [x] Keep the EmergencyManagement example service running until interrupted and fix LXMF response serialisation regression.
 - [x] Print EmergencyManagement client timeout message instead of exiting.
+- [x] Ensure EmergencyManagement server and client announce their identities on the network.
+- [x] Handle EmergencyManagement client timeouts gracefully to avoid shutdowns.
 
 

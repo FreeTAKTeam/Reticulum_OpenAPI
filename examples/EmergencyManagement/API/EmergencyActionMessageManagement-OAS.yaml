@@ -17,12 +17,24 @@ paths:
        - Event
       description: >-
       summary: retrieve an existing Event record based on the provided ID.
-      operationId: RetreiveEvent
+      operationId: RetrieveEvent
       parameters:
         - $ref: '#/components/parameters/ID'
       responses:
         '200':
           $ref: '#/components/responses/200Event_get'
+    delete:
+      x-scope: public
+      tags:
+       - Event
+      description: >-
+      summary: Deletes an existing Event record based on the provided ID.
+      operationId: DeleteEvent
+      parameters:
+        - $ref: '#/components/parameters/ID'
+      responses:
+        '200':
+          $ref: '#/components/responses/200Event_delete'
   /EmergencyActionMessage:
     post:
       x-scope: public
@@ -36,18 +48,6 @@ paths:
       responses:
         '200':
           $ref: '#/components/responses/200EmergencyActionMessage_post'
-    delete:
-      x-scope: public
-      tags:
-       - EmergencyActionMessage
-      description: >-
-      summary: Deletes an existing EmergencyActionMessage record based on the provided ID.
-      operationId: DeleteEmergencyActionMessage
-      parameters:
-        - $ref: '#/components/parameters/ID'
-      responses:
-        '200':
-          $ref: '#/components/responses/200EmergencyActionMessage_delete'
     get:
       x-scope: public
       tags:
@@ -84,18 +84,6 @@ paths:
       responses:
         '200':
           $ref: '#/components/responses/200Event_post'
-    delete:
-      x-scope: public
-      tags:
-       - Event
-      description: >-
-      summary: Deletes an existing Event record based on the provided ID.
-      operationId: DeleteEvent
-      parameters:
-        - $ref: '#/components/parameters/ID'
-      responses:
-        '200':
-          $ref: '#/components/responses/200Event_delete'
     get:
       x-scope: public
       tags:
@@ -125,12 +113,24 @@ paths:
        - EmergencyActionMessage
       description: >-
       summary: retrieve an existing EmergencyActionMessage record based on the provided ID.
-      operationId: RetreiveEmergencyActionMessage
+      operationId: RetrieveEmergencyActionMessage
       parameters:
         - $ref: '#/components/parameters/ID'
       responses:
         '200':
           $ref: '#/components/responses/200EmergencyActionMessage_get'
+    delete:
+      x-scope: public
+      tags:
+       - EmergencyActionMessage
+      description: >-
+      summary: Deletes an existing EmergencyActionMessage record based on the provided ID.
+      operationId: DeleteEmergencyActionMessage
+      parameters:
+        - $ref: '#/components/parameters/ID'
+      responses:
+        '200':
+          $ref: '#/components/responses/200EmergencyActionMessage_delete'
 components:
   schemas:
     EmergencyActionMessage:
@@ -263,12 +263,15 @@ components:
   parameters:
     ID:
       name: id
+      in: path
       required: true
       description: >-
-        TODO
+        Identifier for the resource. For EmergencyActionMessage routes this is the
+        callsign string. For Event routes this maps to the numeric uid.
       schema:
-        type: string
-      in: query
+        oneOf:
+          - type: string
+          - type: integer
       
   responses:
     200Event_get:
