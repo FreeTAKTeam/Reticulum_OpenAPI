@@ -42,6 +42,12 @@ except Exception:  # pragma: no cover
     VerifyKey = None
     BadSignatureError = Exception
 
+if TYPE_CHECKING:
+    from nacl.signing import SigningKey as SigningKeyType, VerifyKey as VerifyKeyType
+else:
+    SigningKeyType = Any
+    VerifyKeyType = Any
+
 
 class CodecError(Exception):
     pass
