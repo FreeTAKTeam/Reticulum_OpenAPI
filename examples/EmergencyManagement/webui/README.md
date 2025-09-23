@@ -32,11 +32,16 @@ npm run dev     # Start the development server
 npm run build   # Build the production bundle
 npm run preview # Preview the production build locally
 npm run lint    # Run ESLint checks
+npm run test    # Execute Vitest + React Testing Library suites
 ```
 
 ## Project structure
 
 - `src/router` wires up React Router for the dashboard, message, and event pages.
 - `src/components/layout` contains the sidebar and mesh status top bar layout.
-- `src/lib/apiClient.ts` exposes an Axios instance that normalises the gateway URL.
+- `src/components/toast` implements optimistic success and error toast notifications.
+- `src/lib/apiClient.ts` exposes an Axios instance that normalises the gateway URL and
+  typed helpers for the FastAPI emergency message endpoints.
+- `src/pages/EmergencyActionMessages` provides the interactive tables, forms, and
+  dialogs that manage messages end-to-end.
 - `src/pages` contains feature placeholders that can be expanded with real data.

@@ -62,3 +62,6 @@
 
 - [x] Add FastAPI web gateway and API tests for EmergencyManagement example. (2025-09-23)
 
+- [x] Build Emergency Action Messages web UI with CRUD flows, optimistic toasts, and
+  Vitest coverage. (2025-09-23)
+
