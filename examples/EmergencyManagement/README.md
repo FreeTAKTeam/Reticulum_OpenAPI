@@ -118,3 +118,20 @@ command for the same callsign and displays the stored record, demonstrating that
 the data is persisted in `emergency.db`.
 
 This example assumes a working Reticulum environment. When running on separate machines, ensure that both client and server can communicate over the Reticulum network.
+
+## Web UI
+
+A Vite + React web interface lives in [`webui/`](./webui/). The UI provides a
+sidebar layout with routes for the dashboard, emergency action messages, and
+events while exposing a mesh status bar placeholder.
+
+```bash
+cd webui
+npm install
+npm run dev
+```
+
+Create a `.env` file based on [`.env.example`](./webui/.env.example) to point the
+interface at a specific FastAPI gateway. All network requests use the Axios
+client defined in `src/lib/apiClient.ts`, so the same bundle can be reused in
+different environments by changing `VITE_API_BASE_URL`.

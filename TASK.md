@@ -50,6 +50,7 @@
 
 
 ## 2025-09-23
+- [x] Scaffold EmergencyManagement Vite web UI with sidebar, routing, and FastAPI gateway integration.
 - [x] Allow the EmergencyManagement client to reuse a stored server identity hash before prompting users.
 - [x] Keep the EmergencyManagement example service running until interrupted and fix LXMF response serialisation regression.
 - [x] Print EmergencyManagement client timeout message instead of exiting.
