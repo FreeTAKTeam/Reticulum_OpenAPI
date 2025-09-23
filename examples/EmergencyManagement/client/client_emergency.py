@@ -77,6 +77,8 @@ async def main():
     """
 
     client = LXMFClient()
+
+    client.announce()
     server_id = read_server_identity_from_config()
     if server_id is not None:
         try:
@@ -89,7 +91,8 @@ async def main():
         else:
             print(f"Using server identity hash from {CONFIG_PATH}")
     if server_id is None:
-        server_id = input(PROMPT_MESSAGE).strip()
+        server_id = input(PROMPT_MESSAGE).strip()  
+
     eam = EmergencyActionMessage(
         callsign="Bravo1",
         groupName="Bravo",
@@ -108,17 +111,24 @@ async def main():
     except (TypeError, ValueError) as exc:
         print(f"Invalid server identity hash: {exc}")
         return
+    except TimeoutError as exc:
+        print(f"Request timed out: {exc}")
+        return
     # Decode MessagePack bytes into a dataclass for readability
     created_eam = EmergencyActionMessage(**from_bytes(resp))
     print("Create response:", created_eam)
 
     # Retrieve the message back from the server to demonstrate persistence
-    retrieved = await client.send_command(
-        server_id,
-        "RetrieveEmergencyActionMessage",
-        eam.callsign,
-        await_response=True,
-    )
+    try:
+        retrieved = await client.send_command(
+            server_id,
+            "RetrieveEmergencyActionMessage",
+            eam.callsign,
+            await_response=True,
+        )
+    except TimeoutError as exc:
+        print(f"Request timed out: {exc}")
+        return
     # Convert MessagePack bytes to an EmergencyActionMessage dataclass
     retrieved_eam = EmergencyActionMessage(**from_bytes(retrieved))
     print("Retrieve response:", retrieved_eam)

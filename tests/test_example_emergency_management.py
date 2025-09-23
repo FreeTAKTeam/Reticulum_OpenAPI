@@ -1,7 +1,10 @@
 """Tests for the Emergency Management example application."""
 
+
 import importlib
 import json
+import asyncio
+
 import runpy
 import sys
 from pathlib import Path
@@ -24,6 +27,7 @@ from examples.EmergencyManagement.Server.models_emergency import Base
 from examples.EmergencyManagement.Server.models_emergency import EmergencyActionMessage
 from examples.EmergencyManagement.Server.models_emergency import EAMStatus
 from examples.EmergencyManagement.Server.models_emergency import Event
+from reticulum_openapi.model import dataclass_to_msgpack
 
 
 @pytest_asyncio.fixture
@@ -177,6 +181,7 @@ def test_server_script_importable_from_directory(monkeypatch) -> None:
 
     assert "EmergencyService" in globals_ns
     assert "init_db" in globals_ns
+
 
 
 def test_read_server_identity_from_config(tmp_path) -> None:

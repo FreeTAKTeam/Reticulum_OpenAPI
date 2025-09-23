@@ -75,7 +75,7 @@ the client.
 - `controllers_emergency.py` – async handlers for API commands.
 - `database.py` – initializes a small SQLite database used for persistence.
 - `service_emergency.py` – subclass of `LXMFService` that registers the routes.
-- `server_emergency.py` – starts the service, announces its identity and runs for ~30 seconds.
+- `server_emergency.py` – starts the service, announces its identity and keeps running until interrupted (e.g. with Ctrl+C).
 
 ### Client
 - `client_emergency.py` – reuses a stored server identity hash when available and otherwise prompts before sending a sample request using `LXMFClient`.
@@ -95,6 +95,8 @@ python Server/server_emergency.py
 ```
 
    The server prints its identity hash on startup. Keep this hash handy.
+   Leave the server running until you are done experimenting, then press
+   `Ctrl+C` (or send `SIGTERM`) to stop it gracefully.
 
    Optionally, save the hash in `client/client_config.json` so the client can reuse it automatically:
 

@@ -1,5 +1,7 @@
 import asyncio
 from types import SimpleNamespace
+from unittest.mock import Mock
+
 import pytest
 
 from reticulum_openapi import client as client_module
@@ -152,3 +154,12 @@ async def test_send_command_dict_payload(monkeypatch):
     assert payload["x"] == 1
     assert payload["auth_token"] == "secret"
     assert captured["obj"]["x"] == 1
+
+
+def test_client_announce(monkeypatch):
+    cli = client_module.LXMFClient.__new__(client_module.LXMFClient)
+    cli.router = SimpleNamespace(announce=Mock())
+    cli.source_identity = SimpleNamespace(hash=b"\x01")
+    monkeypatch.setattr(client_module.RNS, "prettyhexrep", lambda data: "01")
+    cli.announce()
+    cli.router.announce.assert_called_once_with(cli.source_identity.hash)

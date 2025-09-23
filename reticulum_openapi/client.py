@@ -1,14 +1,22 @@
 import asyncio
-import RNS
-import LXMF
+import logging
 from dataclasses import asdict
 from dataclasses import is_dataclass
-from typing import Optional
 from typing import Dict
+from typing import Optional
+
+import LXMF
+import RNS
+
 from .identity import load_or_create_identity
+from .logging import configure_logging
 from .model import compress_json
 from .model import dataclass_to_json_bytes
 from .model import dataclass_to_msgpack
+
+
+configure_logging()
+logger = logging.getLogger(__name__)
 
 
 class LXMFClient:
@@ -37,6 +45,18 @@ class LXMFClient:
         self._futures: Dict[str, asyncio.Future] = {}
         self.auth_token = auth_token
         self.timeout = timeout
+
+    def announce(self) -> None:
+        """Announce this client's identity on the Reticulum network."""
+
+        try:
+            self.router.announce(self.source_identity.hash)
+            logger.info(
+                "Client identity announced: %s",
+                RNS.prettyhexrep(self.source_identity.hash),
+            )
+        except Exception as exc:  # pragma: no cover - defensive logging path
+            logger.exception("Client announcement failed: %s", exc)
 
     @staticmethod
     def _normalise_message_title(title) -> Optional[str]:

@@ -1,8 +1,12 @@
 """Run the emergency management server example."""
 
+
 import asyncio
+import signal
+from contextlib import suppress
 from pathlib import Path
 import sys
+from pathlib import Path
 
 
 def _ensure_standard_library_on_path() -> None:
@@ -50,7 +54,8 @@ def _ensure_project_root_on_path() -> None:
 
     # Reason: Allow running the server example from its directory by ensuring
     # project-level imports resolve when executed as a script.
-    if __package__ is None or __package__ == "":
+    package_name = __package__ or ""
+    if not package_name or "." not in package_name:
         project_root = Path(__file__).resolve().parents[3]
         project_root_str = str(project_root)
         if project_root_str not in sys.path:
@@ -64,7 +69,57 @@ def _configure_environment() -> None:
     _ensure_project_root_on_path()
 
 
+EmergencyService = object()
+init_db = None
+
+def _ensure_dependencies_loaded() -> None:
+    """Load modules that require adjusted import paths."""
+
+    global EmergencyService
+    global init_db
+
+    if isinstance(EmergencyService, type) and init_db is not None:
+        return
+
+    _configure_environment()
+
+    from examples.EmergencyManagement.Server.database import init_db as database_init_db
+    from examples.EmergencyManagement.Server.service_emergency import (
+        EmergencyService as service_emergency_service,
+    )
+
+    init_db = database_init_db
+    EmergencyService = service_emergency_service
+
 _configure_environment()
+
+
+def _register_shutdown_signals(stop_event: asyncio.Event) -> None:
+    """Register signal handlers that set ``stop_event`` when triggered.
+
+    Args:
+        stop_event (asyncio.Event): Event set when a termination signal is
+            received.
+    """
+
+    loop = asyncio.get_running_loop()
+
+    def _notify_shutdown() -> None:
+        """Schedule ``stop_event`` to be set from signal handlers."""
+
+        loop.call_soon_threadsafe(stop_event.set)
+
+    for sig in (signal.SIGINT, signal.SIGTERM):
+        with suppress(AttributeError, NotImplementedError, ValueError):
+            loop.add_signal_handler(sig, _notify_shutdown)
+            continue
+
+        def _sync_handler(*_: int, **__: object) -> None:
+            loop.call_soon_threadsafe(stop_event.set)
+
+        with suppress(ValueError, AttributeError, OSError):
+            signal.signal(sig, _sync_handler)
+
 
 try:
     from examples.EmergencyManagement.Server.database import init_db
@@ -76,20 +131,33 @@ except Exception:  # pragma: no cover - best effort for optional imports
     EmergencyService = None
 
 
+
 async def main() -> None:
-    """Run the emergency management service for a short demonstration.
+    """Run the emergency management service until interrupted.
 
     Returns:
-        None: The coroutine completes after announcing the service and
-        idling for a brief period.
+        None: The coroutine completes once a termination signal is received
+        and the service begins shutting down.
     """
+
+
+
+    _ensure_dependencies_loaded()
+
+    if init_db is None or not isinstance(EmergencyService, type):
+        raise RuntimeError("Emergency service dependencies failed to load")
+
 
     _configure_environment()
     await init_db()
     async with EmergencyService() as svc:
         svc.announce()
-        await asyncio.sleep(30)  # Run for 30 seconds then stop
+        stop_event = asyncio.Event()
+        _register_shutdown_signals(stop_event)
+        await stop_event.wait()
 
 
 if __name__ == "__main__":
+    import asyncio
+
     asyncio.run(main())
