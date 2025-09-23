@@ -20,7 +20,7 @@ MessagePack Canonicalization Rules (Critical for Signatures)
 8) Signature input = UTF-8 bytes of rid|ts|op concatenated with payloadDigest bytes.
 """
 
-from typing import Any, Union
+from typing import Any, TYPE_CHECKING, Union
 
 # Optional dependencies
 try:
