@@ -55,3 +55,7 @@
 - [x] Ensure EmergencyManagement server and client announce their identities on the network.
 
 
+
+## 2025-09-24
+- [x] Handle EmergencyManagement client timeouts gracefully to avoid shutdowns.
+
