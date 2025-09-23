@@ -1,8 +1,41 @@
+import sys
+from typing import Optional
+
+
+def _ensure_standard_library_on_path() -> None:
+    """Ensure CPython standard library directories are available."""
+
+    version = f"python{sys.version_info.major}.{sys.version_info.minor}"
+    zipped = f"python{sys.version_info.major}{sys.version_info.minor}.zip"
+    base_dirs = {sys.base_prefix, sys.exec_prefix, sys.prefix}
+    lib_dir_names = ["lib", "Lib"]
+
+    for base_dir in base_dirs:
+        if not base_dir:
+            continue
+
+        for lib_dir_name in lib_dir_names:
+            lib_dir = f"{base_dir}/{lib_dir_name}"
+            candidates = [
+                f"{lib_dir}/{zipped}",
+                f"{lib_dir}/{version}",
+                f"{lib_dir}/{version}/lib-dynload",
+                f"{lib_dir}/{version}/site-packages",
+                f"{lib_dir}/{version}/dist-packages",
+                f"{lib_dir}/site-packages",
+                f"{lib_dir}/dist-packages",
+            ]
+
+            for candidate in candidates:
+                if candidate and candidate not in sys.path:
+                    sys.path.append(candidate)
+
+
+_ensure_standard_library_on_path()
+
 import asyncio
 import json
-import sys
 from pathlib import Path
-from typing import Optional
 
 # Reason: Allow running the example from the client directory by ensuring
 # the project root is on sys.path so that absolute imports resolve.

@@ -14,7 +14,8 @@ dependencies = [
     "LXMF",
     "SQLAlchemy",
     "jsonschema",
-    "aiosqlite"
+    "aiosqlite",
+    "python-dotenv"
 ]
 
 [project.optional-dependencies]
@@ -23,3 +24,6 @@ dev = [
     "pytest-asyncio",
     "flake8"
 ]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
