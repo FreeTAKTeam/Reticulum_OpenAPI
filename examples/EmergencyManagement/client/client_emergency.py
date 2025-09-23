@@ -22,6 +22,12 @@ from examples.EmergencyManagement.Server.models_emergency import (
 
 CONFIG_FILENAME = "client_config.json"
 SERVER_IDENTITY_KEY = "server_identity_hash"
+CLIENT_DISPLAY_NAME_KEY = "client_display_name"
+REQUEST_TIMEOUT_KEY = "request_timeout_seconds"
+LXMF_CONFIG_PATH_KEY = "lxmf_config_path"
+LXMF_STORAGE_PATH_KEY = "lxmf_storage_path"
+DEFAULT_DISPLAY_NAME = "OpenAPIClient"
+DEFAULT_TIMEOUT_SECONDS = 10.0
 EXAMPLE_IDENTITY_HASH = (
     "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff"
 )
@@ -32,39 +38,44 @@ PROMPT_MESSAGE = (
 CONFIG_PATH = Path(__file__).with_name(CONFIG_FILENAME)
 
 
-def read_server_identity_from_config(
-    config_path: Optional[Path] = None,
-) -> Optional[str]:
-    """Return the stored server identity hash if available.
-
-    Args:
-        config_path (Optional[Path]): Location of the configuration file.
-
-    Returns:
-        Optional[str]: Stored server identity hash or ``None`` when missing.
-    """
+def load_client_config(config_path: Optional[Path] = None) -> dict:
+    """Return configuration data from JSON or an empty dict when unavailable."""
 
     target_path = config_path or CONFIG_PATH
     if not target_path.exists():
-        return None
+        return {}
     try:
         contents = target_path.read_text(encoding="utf-8")
     except OSError as exc:
-        print(
-            f"Unable to read server identity hash from {target_path}: {exc}",
-        )
-        return None
+        print(f"Unable to read configuration from {target_path}: {exc}")
+        return {}
     try:
         data = json.loads(contents)
     except json.JSONDecodeError as exc:
-        print(
-            f"Invalid JSON in {target_path}: {exc}",
-        )
+        print(f"Invalid JSON in {target_path}: {exc}")
+        return {}
+    if not isinstance(data, dict):
+        print(f"Configuration in {target_path} must be a JSON object.")
+        return {}
+    return data
+
+
+def read_server_identity_from_config(
+    config_path: Optional[Path] = None,
+    data: Optional[dict] = None,
+) -> Optional[str]:
+    """Return the stored server identity hash if available."""
+
+    target_path = config_path or CONFIG_PATH
+    if data is None:
+        data = load_client_config(target_path)
+    if not isinstance(data, dict):
         return None
     value = data.get(SERVER_IDENTITY_KEY)
     if isinstance(value, str) and value.strip():
         return value.strip()
     return None
+
 
 
 async def main():
@@ -76,10 +87,40 @@ async def main():
     before printing.
     """
 
-    client = LXMFClient()
+    config_data = load_client_config()
+    config_path_override = config_data.get(LXMF_CONFIG_PATH_KEY)
+    if isinstance(config_path_override, str):
+        config_path_override = config_path_override.strip() or None
+    else:
+        config_path_override = None
+
+    storage_path_override = config_data.get(LXMF_STORAGE_PATH_KEY)
+    if isinstance(storage_path_override, str):
+        storage_path_override = storage_path_override.strip() or None
+    else:
+        storage_path_override = None
+
+    display_name = config_data.get(CLIENT_DISPLAY_NAME_KEY)
+    if isinstance(display_name, str) and display_name.strip():
+        display_name = display_name.strip()
+    else:
+        display_name = DEFAULT_DISPLAY_NAME
+
+    timeout_setting = config_data.get(REQUEST_TIMEOUT_KEY)
+    if isinstance(timeout_setting, (int, float)) and timeout_setting > 0:
+        timeout_seconds = float(timeout_setting)
+    else:
+        timeout_seconds = DEFAULT_TIMEOUT_SECONDS
+
+    client = LXMFClient(
+        config_path=config_path_override,
+        storage_path=storage_path_override,
+        display_name=display_name,
+        timeout=timeout_seconds,
+    )
 
     client.announce()
-    server_id = read_server_identity_from_config()
+    server_id = read_server_identity_from_config(data=config_data)
     if server_id is not None:
         try:
             LXMFClient._normalise_destination_hex(server_id)
@@ -91,7 +132,7 @@ async def main():
         else:
             print(f"Using server identity hash from {CONFIG_PATH}")
     if server_id is None:
-        server_id = input(PROMPT_MESSAGE).strip()  
+        server_id = input(PROMPT_MESSAGE).strip()
 
     eam = EmergencyActionMessage(
         callsign="Bravo1",
