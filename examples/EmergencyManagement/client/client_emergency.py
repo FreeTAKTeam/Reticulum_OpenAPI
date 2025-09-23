@@ -12,8 +12,11 @@ if __package__ is None or __package__ == "":
     if project_root_str not in sys.path:
         sys.path.insert(0, project_root_str)
 
-from reticulum_openapi.client import LXMFClient
-from reticulum_openapi.codec_msgpack import from_bytes
+from examples.EmergencyManagement.client.client import (
+    LXMFClient,
+    create_emergency_action_message,
+    retrieve_emergency_action_message,
+)
 from examples.EmergencyManagement.Server.models_emergency import (
     EmergencyActionMessage,
     EAMStatus,
@@ -75,7 +78,6 @@ def read_server_identity_from_config(
     if isinstance(value, str) and value.strip():
         return value.strip()
     return None
-
 
 
 async def main():
@@ -146,8 +148,10 @@ async def main():
         commsMethod="VOIP",
     )
     try:
-        resp = await client.send_command(
-            server_id, "CreateEmergencyActionMessage", eam, await_response=True
+        created_eam = await create_emergency_action_message(
+            client,
+            server_id,
+            eam,
         )
     except (TypeError, ValueError) as exc:
         print(f"Invalid server identity hash: {exc}")
@@ -157,26 +161,20 @@ async def main():
         print(f"Request timed out: {exc}")
 
         return
-    # Decode MessagePack bytes into a dataclass for readability
-    created_eam = EmergencyActionMessage(**from_bytes(resp))
     print("Create response:", created_eam)
 
     # Retrieve the message back from the server to demonstrate persistence
     try:
-        retrieved = await client.send_command(
+        retrieved_eam = await retrieve_emergency_action_message(
+            client,
             server_id,
-            "RetrieveEmergencyActionMessage",
             eam.callsign,
-            await_response=True,
         )
     except TimeoutError as exc:
 
-   
         print(f"Request timed out: {exc}")
 
         return
-    # Convert MessagePack bytes to an EmergencyActionMessage dataclass
-    retrieved_eam = EmergencyActionMessage(**from_bytes(retrieved))
     print("Retrieve response:", retrieved_eam)
 
 

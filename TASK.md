@@ -57,3 +57,5 @@
 - [x] Handle EmergencyManagement client timeouts gracefully to avoid shutdowns.
 
 
+- [x] Refactor EmergencyManagement client to use shared helper library for API interactions. (2025-09-24)
+

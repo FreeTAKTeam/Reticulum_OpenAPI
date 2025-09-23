@@ -1,10 +1,7 @@
 """Tests for the Emergency Management example application."""
 
-
 import importlib
 import json
-import asyncio
-
 import runpy
 import sys
 from pathlib import Path
@@ -183,7 +180,6 @@ def test_server_script_importable_from_directory(monkeypatch) -> None:
     assert "init_db" in globals_ns
 
 
-
 @pytest.mark.asyncio
 async def test_client_main_prints_timeout(monkeypatch, capsys) -> None:
     """The client example prints a timeout message when the path is unavailable."""
@@ -193,12 +189,19 @@ async def test_client_main_prints_timeout(monkeypatch, capsys) -> None:
     class FailingClient:
         """Stub client that always times out when sending commands."""
 
-        def __init__(self) -> None:
+        def __init__(self, *args, **kwargs) -> None:
             self.calls = 0
+
+        @staticmethod
+        def _normalise_destination_hex(value):
+            return value
 
         async def send_command(self, *args, **kwargs):
             self.calls += 1
             raise TimeoutError("Path to destination not available after 10.0 seconds")
+
+        def announce(self) -> None:
+            return None
 
     monkeypatch.setattr(client_module, "LXMFClient", FailingClient)
     monkeypatch.setattr("builtins.input", lambda _: "761dfb354cfe5a3c9d8f5c4465b6c7f5")
@@ -206,7 +209,7 @@ async def test_client_main_prints_timeout(monkeypatch, capsys) -> None:
     await client_module.main()
 
     captured = capsys.readouterr()
-    assert "Timeout: Path to destination not available" in captured.out
+    assert "Request timed out" in captured.out
 
 
 def test_read_server_identity_from_config(tmp_path) -> None:
@@ -264,24 +267,42 @@ async def test_main_uses_configured_identity(monkeypatch, tmp_path) -> None:
     normalise = module.LXMFClient._normalise_destination_hex
 
     class DummyLXMFClient:
-        commands = []
         _normalise_destination_hex = staticmethod(normalise)
 
-        def __init__(self):
+        def __init__(self, *args, **kwargs):
             pass
 
-        async def send_command(self, server_id, command, payload, await_response=True):
-            DummyLXMFClient.commands.append((server_id, command, payload))
-            return b"{}"
+        def announce(self) -> None:
+            return None
 
-    DummyLXMFClient.commands = []
+    interactions = []
+
+    async def fake_create(client, server_id, message):
+        interactions.append(("create", server_id, message))
+        return EmergencyActionMessage(callsign="Bravo1")
+
+    async def fake_retrieve(client, server_id, callsign):
+        interactions.append(("retrieve", server_id, callsign))
+        return EmergencyActionMessage(callsign="Bravo1")
+
     monkeypatch.setattr(module, "LXMFClient", DummyLXMFClient, raising=False)
-    monkeypatch.setattr(module, "from_bytes", lambda payload: {"callsign": "Bravo1"})
+    monkeypatch.setattr(
+        module,
+        "create_emergency_action_message",
+        fake_create,
+        raising=False,
+    )
+    monkeypatch.setattr(
+        module,
+        "retrieve_emergency_action_message",
+        fake_retrieve,
+        raising=False,
+    )
 
     await module.main()
 
-    assert len(DummyLXMFClient.commands) == 2
-    assert all(call[0] == stored_hash for call in DummyLXMFClient.commands)
+    assert len(interactions) == 2
+    assert all(call[1] == stored_hash for call in interactions)
 
 
 @pytest.mark.asyncio
@@ -306,19 +327,37 @@ async def test_main_prompts_when_config_missing(monkeypatch, tmp_path) -> None:
     normalise = module.LXMFClient._normalise_destination_hex
 
     class DummyLXMFClient:
-        commands = []
         _normalise_destination_hex = staticmethod(normalise)
 
-        def __init__(self):
+        def __init__(self, *args, **kwargs):
             pass
 
-        async def send_command(self, server_id, command, payload, await_response=True):
-            DummyLXMFClient.commands.append((server_id, command, payload))
-            return b"{}"
+        def announce(self) -> None:
+            return None
 
-    DummyLXMFClient.commands = []
+    interactions = []
+
+    async def fake_create(client, server_id, message):
+        interactions.append(("create", server_id, message))
+        return EmergencyActionMessage(callsign="Bravo1")
+
+    async def fake_retrieve(client, server_id, callsign):
+        interactions.append(("retrieve", server_id, callsign))
+        return EmergencyActionMessage(callsign="Bravo1")
+
     monkeypatch.setattr(module, "LXMFClient", DummyLXMFClient, raising=False)
-    monkeypatch.setattr(module, "from_bytes", lambda payload: {"callsign": "Bravo1"})
+    monkeypatch.setattr(
+        module,
+        "create_emergency_action_message",
+        fake_create,
+        raising=False,
+    )
+    monkeypatch.setattr(
+        module,
+        "retrieve_emergency_action_message",
+        fake_retrieve,
+        raising=False,
+    )
 
     await module.main()
 
@@ -326,8 +365,8 @@ async def test_main_prompts_when_config_missing(monkeypatch, tmp_path) -> None:
     prompt_text = prompts[0]
     assert "hexadecimal" in prompt_text
     assert "e.g." in prompt_text
-    assert len(DummyLXMFClient.commands) == 2
-    assert all(call[0] == entered_hash.strip() for call in DummyLXMFClient.commands)
+    assert len(interactions) == 2
+    assert all(call[1] == entered_hash.strip() for call in interactions)
 
 
 @pytest.mark.asyncio
@@ -356,22 +395,84 @@ async def test_main_prompts_when_config_invalid(monkeypatch, tmp_path) -> None:
     normalise = module.LXMFClient._normalise_destination_hex
 
     class DummyLXMFClient:
-        commands = []
         _normalise_destination_hex = staticmethod(normalise)
 
-        def __init__(self):
+        def __init__(self, *args, **kwargs):
             pass
 
-        async def send_command(self, server_id, command, payload, await_response=True):
-            DummyLXMFClient.commands.append((server_id, command, payload))
-            return b"{}"
+        def announce(self) -> None:
+            return None
 
-    DummyLXMFClient.commands = []
+    interactions = []
+
+    async def fake_create(client, server_id, message):
+        interactions.append(("create", server_id, message))
+        return EmergencyActionMessage(callsign="Bravo1")
+
+    async def fake_retrieve(client, server_id, callsign):
+        interactions.append(("retrieve", server_id, callsign))
+        return EmergencyActionMessage(callsign="Bravo1")
+
     monkeypatch.setattr(module, "LXMFClient", DummyLXMFClient, raising=False)
-    monkeypatch.setattr(module, "from_bytes", lambda payload: {"callsign": "Bravo1"})
+    monkeypatch.setattr(
+        module,
+        "create_emergency_action_message",
+        fake_create,
+        raising=False,
+    )
+    monkeypatch.setattr(
+        module,
+        "retrieve_emergency_action_message",
+        fake_retrieve,
+        raising=False,
+    )
 
     await module.main()
 
     assert prompts
-    assert len(DummyLXMFClient.commands) == 2
-    assert all(call[0] == entered_hash.strip() for call in DummyLXMFClient.commands)
+    assert len(interactions) == 2
+    assert all(call[1] == entered_hash.strip() for call in interactions)
+
+
+@pytest.mark.asyncio
+async def test_create_helper_decodes_payload() -> None:
+    """The helper wraps ``send_command`` and decodes the response dataclass."""
+
+    from examples.EmergencyManagement.client import client as client_lib
+
+    message = EmergencyActionMessage(callsign="Helper", commsMethod="HF")
+
+    class DummyClient:
+        def __init__(self) -> None:
+            self.calls = []
+
+        async def send_command(self, server_id, command, payload, await_response=True):
+            self.calls.append((server_id, command, payload, await_response))
+            return dataclass_to_msgpack(message)
+
+    client = DummyClient()
+    result = await client_lib.create_emergency_action_message(
+        client, "AA" * 32, message
+    )
+
+    assert result == message
+    assert client.calls
+    sent = client.calls[0]
+    assert sent[1] == client_lib.COMMAND_CREATE_EMERGENCY_ACTION_MESSAGE
+    assert sent[3] is True
+
+
+@pytest.mark.asyncio
+async def test_retrieve_helper_raises_for_invalid_payload() -> None:
+    """A non-mapping payload results in a ``ValueError``."""
+
+    from examples.EmergencyManagement.client import client as client_lib
+
+    class DummyClient:
+        async def send_command(self, server_id, command, payload, await_response=True):
+            return dataclass_to_msgpack("not-a-mapping")
+
+    client = DummyClient()
+
+    with pytest.raises(ValueError):
+        await client_lib.retrieve_emergency_action_message(client, "BB" * 32, "Call")
