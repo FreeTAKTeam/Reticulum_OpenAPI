@@ -74,6 +74,14 @@ PROMPT_MESSAGE = (
 CONFIG_PATH = Path(__file__).with_name(CONFIG_FILENAME)
 
 
+async def _prompt_for_server_identity() -> str:
+    """Prompt the user for a server identity hash without blocking the loop."""
+
+    loop = asyncio.get_running_loop()
+    response = await loop.run_in_executor(None, input, PROMPT_MESSAGE)
+    return response.strip()
+
+
 def load_client_config(config_path: Optional[Path] = None) -> dict:
     """Return configuration data from JSON or an empty dict when unavailable."""
 
@@ -168,7 +176,7 @@ async def main():
         else:
             print(f"Using server identity hash from {CONFIG_PATH}")
     if server_id is None:
-        server_id = input(PROMPT_MESSAGE).strip()
+        server_id = await _prompt_for_server_identity()
 
     eam = EmergencyActionMessage(
         callsign="Bravo1",
