@@ -203,6 +203,9 @@ async def test_client_main_prints_timeout(monkeypatch, capsys) -> None:
         def announce(self) -> None:
             return None
 
+        def listen_for_announces(self):
+            return None
+
     monkeypatch.setattr(client_module, "LXMFClient", FailingClient)
     monkeypatch.setattr("builtins.input", lambda _: "761dfb354cfe5a3c9d8f5c4465b6c7f5")
 
@@ -275,6 +278,9 @@ async def test_main_uses_configured_identity(monkeypatch, tmp_path) -> None:
         def announce(self) -> None:
             return None
 
+        def listen_for_announces(self):
+            return None
+
     interactions = []
 
     async def fake_create(client, server_id, message):
@@ -333,6 +339,9 @@ async def test_main_prompts_when_config_missing(monkeypatch, tmp_path) -> None:
             pass
 
         def announce(self) -> None:
+            return None
+
+        def listen_for_announces(self):
             return None
 
     interactions = []
@@ -401,6 +410,9 @@ async def test_main_prompts_when_config_invalid(monkeypatch, tmp_path) -> None:
             pass
 
         def announce(self) -> None:
+            return None
+
+        def listen_for_announces(self):
             return None
 
     interactions = []
