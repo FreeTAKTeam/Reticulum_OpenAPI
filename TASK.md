@@ -54,3 +54,7 @@
 - [x] Keep the EmergencyManagement example service running until interrupted and fix LXMF response serialisation regression.
 
 
+
+## 2025-09-24
+- [x] Handle EmergencyManagement client timeouts gracefully to avoid shutdowns.
+
