@@ -65,3 +65,5 @@
 - [x] Build Emergency Action Messages web UI with CRUD flows, optimistic toasts, and
   Vitest coverage. (2025-09-23)
 
+- [x] Ensure EmergencyManagement server announces its identity using the Reticulum Destination API. (2025-09-25)
+
