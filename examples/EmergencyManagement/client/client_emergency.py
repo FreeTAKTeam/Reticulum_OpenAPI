@@ -121,6 +121,7 @@ async def main():
         timeout=timeout_seconds,
     )
 
+    client.listen_for_announces()
     client.announce()
     server_id = read_server_identity_from_config(data=config_data)
     if server_id is not None:

@@ -1,5 +1,7 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
+import { useToast } from '../../components/toast';
 import {
   createEmergencyActionMessage,
   deleteEmergencyActionMessage,
@@ -8,262 +10,149 @@ import {
   updateEmergencyActionMessage,
   type EmergencyActionMessage,
 } from '../../lib/apiClient';
-import { useToast } from '../../components/toast';
+import { useGatewayLiveUpdates } from '../../lib/liveUpdates';
 
-import { DeleteMessageDialog } from './DeleteMessageDialog';
-import { MessageDetails } from './MessageDetails';
-import { MessageForm, type MessageFormMode } from './MessageForm';
+import { MessageForm } from './MessageForm';
 import { MessagesTable } from './MessagesTable';
 
-function cloneMessages(messages: EmergencyActionMessage[]): EmergencyActionMessage[] {
-  return messages.map((message) => ({ ...message }));
+const QUERY_KEY = ['emergency-action-messages'];
+
+function sortMessages(messages: EmergencyActionMessage[]): EmergencyActionMessage[] {
+  return [...messages].sort((a, b) => a.callsign.localeCompare(b.callsign));
 }
 
 export function EmergencyActionMessagesPage(): JSX.Element {
-  const [messages, setMessages] = useState<EmergencyActionMessage[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
-  const [selectedCallsign, setSelectedCallsign] = useState<string | null>(null);
-  const [formMode, setFormMode] = useState<MessageFormMode>('create');
-  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState<boolean>(false);
-
+  const queryClient = useQueryClient();
   const { pushToast } = useToast();
-  const messagesRef = useRef<EmergencyActionMessage[]>(messages);
+  const [editingMessage, setEditingMessage] = useState<EmergencyActionMessage | null>(null);
 
-  useEffect(() => {
-    messagesRef.current = messages;
-  }, [messages]);
+  const messagesQuery = useQuery({
+    queryKey: QUERY_KEY,
+    queryFn: listEmergencyActionMessages,
+  });
 
-  const selectedMessage = useMemo(() => {
-    return messages.find((message) => message.callsign === selectedCallsign) ?? null;
-  }, [messages, selectedCallsign]);
+  const handleLiveUpdate = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: QUERY_KEY });
+  }, [queryClient]);
 
-  useEffect(() => {
-    let isMounted = true;
-    const fetchMessages = async () => {
-      try {
-        const items = await listEmergencyActionMessages();
-        if (!isMounted) {
-          return;
-        }
-        setMessages(items);
-        setSelectedCallsign(items[0]?.callsign ?? null);
-        setLoadError(null);
-      } catch (error) {
-        if (!isMounted) {
-          return;
-        }
-        const message = extractApiErrorMessage(error);
-        setLoadError(message);
-        pushToast({ type: 'error', message: `Failed to load messages: ${message}` });
-      } finally {
-        if (isMounted) {
-          setLoading(false);
-        }
-      }
-    };
+  useGatewayLiveUpdates('emergency-action-message', handleLiveUpdate);
 
-    fetchMessages();
-    return () => {
-      isMounted = false;
-    };
-  }, [pushToast]);
+  const messages = useMemo(() => sortMessages(messagesQuery.data ?? []), [messagesQuery.data]);
 
-  useEffect(() => {
-    if (selectedMessage) {
-      setFormMode('edit');
-    } else {
-      setFormMode('create');
-    }
-  }, [selectedMessage]);
-
-  const handleSelectMessage = useCallback((callsign: string) => {
-    setSelectedCallsign(callsign);
-  }, []);
-
-  const handleResetForm = useCallback(() => {
-    setSelectedCallsign(null);
-    setFormMode('create');
-  }, []);
-
-  const handleCreate = useCallback(
-    async (message: EmergencyActionMessage) => {
-      const previousMessages = cloneMessages(messagesRef.current);
-      setIsSubmitting(true);
-      pushToast({ type: 'info', message: `Saving message ${message.callsign}…` });
-      setMessages((current) => {
-        const hasExisting = current.some((item) => item.callsign === message.callsign);
-        if (hasExisting) {
-          return current.map((item) =>
-            item.callsign === message.callsign ? { ...item, ...message } : item,
-          );
-        }
-        return [...current, { ...message }];
+  const createMutation = useMutation({
+    mutationFn: createEmergencyActionMessage,
+    onSuccess: (created) => {
+      queryClient.setQueryData<EmergencyActionMessage[]>(QUERY_KEY, (current) => {
+        const messages = current ?? [];
+        const filtered = messages.filter((item) => item.callsign !== created.callsign);
+        return sortMessages([...filtered, created]);
       });
-      setSelectedCallsign(message.callsign);
-
-      try {
-        const saved = await createEmergencyActionMessage(message);
-        setMessages((current) =>
-          current.map((item) =>
-            item.callsign === saved.callsign ? { ...item, ...saved } : item,
-          ),
-        );
-        pushToast({ type: 'success', message: `Gateway confirmed ${message.callsign}.` });
-      } catch (error) {
-        const errorMessage = extractApiErrorMessage(error);
-        setMessages(previousMessages);
-        const previousSelection = previousMessages.find(
-          (item) => item.callsign === message.callsign,
-        );
-        setSelectedCallsign(previousSelection ? previousSelection.callsign : null);
-        pushToast({
-          type: 'error',
-          message: `Failed to create ${message.callsign}: ${errorMessage}`,
-        });
-      } finally {
-        setIsSubmitting(false);
-      }
+      pushToast({ type: 'success', message: `Created ${created.callsign}.` });
+      setEditingMessage(null);
     },
-    [pushToast],
-  );
-
-  const handleUpdate = useCallback(
-    async (message: EmergencyActionMessage) => {
-      const previousMessages = cloneMessages(messagesRef.current);
-      setIsSubmitting(true);
-      pushToast({ type: 'info', message: `Updating message ${message.callsign}…` });
-      setMessages((current) =>
-        current.map((item) =>
-          item.callsign === message.callsign ? { ...item, ...message } : item,
-        ),
-      );
-
-      try {
-        const updated = await updateEmergencyActionMessage(message);
-        if (!updated) {
-          setMessages(previousMessages);
-          pushToast({
-            type: 'error',
-            message: `${message.callsign} no longer exists on the server.`,
-          });
-          return;
-        }
-        setMessages((current) =>
-          current.map((item) =>
-            item.callsign === updated.callsign ? { ...item, ...updated } : item,
-          ),
-        );
-        pushToast({ type: 'success', message: `Gateway updated ${message.callsign}.` });
-      } catch (error) {
-        const errorMessage = extractApiErrorMessage(error);
-        setMessages(previousMessages);
-        pushToast({
-          type: 'error',
-          message: `Failed to update ${message.callsign}: ${errorMessage}`,
-        });
-      } finally {
-        setIsSubmitting(false);
-      }
-    },
-    [pushToast],
-  );
-
-  const handleSubmit = useCallback(
-    async (message: EmergencyActionMessage) => {
-      if (formMode === 'edit') {
-        await handleUpdate(message);
-      } else {
-        await handleCreate(message);
-      }
-    },
-    [formMode, handleCreate, handleUpdate],
-  );
-
-  const handleDelete = useCallback(() => {
-    if (!selectedMessage) {
-      return;
-    }
-    setDeleteDialogOpen(true);
-  }, [selectedMessage]);
-
-  const handleConfirmDelete = useCallback(async () => {
-    if (!selectedMessage) {
-      return;
-    }
-    const target = selectedMessage;
-    const previousMessages = cloneMessages(messagesRef.current);
-    setDeleteDialogOpen(false);
-    setMessages((current) => current.filter((item) => item.callsign !== target.callsign));
-    setSelectedCallsign(null);
-    pushToast({ type: 'info', message: `Deleting ${target.callsign}…` });
-
-    try {
-      await deleteEmergencyActionMessage(target.callsign);
-      pushToast({ type: 'success', message: `Deleted ${target.callsign}.` });
-    } catch (error) {
-      const errorMessage = extractApiErrorMessage(error);
-      setMessages(previousMessages);
-      setSelectedCallsign(target.callsign);
+    onError: (error, variables) => {
       pushToast({
         type: 'error',
-        message: `Failed to delete ${target.callsign}: ${errorMessage}`,
+        message: `Failed to create ${variables.callsign}: ${extractApiErrorMessage(error)}`,
       });
-    }
-  }, [pushToast, selectedMessage]);
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: updateEmergencyActionMessage,
+    onSuccess: (updated, variables) => {
+      if (!updated) {
+        pushToast({
+          type: 'error',
+          message: `${variables.callsign} no longer exists on the gateway.`,
+        });
+        queryClient.invalidateQueries({ queryKey: QUERY_KEY });
+        return;
+      }
+      queryClient.setQueryData<EmergencyActionMessage[]>(QUERY_KEY, (current) => {
+        const messages = current ?? [];
+        return sortMessages(
+          messages.map((item) => (item.callsign === updated.callsign ? updated : item)),
+        );
+      });
+      pushToast({ type: 'success', message: `Updated ${updated.callsign}.` });
+      setEditingMessage(null);
+    },
+    onError: (error, variables) => {
+      pushToast({
+        type: 'error',
+        message: `Failed to update ${variables.callsign}: ${extractApiErrorMessage(error)}`,
+      });
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: deleteEmergencyActionMessage,
+    onSuccess: (_response, callsign) => {
+      queryClient.setQueryData<EmergencyActionMessage[]>(QUERY_KEY, (current) =>
+        (current ?? []).filter((item) => item.callsign !== callsign),
+      );
+      pushToast({ type: 'success', message: `Deleted ${callsign}.` });
+      if (editingMessage?.callsign === callsign) {
+        setEditingMessage(null);
+      }
+    },
+    onError: (error, callsign) => {
+      pushToast({
+        type: 'error',
+        message: `Failed to delete ${callsign}: ${extractApiErrorMessage(error)}`,
+      });
+    },
+  });
+
+  const handleSubmit = useCallback(
+    (message: EmergencyActionMessage) => {
+      if (editingMessage && editingMessage.callsign === message.callsign) {
+        updateMutation.mutate(message);
+      } else {
+        createMutation.mutate(message);
+      }
+    },
+    [createMutation, updateMutation, editingMessage],
+  );
+
+  const handleEdit = useCallback((message: EmergencyActionMessage) => {
+    setEditingMessage(message);
+  }, []);
+
+  const handleDelete = useCallback(
+    (message: EmergencyActionMessage) => {
+      const confirmed = window.confirm(
+        `Delete emergency action message for ${message.callsign}?`,
+      );
+      if (confirmed) {
+        deleteMutation.mutate(message.callsign);
+      }
+    },
+    [deleteMutation],
+  );
 
   return (
     <section className="page-section">
       <header className="page-header">
         <h2>Emergency Action Messages</h2>
-        <p>
-          Review and dispatch emergency action messages across the mesh network.
-        </p>
+        <p>Coordinate readiness across the mesh with live status and dispatch updates.</p>
       </header>
-      <div className="page-card">
-        <p>
-          Manage emergency action message readiness, update unit statuses, and coordinate
-          communications through the FastAPI gateway.
-        </p>
+
+      <div className="page-grid">
+        <MessagesTable
+          messages={messages}
+          isLoading={messagesQuery.isFetching && !messagesQuery.isFetched}
+          onEdit={handleEdit}
+          onDelete={handleDelete}
+        />
+        <MessageForm
+          initialValue={editingMessage}
+          onSubmit={handleSubmit}
+          onCancelEdit={() => setEditingMessage(null)}
+          isSubmitting={createMutation.isPending || updateMutation.isPending}
+        />
       </div>
-      {loading ? (
-        <div className="page-card">Loading messages…</div>
-      ) : loadError ? (
-        <div className="page-card page-error">{loadError}</div>
-      ) : (
-        <div className="page-grid">
-          <div className="page-card">
-            <MessagesTable
-              messages={messages}
-              selectedCallsign={selectedCallsign}
-              onSelect={handleSelectMessage}
-            />
-          </div>
-          <div className="page-card">
-            <MessageDetails
-              message={selectedMessage}
-              onEdit={() => setFormMode('edit')}
-              onDelete={handleDelete}
-            />
-          </div>
-          <div className="page-card">
-            <MessageForm
-              mode={formMode}
-              initialValue={formMode === 'edit' ? selectedMessage : null}
-              onSubmit={handleSubmit}
-              onReset={handleResetForm}
-              isSubmitting={isSubmitting}
-            />
-          </div>
-        </div>
-      )}
-      <DeleteMessageDialog
-        callsign={selectedMessage?.callsign ?? null}
-        isOpen={deleteDialogOpen}
-        onCancel={() => setDeleteDialogOpen(false)}
-        onConfirm={handleConfirmDelete}
-      />
     </section>
   );
 }

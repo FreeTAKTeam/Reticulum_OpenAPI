@@ -19,12 +19,51 @@ export interface DeleteEmergencyActionMessageResponse {
   callsign: string;
 }
 
+export interface EventPoint {
+  lat?: number | null;
+  lon?: number | null;
+  ce?: number | null;
+  le?: number | null;
+  hae?: number | null;
+}
+
+export interface EventRecord {
+  uid: number;
+  type?: string | null;
+  detail?: string | null;
+  how?: string | null;
+  start?: string | null;
+  stale?: string | null;
+  access?: string | null;
+  opex?: number | null;
+  qos?: number | null;
+  time?: number | null;
+  version?: number | null;
+  point?: EventPoint | null;
+}
+
+export interface DeleteEventResponse {
+  status: 'deleted' | 'not_found';
+  uid: number | string;
+}
+
 const apiBaseUrl = (import.meta.env?.VITE_API_BASE_URL as string | undefined) ??
   'http://localhost:8000';
+const updatesUrl = (import.meta.env?.VITE_UPDATES_URL as string | undefined)?.trim();
 const serverIdentity = (import.meta.env?.VITE_SERVER_IDENTITY as string | undefined)?.trim();
 
 export function getApiBaseUrl(): string {
   return apiBaseUrl;
+}
+
+export function getLiveUpdatesUrl(): string {
+  if (updatesUrl) {
+    if (updatesUrl.startsWith('http://') || updatesUrl.startsWith('https://')) {
+      return updatesUrl;
+    }
+    return `${apiBaseUrl.replace(/\/$/, '')}${updatesUrl.startsWith('/') ? '' : '/'}${updatesUrl}`;
+  }
+  return `${apiBaseUrl.replace(/\/$/, '')}/stream`;
 }
 
 export const apiClient = axios.create({
@@ -80,6 +119,31 @@ export async function deleteEmergencyActionMessage(
   const response = await apiClient.delete<DeleteEmergencyActionMessageResponse>(
     `/emergency-action-messages/${encodeURIComponent(callsign)}`,
   );
+  return response.data;
+}
+
+export async function listEvents(): Promise<EventRecord[]> {
+  const response = await apiClient.get<EventRecord[] | null>('/events');
+  return response.data ?? [];
+}
+
+export async function retrieveEvent(uid: number | string): Promise<EventRecord | null> {
+  const response = await apiClient.get<EventRecord | null>(`/events/${encodeURIComponent(uid)}`);
+  return response.data ?? null;
+}
+
+export async function createEvent(event: EventRecord): Promise<EventRecord> {
+  const response = await apiClient.post<EventRecord>('/events', event);
+  return response.data;
+}
+
+export async function updateEvent(event: EventRecord): Promise<EventRecord | null> {
+  const response = await apiClient.put<EventRecord | null>(`/events/${encodeURIComponent(event.uid)}`, event);
+  return response.data ?? null;
+}
+
+export async function deleteEvent(uid: number | string): Promise<DeleteEventResponse> {
+  const response = await apiClient.delete<DeleteEventResponse>(`/events/${encodeURIComponent(uid)}`);
   return response.data;
 }
 

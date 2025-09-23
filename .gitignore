@@ -15,6 +15,7 @@ downloads/
 eggs/
 .eggs/
 lib/
+!examples/EmergencyManagement/webui/src/lib/
 lib64/
 parts/
 sdist/
