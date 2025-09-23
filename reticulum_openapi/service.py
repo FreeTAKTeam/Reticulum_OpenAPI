@@ -5,6 +5,7 @@ import logging
 import zlib
 from dataclasses import asdict
 from dataclasses import is_dataclass
+from typing import Any
 from typing import Callable
 from typing import Dict
 from typing import Any
@@ -32,35 +33,27 @@ configure_logging()
 logger = logging.getLogger(__name__)
 
 
-def _convert_dataclasses_to_primitives(value: Any) -> Any:
-    """Convert dataclasses in a nested structure to plain Python primitives.
+def _normalise_for_msgpack(value: Any) -> Any:
+    """Convert values into structures supported by canonical MessagePack encoding.
 
     Args:
-        value (Any): Value that may contain dataclasses, dictionaries or iterables.
+        value (Any): Arbitrary value returned by a handler.
 
     Returns:
-        Any: Structure with all dataclasses converted to serialisable primitives.
+        Any: A representation containing only MessagePack-safe primitives.
     """
 
     if is_dataclass(value):
-        value = asdict(value)
+        return _normalise_for_msgpack(asdict(value))
     if isinstance(value, dict):
-        return {
-            key: _convert_dataclasses_to_primitives(item)
-            for key, item in value.items()
-        }
+        return {key: _normalise_for_msgpack(item) for key, item in value.items()}
     if isinstance(value, list):
-        return [_convert_dataclasses_to_primitives(item) for item in value]
+        return [_normalise_for_msgpack(item) for item in value]
     if isinstance(value, tuple):
-        return [
-            _convert_dataclasses_to_primitives(item)
-            for item in value
-        ]
-    if isinstance(value, set):
-        return [
-            _convert_dataclasses_to_primitives(item)
-            for item in value
-        ]
+        return [_normalise_for_msgpack(item) for item in value]
+    if isinstance(value, (set, frozenset)):
+        return [_normalise_for_msgpack(item) for item in value]
+
     return value
 
 
@@ -276,11 +269,19 @@ class LXMFService:
                     resp_bytes = serialisable_result
                 else:
                     try:
-                        resp_bytes = dataclass_to_msgpack(serialisable_result)
+
+                        safe_result = _normalise_for_msgpack(result)
+                    except Exception:
+                        logger.exception(
+                            "Failed to normalise handler result for %s", cmd
+                        )
+                        safe_result = result
+                    try:
+                        resp_bytes = dataclass_to_msgpack(safe_result)
                     except Exception:
                         try:
-
-                            resp_bytes = dataclass_to_json(serialisable_result)
+                            json_bytes = dataclass_to_json_bytes(safe_result)
+                            resp_bytes = compress_json(json_bytes)
 
                         except Exception as exc:
                             logger.exception(
@@ -289,9 +290,9 @@ class LXMFService:
                                 exc,
                             )
 
-                            resp_bytes = zlib.compress(
-                                json.dumps(serialisable_result).encode("utf-8")
-                            )
+                            fallback_json = json.dumps(safe_result).encode("utf-8")
+                            resp_bytes = compress_json(fallback_json)
+
                 # Determine response command name (could be something like "<command>_response" or a generic)
                 resp_title = f"{cmd}_response"
                 dest_identity = message.source
