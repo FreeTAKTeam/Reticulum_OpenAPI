@@ -33,6 +33,9 @@ async def test_client_init(monkeypatch):
         def handle_outbound(self, msg):
             pass
 
+        def handle_outbound(self, msg):
+            pass
+
     class DummyDestination:
         OUT = object()
         SINGLE = object()
@@ -40,9 +43,16 @@ async def test_client_init(monkeypatch):
         def __init__(self, *a, **k):
             pass
 
+    register_calls = {}
+
+    def fake_register(handler):
+        register_calls["handler"] = handler
+
     monkeypatch.setattr(client_module.RNS, "Reticulum", DummyReticulum)
     monkeypatch.setattr(client_module.RNS, "Identity", DummyIdentity)
     monkeypatch.setattr(client_module.RNS, "Destination", DummyDestination)
+    monkeypatch.setattr(client_module.RNS.Transport, "register_announce_handler", fake_register)
+    monkeypatch.setattr(client_module.RNS, "prettyhexrep", lambda data: f"<{data.hex()}>")
     monkeypatch.setattr(client_module.LXMF, "LXMRouter", DummyRouter)
     monkeypatch.setattr(client_module.LXMF, "LXMessage", object)
     monkeypatch.setattr(
@@ -54,6 +64,8 @@ async def test_client_init(monkeypatch):
     cli = client_module.LXMFClient()
     assert isinstance(cli.router, DummyRouter)
     assert cli._futures == {}
+    assert isinstance(cli._announce_queue, asyncio.Queue)
+    assert register_calls["handler"].aspect_filter == ["lxmf"]
 
 
 @pytest.mark.asyncio
@@ -163,3 +175,84 @@ def test_client_announce(monkeypatch):
     monkeypatch.setattr(client_module.RNS, "prettyhexrep", lambda data: "01")
     cli.announce()
     cli.router.announce.assert_called_once_with(cli.source_identity.hash)
+
+
+def _patch_dependencies(monkeypatch):
+    class DummyReticulum:
+        storagepath = "/tmp"
+
+        def __init__(self, config_path=None):
+            pass
+
+    class DummyIdentity:
+        def __init__(self):
+            self.hash = b"h"
+
+    class DummyRouter:
+        def __init__(self, storagepath=None):
+            self.storagepath = storagepath
+
+        def register_delivery_callback(self, cb):
+            self.cb = cb
+
+        def register_delivery_identity(self, ident, display_name=None, stamp_cost=0):
+            return ident
+
+    class DummyDestination:
+        OUT = object()
+        SINGLE = object()
+
+        def __init__(self, *a, **k):
+            pass
+
+    register_calls = {}
+
+    def fake_register(handler):
+        register_calls["handler"] = handler
+
+    monkeypatch.setattr(client_module.RNS, "Reticulum", DummyReticulum)
+    monkeypatch.setattr(client_module.RNS, "Identity", DummyIdentity)
+    monkeypatch.setattr(client_module.RNS, "Destination", DummyDestination)
+    monkeypatch.setattr(client_module.RNS.Transport, "register_announce_handler", fake_register)
+    monkeypatch.setattr(client_module.RNS, "prettyhexrep", lambda data: f"<{data.hex()}>")
+    monkeypatch.setattr(client_module.LXMF, "LXMRouter", DummyRouter)
+    monkeypatch.setattr(
+        client_module,
+        "load_or_create_identity",
+        lambda *a, **k: DummyIdentity(),
+    )
+    return register_calls
+
+
+@pytest.mark.asyncio
+async def test_get_next_announce_returns_event(monkeypatch):
+    register_calls = _patch_dependencies(monkeypatch)
+    client = client_module.LXMFClient()
+    handler = register_calls["handler"]
+    identity = SimpleNamespace(hash=b"\xaa\xbb")
+
+    handler.received_announce(b"\x01\x02", identity, b"\x03")
+    event = await client.get_next_announce(timeout=0.1)
+
+    assert event["destination_hash"] == b"\x01\x02"
+    assert event["announced_identity"] is identity
+    assert event["app_data"] == b"\x03"
+
+
+@pytest.mark.asyncio
+async def test_listen_for_announces_prints(monkeypatch):
+    register_calls = _patch_dependencies(monkeypatch)
+    client = client_module.LXMFClient()
+    handler = register_calls["handler"]
+    output = []
+
+    client.listen_for_announces(output.append)
+    identity = SimpleNamespace(hash=b"\xaa\xbb")
+    handler.received_announce(b"\x01\x02", identity, b"\x03")
+    await asyncio.sleep(0.05)
+    client.stop_listening_for_announces()
+    await asyncio.sleep(0)
+
+    assert output
+    assert "<aabb>" in output[0]
+    assert "<0102>" in output[0]

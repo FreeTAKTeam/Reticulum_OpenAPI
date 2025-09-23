@@ -80,7 +80,7 @@ the client.
 
 ### Client
 
-* `client_emergency.py` – reuses a stored server identity hash when available and otherwise prompts before sending a sample request using `LXMFClient`.
+* `client_emergency.py` – reuses a stored server identity hash when available, streams Reticulum announces to the console, and otherwise prompts before sending a sample request using `LXMFClient`.
 
 ## Running the example
 

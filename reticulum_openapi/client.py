@@ -2,6 +2,8 @@ import asyncio
 import logging
 from dataclasses import asdict
 from dataclasses import is_dataclass
+from typing import Any
+from typing import Callable
 from typing import Dict
 from typing import Optional
 
@@ -17,6 +19,29 @@ from .model import dataclass_to_msgpack
 
 configure_logging()
 logger = logging.getLogger(__name__)
+
+
+class _AnnounceHandler:
+    """Adapter that forwards Reticulum announces into an asyncio queue."""
+
+    aspect_filter = ["lxmf"]
+    receive_path_responses = False
+
+    def __init__(self, loop: asyncio.AbstractEventLoop, queue: asyncio.Queue):
+        self._loop = loop
+        self._queue = queue
+
+    def received_announce(self, destination_hash, announced_identity, app_data, *extra):
+        """Enqueue announce metadata on the main event loop thread."""
+
+        announce_packet_hash = extra[0] if extra else None
+        event = {
+            "destination_hash": destination_hash,
+            "announced_identity": announced_identity,
+            "app_data": app_data,
+            "announce_packet_hash": announce_packet_hash,
+        }
+        self._loop.call_soon_threadsafe(self._queue.put_nowait, event)
 
 
 class LXMFClient:
@@ -45,6 +70,10 @@ class LXMFClient:
         self._futures: Dict[str, asyncio.Future] = {}
         self.auth_token = auth_token
         self.timeout = timeout
+        self._announce_queue: asyncio.Queue = asyncio.Queue()
+        self._announce_task: Optional[asyncio.Task] = None
+        self._announce_handler = _AnnounceHandler(self._loop, self._announce_queue)
+        RNS.Transport.register_announce_handler(self._announce_handler)
 
     def announce(self) -> None:
         """Announce this client's identity on the Reticulum network."""
@@ -207,3 +236,101 @@ class LXMFClient:
                 self._futures.pop(response_title, None)
                 raise TimeoutError("No response received")
         return None
+
+    def listen_for_announces(
+        self, print_func: Callable[[str], None] = print
+    ) -> None:
+        """Start logging Reticulum announces to the console in real time.
+
+        Args:
+            print_func (Callable[[str], None], optional): Callback used when
+                formatting announce notifications. Defaults to :func:`print`.
+
+        Raises:
+            TypeError: If ``print_func`` is not callable.
+        """
+
+        if not callable(print_func):
+            raise TypeError("print_func must be callable")
+        if self._announce_task and not self._announce_task.done():
+            return
+        self._announce_task = self._loop.create_task(
+            self._announce_consumer(print_func)
+        )
+
+    def stop_listening_for_announces(self) -> None:
+        """Stop forwarding announces to the configured ``print_func``."""
+
+        if self._announce_task is None:
+            return
+        task = self._announce_task
+        self._announce_task = None
+        task.cancel()
+
+    async def get_next_announce(
+        self, timeout: Optional[float] = None
+    ) -> Dict[str, Any]:
+        """Return the next announce received from the Reticulum transport.
+
+        Args:
+            timeout (float, optional): Maximum seconds to wait for an announce.
+                Waits indefinitely when ``None``.
+
+        Returns:
+            Dict[str, Any]: Raw announce metadata produced by Reticulum.
+        """
+
+        if timeout is None:
+            return await self._announce_queue.get()
+        return await asyncio.wait_for(self._announce_queue.get(), timeout=timeout)
+
+    async def _announce_consumer(self, print_func: Callable[[str], None]) -> None:
+        try:
+            while True:
+                event = await self._announce_queue.get()
+                message = self._format_announce(event)
+                logger.info(message)
+                print_func(message)
+        except asyncio.CancelledError:  # pragma: no cover - cooperative shutdown
+            return
+
+    def _format_announce(self, event: Dict[str, Any]) -> str:
+        """Return a human-readable representation of an announce event."""
+
+        dest_repr = self._format_hash(
+            event.get("destination_hash"), "<unknown destination>"
+        )
+        announced_identity = event.get("announced_identity")
+        identity_hash = getattr(announced_identity, "hash", None)
+        identity_repr = self._format_hash(identity_hash, "<unknown identity>")
+        app_repr = self._format_app_data(event.get("app_data"))
+        return (
+            f"Announce received from {identity_repr} for destination {dest_repr} "
+            f"(app_data={app_repr})"
+        )
+
+    @staticmethod
+    def _format_hash(value: Optional[bytes], fallback: str) -> str:
+        """Return a pretty hex string or ``fallback`` when unavailable."""
+
+        if value is None:
+            return fallback
+        try:
+            return RNS.prettyhexrep(value)
+        except Exception:  # pragma: no cover - defensive logging path
+            logger.debug("Unable to pretty-print hash", exc_info=True)
+            return fallback
+
+    @staticmethod
+    def _format_app_data(app_data: Any) -> str:
+        """Return a compact string representation of announce app data."""
+
+        if app_data is None:
+            return "None"
+        if isinstance(app_data, bytes):
+            try:
+                return RNS.prettyhexrep(app_data)
+            except Exception:  # pragma: no cover - defensive logging path
+                logger.debug("Unable to pretty-print app data", exc_info=True)
+                return app_data.hex()
+        return str(app_data)

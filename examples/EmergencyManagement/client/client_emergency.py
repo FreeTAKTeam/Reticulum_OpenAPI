@@ -35,7 +35,7 @@ EXAMPLE_IDENTITY_HASH = (
     "761dfb354cfe5a3c9d8f5c4465b6c7f5"
 )
 PROMPT_MESSAGE = (
-    "Server Identity Hash 32  characters, e.g. "
+    "Server Identity Hash (32 hexadecimal characters, e.g. "
     f"{EXAMPLE_IDENTITY_HASH}): "
 )
 CONFIG_PATH = Path(__file__).with_name(CONFIG_FILENAME)
@@ -121,6 +121,7 @@ async def main():
         timeout=timeout_seconds,
     )
 
+    client.listen_for_announces()
     client.announce()
     server_id = read_server_identity_from_config(data=config_data)
     if server_id is not None:

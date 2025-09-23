@@ -56,6 +56,7 @@
 - [x] Print EmergencyManagement client timeout message instead of exiting.
 - [x] Ensure EmergencyManagement server and client announce their identities on the network.
 - [x] Handle EmergencyManagement client timeouts gracefully to avoid shutdowns.
+- [x] Stream LXMF announces in EmergencyManagement client using LXMFClient. (2025-09-23)
 
 
 - [x] Refactor EmergencyManagement client to use shared helper library for API interactions. (2025-09-24)
