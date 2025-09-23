@@ -65,7 +65,7 @@ async def test_client_init(monkeypatch):
     assert isinstance(cli.router, DummyRouter)
     assert cli._futures == {}
     assert isinstance(cli._announce_queue, asyncio.Queue)
-    assert register_calls["handler"].aspect_filter == ["lxmf"]
+    assert register_calls["handler"].aspect_filter == "lxmf"
 
 
 @pytest.mark.asyncio

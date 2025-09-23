@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 class _AnnounceHandler:
     """Adapter that forwards Reticulum announces into an asyncio queue."""
 
-    aspect_filter = ["lxmf"]
+    aspect_filter = "lxmf"
     receive_path_responses = False
 
     def __init__(self, loop: asyncio.AbstractEventLoop, queue: asyncio.Queue):
@@ -79,6 +79,8 @@ class LXMFClient:
         """Announce this client's identity on the Reticulum network."""
 
         try:
+            if hasattr(self.router, "announce"):
+                self.router.announce(self.source_identity.hash)
             self.source_identity.announce()
             logger.info(
                 "Client identity announced: %s",
