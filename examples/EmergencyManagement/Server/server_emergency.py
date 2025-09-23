@@ -3,9 +3,8 @@
 
 import asyncio
 import signal
-from contextlib import suppress
-from pathlib import Path
 import sys
+from contextlib import suppress
 from pathlib import Path
 
 
@@ -72,6 +71,7 @@ def _configure_environment() -> None:
 EmergencyService = object()
 init_db = None
 
+
 def _ensure_dependencies_loaded() -> None:
     """Load modules that require adjusted import paths."""
 
@@ -90,6 +90,7 @@ def _ensure_dependencies_loaded() -> None:
 
     init_db = database_init_db
     EmergencyService = service_emergency_service
+
 
 _configure_environment()
 
@@ -131,7 +132,6 @@ except Exception:  # pragma: no cover - best effort for optional imports
     EmergencyService = None
 
 
-
 async def main() -> None:
     """Run the emergency management service until interrupted.
 
@@ -140,14 +140,10 @@ async def main() -> None:
         and the service begins shutting down.
     """
 
-
-
     _ensure_dependencies_loaded()
 
     if init_db is None or not isinstance(EmergencyService, type):
         raise RuntimeError("Emergency service dependencies failed to load")
-
-
     _configure_environment()
     await init_db()
     async with EmergencyService() as svc:
@@ -158,6 +154,4 @@ async def main() -> None:
 
 
 if __name__ == "__main__":
-    import asyncio
-
     asyncio.run(main())
