@@ -1,5 +1,10 @@
 """Run the emergency management server example."""
 
+
+import asyncio
+import signal
+from contextlib import suppress
+from pathlib import Path
 import sys
 from pathlib import Path
 
@@ -67,7 +72,6 @@ def _configure_environment() -> None:
 EmergencyService = object()
 init_db = None
 
-
 def _ensure_dependencies_loaded() -> None:
     """Load modules that require adjusted import paths."""
 
@@ -87,26 +91,70 @@ def _ensure_dependencies_loaded() -> None:
     init_db = database_init_db
     EmergencyService = service_emergency_service
 
+_configure_environment()
 
-async def main() -> None:
-    """Run the emergency management service for a short demonstration.
 
-    Returns:
-        None: The coroutine completes after announcing the service and
-        idling for a brief period.
+def _register_shutdown_signals(stop_event: asyncio.Event) -> None:
+    """Register signal handlers that set ``stop_event`` when triggered.
+
+    Args:
+        stop_event (asyncio.Event): Event set when a termination signal is
+            received.
     """
 
-    import asyncio
+    loop = asyncio.get_running_loop()
+
+    def _notify_shutdown() -> None:
+        """Schedule ``stop_event`` to be set from signal handlers."""
+
+        loop.call_soon_threadsafe(stop_event.set)
+
+    for sig in (signal.SIGINT, signal.SIGTERM):
+        with suppress(AttributeError, NotImplementedError, ValueError):
+            loop.add_signal_handler(sig, _notify_shutdown)
+            continue
+
+        def _sync_handler(*_: int, **__: object) -> None:
+            loop.call_soon_threadsafe(stop_event.set)
+
+        with suppress(ValueError, AttributeError, OSError):
+            signal.signal(sig, _sync_handler)
+
+
+try:
+    from examples.EmergencyManagement.Server.database import init_db
+    from examples.EmergencyManagement.Server.service_emergency import (
+        EmergencyService,
+    )
+except Exception:  # pragma: no cover - best effort for optional imports
+    init_db = None
+    EmergencyService = None
+
+
+
+async def main() -> None:
+    """Run the emergency management service until interrupted.
+
+    Returns:
+        None: The coroutine completes once a termination signal is received
+        and the service begins shutting down.
+    """
+
+
 
     _ensure_dependencies_loaded()
 
     if init_db is None or not isinstance(EmergencyService, type):
         raise RuntimeError("Emergency service dependencies failed to load")
 
+
+    _configure_environment()
     await init_db()
     async with EmergencyService() as svc:
         svc.announce()
-        await asyncio.sleep(30)  # Run for 30 seconds then stop
+        stop_event = asyncio.Event()
+        _register_shutdown_signals(stop_event)
+        await stop_event.wait()
 
 
 if __name__ == "__main__":

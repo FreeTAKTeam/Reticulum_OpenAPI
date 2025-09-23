@@ -20,7 +20,7 @@ MessagePack Canonicalization Rules (Critical for Signatures)
 8) Signature input = UTF-8 bytes of rid|ts|op concatenated with payloadDigest bytes.
 """
 
-from typing import Any, Union
+from typing import Any, TYPE_CHECKING, Union
 
 # Optional dependencies
 try:
@@ -41,6 +41,12 @@ except Exception:  # pragma: no cover
     SigningKey = None
     VerifyKey = None
     BadSignatureError = Exception
+
+if TYPE_CHECKING:
+    from nacl.signing import SigningKey as SigningKeyType, VerifyKey as VerifyKeyType
+else:
+    SigningKeyType = Any
+    VerifyKeyType = Any
 
 
 class CodecError(Exception):
@@ -206,7 +212,7 @@ def digest(obj: Any) -> bytes:
     return blake3.blake3(data).digest()
 
 
-def sign(canon_bytes: bytes, sk: Union[bytes, "SigningKey"]) -> bytes:
+def sign(canon_bytes: bytes, sk: Union[bytes, SigningKeyType]) -> bytes:
     """
     Sign canonical bytes with Ed25519. `sk` can be a 32-byte seed or a nacl.signing.SigningKey.
     Returns signature bytes (64B).
@@ -221,7 +227,7 @@ def sign(canon_bytes: bytes, sk: Union[bytes, "SigningKey"]) -> bytes:
     return bytes(signed.signature)
 
 
-def verify(canon_bytes: bytes, pk: Union[bytes, "VerifyKey"], sig: bytes) -> bool:
+def verify(canon_bytes: bytes, pk: Union[bytes, VerifyKeyType], sig: bytes) -> bool:
     """
     Verify an Ed25519 signature over canonical bytes. `pk` can be 32-byte public key or VerifyKey.
     """

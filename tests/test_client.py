@@ -237,3 +237,20 @@ async def test_callback_ignores_invalid_byte_titles(monkeypatch):
     assert not future.done()
     assert cli._futures["CMD_response"] is future
     assert messages and "Invalid response title" in messages[0]
+
+
+def test_normalise_destination_hex_accepts_wrapped_brackets():
+    value = client_module.LXMFClient._normalise_destination_hex(
+        "  <A1B2C3D4E5F60708>  "
+    )
+    assert value == "a1b2c3d4e5f60708"
+
+
+def test_normalise_destination_hex_rejects_invalid():
+    with pytest.raises(ValueError):
+        client_module.LXMFClient._normalise_destination_hex("not hex")
+
+
+def test_normalise_destination_hex_requires_string():
+    with pytest.raises(TypeError):
+        client_module.LXMFClient._normalise_destination_hex(123)  # type: ignore[arg-type]

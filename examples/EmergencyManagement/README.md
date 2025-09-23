@@ -19,13 +19,13 @@ The API contract is described in [`API/EmergencyActionMessageManagement-OAS.yaml
 sequenceDiagram
 autonumber
 participant ClientApp as Emergency Client (client_emergency.py)
-participant ApiClient as LXMFApiClient
+participant ApiClient as LXMFClient
 participant Codec as MsgPackCodec
 participant LXMF as LXMFTransport
 participant ServerApp as Emergency Server (server_emergency.py)
-participant ApiService as LXMFApiService
-participant Router as RequestRouter
-participant Domain as EmergencyService
+participant Service as EmergencyService (LXMFService)
+participant EmergencyCtrl as EmergencyController
+participant EventCtrl as EventController
 
 note over ServerApp: On start, prints its identity hash (client needs it)
 
@@ -35,17 +35,18 @@ Codec-->>ApiClient: bytes
 ApiClient->>LXMF: send(to=server_hash, content=bytes)
 LXMF-->>ServerApp: deliver(envelope)
 
-ServerApp->>ApiService: onMessage(envelope)
-ApiService->>Codec: decode(bytes)
-Codec-->>ApiService: obj
-ApiService->>Router: route("/emergency/create", obj)
-Router->>Domain: createEmergency(data)
-Domain-->>Router: ack {id, status}
-Router-->>ApiService: Response
+ServerApp->>Service: on_message(envelope)
+Service->>Codec: decode(bytes)
+Codec-->>Service: obj
+Service->>EmergencyCtrl: invoke "CreateEmergencyActionMessage"
+EmergencyCtrl-->>Service: ack {id, status}
 
-ApiService->>Codec: encode(response)
-Codec-->>ApiService: bytes
-ApiService->>LXMF: reply(to=client_hash, content=bytes)
+Service->>EventCtrl: invoke event commands
+EventCtrl-->>Service: ack/list/data
+
+Service->>Codec: encode(response)
+Codec-->>Service: bytes
+Service->>LXMF: reply(to=client_hash, content=bytes)
 LXMF-->>ClientApp: deliver(reply)
 
 ClientApp->>ApiClient: receive(reply)
@@ -53,6 +54,15 @@ ApiClient->>Codec: decode(bytes)
 Codec-->>ApiClient: ack/status
 ApiClient-->>ClientApp: display result
 ```
+
+The `LXMFClient` in `client_emergency.py` wraps the MessagePack codec used by
+the SDK, so the client code can hand off dataclasses directly when calling
+`send_command`. On the server side, `server_emergency.py` instantiates the
+`EmergencyService` (a subclass of `LXMFService` defined in
+`service_emergency.py`). That service decodes the payload, resolves the matching
+route, and invokes the controller registered for the command (either
+`EmergencyController` or `EventController`) before packaging the response for
+the client.
 
 | Folder | Description |
 |-------|-------------|
@@ -65,7 +75,7 @@ ApiClient-->>ClientApp: display result
 - `controllers_emergency.py` – async handlers for API commands.
 - `database.py` – initializes a small SQLite database used for persistence.
 - `service_emergency.py` – subclass of `LXMFService` that registers the routes.
-- `server_emergency.py` – starts the service, announces its identity and runs for ~30 seconds.
+- `server_emergency.py` – starts the service, announces its identity and keeps running until interrupted (e.g. with Ctrl+C).
 
 ### Client
 - `client_emergency.py` – prompts for the server identity hash and sends a sample request using `LXMFClient`.
@@ -85,6 +95,8 @@ python Server/server_emergency.py
 ```
 
    The server prints its identity hash on startup. Keep this hash handy.
+   Leave the server running until you are done experimenting, then press
+   `Ctrl+C` (or send `SIGTERM`) to stop it gracefully.
 
 3. In another terminal, run the client and enter the identity hash when prompted:
 

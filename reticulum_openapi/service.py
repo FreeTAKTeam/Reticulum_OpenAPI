@@ -5,10 +5,13 @@ import logging
 import zlib
 from dataclasses import asdict
 from dataclasses import is_dataclass
+from typing import Any
 from typing import Callable
 from typing import Dict
+from typing import Any
 from typing import Optional
 from typing import Type
+from .model import dataclass_to_json  # Add this import alongside other model imports
 
 import LXMF
 import RNS
@@ -19,14 +22,91 @@ from jsonschema import validate
 from .codec_msgpack import from_bytes as msgpack_from_bytes
 from .logging import configure_logging
 from .identity import load_or_create_identity
+from .model import compress_json
 from .model import dataclass_from_json
 from .model import dataclass_from_msgpack
-from .model import dataclass_to_json
+from .model import dataclass_to_json_bytes
 from .model import dataclass_to_msgpack
 
 
 configure_logging()
 logger = logging.getLogger(__name__)
+
+
+def _convert_dataclasses_to_primitives(value: Any) -> Any:
+    """Convert dataclasses within the value into primitive containers.
+
+    Args:
+        value (Any): Value potentially containing dataclasses.
+
+    Returns:
+        Any: Value with dataclasses recursively converted to dictionaries.
+    """
+
+    if is_dataclass(value):
+        return {
+            key: _convert_dataclasses_to_primitives(item)
+            for key, item in asdict(value).items()
+        }
+    if isinstance(value, dict):
+        return {
+            key: _convert_dataclasses_to_primitives(item)
+            for key, item in value.items()
+        }
+    if isinstance(value, (list, tuple, set, frozenset)):
+        return [
+            _convert_dataclasses_to_primitives(item) for item in value
+        ]
+    return value
+
+
+def _normalise_for_msgpack(value: Any) -> Any:
+    """Convert values into structures supported by canonical MessagePack encoding.
+
+    Args:
+        value (Any): Arbitrary value returned by a handler.
+
+    Returns:
+        Any: A representation containing only MessagePack-safe primitives.
+    """
+
+    if is_dataclass(value):
+        return _normalise_for_msgpack(asdict(value))
+    if isinstance(value, dict):
+        return {key: _normalise_for_msgpack(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_normalise_for_msgpack(item) for item in value]
+    if isinstance(value, tuple):
+        return [_normalise_for_msgpack(item) for item in value]
+    if isinstance(value, (set, frozenset)):
+        return [_normalise_for_msgpack(item) for item in value]
+
+    return value
+
+
+def _convert_dataclasses_to_primitives(value: Any) -> Any:
+    """Convert dataclasses and nested containers into primitive Python types.
+
+    Args:
+        value (Any): Value potentially containing dataclasses or non-serialisable
+            containers.
+
+    Returns:
+        Any: Structure composed of built-in types compatible with JSON or
+        MessagePack encoding.
+    """
+
+    if is_dataclass(value):
+        return _convert_dataclasses_to_primitives(asdict(value))
+    if isinstance(value, dict):
+        return {
+            key: _convert_dataclasses_to_primitives(item) for key, item in value.items()
+        }
+    if isinstance(value, (list, tuple)):
+        return [_convert_dataclasses_to_primitives(item) for item in value]
+    if isinstance(value, (set, frozenset)):
+        return [_convert_dataclasses_to_primitives(item) for item in value]
+    return value
 
 
 class LXMFService:
@@ -156,9 +236,7 @@ class LXMFService:
             cmd,
             payload_length,
         )
-        RNS.log(
-            f"Received LXMF message - Title: '{cmd}', Size: {payload_length} bytes"
-        )
+        RNS.log(f"Received LXMF message - Title: '{cmd}', Size: {payload_length} bytes")
         # Look up the handler for the command
         if cmd not in self._routes:
             logger.warning("No route found for command: %s", cmd)
@@ -190,7 +268,9 @@ class LXMFService:
                         try:
                             payload_obj = json.loads(payload_bytes.decode("utf-8"))
                         except Exception as json_exc:
-                            logger.error("Invalid JSON payload for %s: %s", cmd, json_exc)
+                            logger.error(
+                                "Invalid JSON payload for %s: %s", cmd, json_exc
+                            )
                             return
             if payload_schema is not None:
                 try:
@@ -236,23 +316,34 @@ class LXMFService:
                 logger.exception("Exception in handler for %s: %s", cmd, exc)
             # If handler returned a result, attempt to send a response back to sender
             if result is not None:
-                if isinstance(result, bytes):
-                    resp_bytes = result
+                serialisable_result = _convert_dataclasses_to_primitives(result)
+                if isinstance(serialisable_result, bytes):
+                    resp_bytes = serialisable_result
                 else:
                     try:
-                        resp_bytes = dataclass_to_msgpack(result)
+                        safe_result = _normalise_for_msgpack(serialisable_result)
+                    except Exception:
+                        logger.exception(
+                            "Failed to normalise handler result for %s", cmd
+                        )
+                        safe_result = serialisable_result
+                    try:
+                        resp_bytes = dataclass_to_msgpack(safe_result)
                     except Exception:
                         try:
-                            resp_bytes = dataclass_to_json(result)
+                            json_bytes = dataclass_to_json_bytes(safe_result)
+                            resp_bytes = compress_json(json_bytes)
+
                         except Exception as exc:
                             logger.exception(
                                 "Failed to serialize result dataclass for %s: %s",
                                 cmd,
                                 exc,
                             )
-                            resp_bytes = zlib.compress(
-                                json.dumps(result).encode("utf-8")
-                            )
+
+                            fallback_json = json.dumps(safe_result).encode("utf-8")
+                            resp_bytes = compress_json(fallback_json)
+
                 # Determine response command name (could be something like "<command>_response" or a generic)
                 resp_title = f"{cmd}_response"
                 dest_identity = message.source
@@ -263,7 +354,9 @@ class LXMFService:
                     except Exception as exc:
                         logger.exception("Failed to send response for %s: %s", cmd, exc)
                 else:
-                    logger.warning("No source identity to respond to for message: %s", cmd)
+                    logger.warning(
+                        "No source identity to respond to for message: %s", cmd
+                    )
 
         # Schedule the handler execution on the asyncio event loop
         self._loop.call_soon_threadsafe(lambda: asyncio.create_task(handle_and_reply()))
@@ -338,7 +431,8 @@ class LXMFService:
             try:
                 content_bytes = dataclass_to_msgpack(payload_obj)
             except Exception:
-                content_bytes = dataclass_to_json(payload_obj)
+                json_bytes = dataclass_to_json_bytes(payload_obj)
+                content_bytes = compress_json(json_bytes)
         # Use internal send helper
         self._send_lxmf(dest_identity, command, content_bytes, propagate=propagate)
 
