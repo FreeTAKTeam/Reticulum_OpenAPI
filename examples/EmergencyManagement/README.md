@@ -71,14 +71,16 @@ the client.
 | `API/` | OpenAPI specification for the example. |
 
 ### Server
-- `models_emergency.py` – dataclass models for the API payloads.
-- `controllers_emergency.py` – async handlers for API commands.
-- `database.py` – initializes a small SQLite database used for persistence.
-- `service_emergency.py` – subclass of `LXMFService` that registers the routes.
-- `server_emergency.py` – starts the service, announces its identity and keeps running until interrupted (e.g. with Ctrl+C).
+
+* `models_emergency.py` – dataclass models for the API payloads.
+* `controllers_emergency.py` – async handlers for API commands.
+* `database.py` – initializes a small SQLite database used for persistence.
+* `service_emergency.py` – subclass of `LXMFService` that registers the routes.
+* `server_emergency.py` – starts the service, announces its identity and keeps running until interrupted (e.g. with Ctrl+C).
 
 ### Client
-- `client_emergency.py` – reuses a stored server identity hash when available and otherwise prompts before sending a sample request using `LXMFClient`.
+
+* `client_emergency.py` – reuses a stored server identity hash when available and otherwise prompts before sending a sample request using `LXMFClient`.
 
 ## Running the example
 

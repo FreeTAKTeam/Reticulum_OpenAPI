@@ -27,12 +27,12 @@ REQUEST_TIMEOUT_KEY = "request_timeout_seconds"
 LXMF_CONFIG_PATH_KEY = "lxmf_config_path"
 LXMF_STORAGE_PATH_KEY = "lxmf_storage_path"
 DEFAULT_DISPLAY_NAME = "OpenAPIClient"
-DEFAULT_TIMEOUT_SECONDS = 10.0
+DEFAULT_TIMEOUT_SECONDS = 30.0
 EXAMPLE_IDENTITY_HASH = (
-    "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff"
+    "761dfb354cfe5a3c9d8f5c4465b6c7f5"
 )
 PROMPT_MESSAGE = (
-    "Server Identity Hash (64 hexadecimal characters, e.g. "
+    "Server Identity Hash 32  characters, e.g. "
     f"{EXAMPLE_IDENTITY_HASH}): "
 )
 CONFIG_PATH = Path(__file__).with_name(CONFIG_FILENAME)
