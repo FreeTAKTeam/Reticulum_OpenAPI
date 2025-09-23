@@ -161,3 +161,28 @@ def test_server_script_importable_from_directory(monkeypatch) -> None:
 
     assert "EmergencyService" in globals_ns
     assert "init_db" in globals_ns
+
+
+@pytest.mark.asyncio
+async def test_client_main_prints_timeout(monkeypatch, capsys) -> None:
+    """The client example prints a timeout message when the path is unavailable."""
+
+    from examples.EmergencyManagement.client import client_emergency as client_module
+
+    class FailingClient:
+        """Stub client that always times out when sending commands."""
+
+        def __init__(self) -> None:
+            self.calls = 0
+
+        async def send_command(self, *args, **kwargs):
+            self.calls += 1
+            raise TimeoutError("Path to destination not available after 10.0 seconds")
+
+    monkeypatch.setattr(client_module, "LXMFClient", FailingClient)
+    monkeypatch.setattr("builtins.input", lambda _: "761dfb354cfe5a3c9d8f5c4465b6c7f5")
+
+    await client_module.main()
+
+    captured = capsys.readouterr()
+    assert "Timeout: Path to destination not available" in captured.out
