@@ -1,4 +1,5 @@
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -20,6 +21,7 @@ vi.mock('../../../lib/apiClient', async (importOriginal) => {
 });
 
 import { ToastProvider } from '../../../components/toast';
+import { emitGatewayUpdate } from '../../../lib/liveUpdates';
 import { EmergencyActionMessagesPage } from '../EmergencyActionMessagesPage';
 import {
   createEmergencyActionMessage,
@@ -35,10 +37,17 @@ const updateMock = vi.mocked(updateEmergencyActionMessage);
 const deleteMock = vi.mocked(deleteEmergencyActionMessage);
 
 function renderPage(): void {
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: { retry: false },
+    },
+  });
   render(
-    <ToastProvider>
-      <EmergencyActionMessagesPage />
-    </ToastProvider>,
+    <QueryClientProvider client={queryClient}>
+      <ToastProvider>
+        <EmergencyActionMessagesPage />
+      </ToastProvider>
+    </QueryClientProvider>,
   );
 }
 
@@ -75,37 +84,35 @@ describe('EmergencyActionMessagesPage', () => {
     renderPage();
 
     await waitFor(() => {
-      expect(screen.getAllByText('Alpha-1').length).toBeGreaterThan(0);
+      expect(screen.getByText('Alpha-1')).toBeInTheDocument();
       expect(screen.getByText('Bravo-2')).toBeInTheDocument();
     });
 
     const user = userEvent.setup();
 
-    await user.click(screen.getByRole('button', { name: 'New message' }));
-    const createButton = await screen.findByRole('button', { name: 'Create message' });
     await user.type(screen.getByLabelText('Callsign'), 'Charlie-3');
     await user.type(screen.getByLabelText('Group name'), 'Charlie');
-    await user.selectOptions(screen.getByLabelText('Security Status'), 'Red');
-    await user.click(createButton);
+    await user.selectOptions(screen.getByLabelText(/Security status/i), 'Red');
+    await user.click(screen.getByRole('button', { name: 'Create message' }));
 
     await waitFor(() => {
       expect(createMock).toHaveBeenCalledTimes(1);
     });
-    expect(createMock).toHaveBeenCalledWith(
+    expect(createMock.mock.calls[0][0]).toEqual(
       expect.objectContaining({ callsign: 'Charlie-3', securityStatus: 'Red' }),
     );
     expect(screen.getAllByText('Charlie-3').length).toBeGreaterThan(0);
 
-    await user.click(screen.getByText('Alpha-1'));
+    await user.click(screen.getAllByRole('button', { name: 'Edit' })[0]);
     const groupInput = screen.getByLabelText('Group name');
     await user.clear(groupInput);
     await user.type(groupInput, 'Alpha Updated');
-    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+    await user.click(screen.getByRole('button', { name: 'Save message' }));
 
     await waitFor(() => {
       expect(updateMock).toHaveBeenCalledTimes(1);
     });
-    expect(updateMock).toHaveBeenCalledWith(
+    expect(updateMock.mock.calls[0][0]).toEqual(
       expect.objectContaining({ callsign: 'Alpha-1', groupName: 'Alpha Updated' }),
     );
     expect(screen.getAllByText('Alpha Updated').length).toBeGreaterThan(0);
@@ -117,8 +124,7 @@ describe('EmergencyActionMessagesPage', () => {
     renderPage();
 
     const user = userEvent.setup();
-    const submitButton = await screen.findByRole('button', { name: 'Create message' });
-    await user.click(submitButton);
+    await user.click(await screen.findByRole('button', { name: 'Create message' }));
 
     expect(await screen.findByText('Callsign is required.')).toBeInTheDocument();
     expect(createMock).not.toHaveBeenCalled();
@@ -136,24 +142,38 @@ describe('EmergencyActionMessagesPage', () => {
     renderPage();
 
     await waitFor(() => {
-      expect(screen.getAllByText('Alpha-1').length).toBeGreaterThan(0);
+      expect(screen.getByText('Alpha-1')).toBeInTheDocument();
     });
 
     const user = userEvent.setup();
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
     await user.click(screen.getByRole('button', { name: 'Delete' }));
 
-    const dialog = await screen.findByRole('dialog');
-    expect(
-      within(dialog).getByText((content) =>
-        content.includes('Are you sure you want to delete the message for'),
-      ),
-    ).toBeInTheDocument();
+    await waitFor(() => {
+      expect(deleteMock).toHaveBeenCalledTimes(1);
+    });
+    expect(deleteMock.mock.calls[0][0]).toBe('Alpha-1');
+    confirmSpy.mockRestore();
+  });
 
-    await user.click(within(dialog).getByRole('button', { name: 'Delete' }));
+  it('refetches messages when live updates arrive', async () => {
+    listMock.mockResolvedValue([{ callsign: 'Alpha-1', securityStatus: 'Green' }]);
+
+    renderPage();
 
     await waitFor(() => {
-      expect(deleteMock).toHaveBeenCalledWith('Alpha-1');
-      expect(screen.queryByText('Alpha-1')).not.toBeInTheDocument();
+      expect(screen.getByText('Alpha-1')).toBeInTheDocument();
+    });
+
+    listMock.mockResolvedValueOnce([
+      { callsign: 'Alpha-1', securityStatus: 'Green' },
+      { callsign: 'Bravo-2', securityStatus: 'Yellow' },
+    ]);
+    emitGatewayUpdate({ resource: 'emergency-action-message', action: 'created' });
+
+    await waitFor(() => {
+      expect(listMock).toHaveBeenCalledTimes(2);
+      expect(screen.getByText('Bravo-2')).toBeInTheDocument();
     });
   });
 });

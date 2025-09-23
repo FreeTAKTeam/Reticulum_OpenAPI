@@ -65,3 +65,7 @@
 - [x] Build Emergency Action Messages web UI with CRUD flows, optimistic toasts, and
   Vitest coverage. (2025-09-23)
 
+## 2025-09-24
+- [x] Extend Emergency Management web UI with React Query, SSE updates, and CRUD
+  coverage for messages/events with automated Vitest suites.
+
