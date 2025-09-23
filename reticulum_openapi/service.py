@@ -410,7 +410,7 @@ class LXMFService:
     def announce(self):
         """Announce this service's identity (make its address known on the network)."""
         try:
-            self.router.announce(self.source_identity.hash)
+            self.source_identity.announce()
             logger.info(
                 "Service identity announced: %s",
                 RNS.prettyhexrep(self.source_identity.hash),

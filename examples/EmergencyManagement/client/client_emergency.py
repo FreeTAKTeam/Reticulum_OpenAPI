@@ -35,7 +35,7 @@ EXAMPLE_IDENTITY_HASH = (
     "761dfb354cfe5a3c9d8f5c4465b6c7f5"
 )
 PROMPT_MESSAGE = (
-    "Server Identity Hash 32  characters, e.g. "
+    "Server Identity Hash (32 hexadecimal characters, e.g. "
     f"{EXAMPLE_IDENTITY_HASH}): "
 )
 CONFIG_PATH = Path(__file__).with_name(CONFIG_FILENAME)

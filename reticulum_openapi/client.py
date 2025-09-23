@@ -50,7 +50,7 @@ class LXMFClient:
         """Announce this client's identity on the Reticulum network."""
 
         try:
-            self.router.announce(self.source_identity.hash)
+            self.source_identity.announce()
             logger.info(
                 "Client identity announced: %s",
                 RNS.prettyhexrep(self.source_identity.hash),
