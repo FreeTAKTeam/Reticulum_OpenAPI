@@ -104,9 +104,8 @@ async def test_send_lxmf_uses_router(monkeypatch):
 @pytest.mark.asyncio
 async def test_announce_logs(monkeypatch):
     svc = service_module.LXMFService.__new__(service_module.LXMFService)
-    ann_mock = Mock()
-    svc.router = SimpleNamespace(announce=Mock())
-    svc.source_identity = SimpleNamespace(hash=b"x", announce=ann_mock)
+    ann_mock = Mock(return_value=b"x")
+    svc.announcer = SimpleNamespace(announce=ann_mock)
     monkeypatch.setattr(service_module.RNS, "prettyhexrep", lambda x: "x")
     monkeypatch.setattr(service_module.RNS, "log", lambda *a, **k: None)
     svc.announce()
@@ -157,6 +156,16 @@ async def test_init_and_add_route(monkeypatch):
         Reticulum = FakeReticulum
         Identity = FakeIdentity
 
+        class Destination:
+            IN = "in"
+            SINGLE = "single"
+
+            def __init__(self, *args, **kwargs):
+                self.hash = b"h"
+
+            def announce(self):
+                pass
+
         @staticmethod
         def log(*a, **k):
             pass
@@ -181,6 +190,7 @@ async def test_init_and_add_route(monkeypatch):
         LXMessage = object
 
     monkeypatch.setattr(service_module, "RNS", FakeRNS)
+    monkeypatch.setattr("reticulum_openapi.announcer.RNS", FakeRNS)
     monkeypatch.setattr(service_module, "LXMF", FakeLXMF)
     monkeypatch.setattr(
         service_module,

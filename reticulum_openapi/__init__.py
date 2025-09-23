@@ -1,5 +1,6 @@
 """Reticulum OpenAPI package."""
 
+from .announcer import DestinationAnnouncer
 from .controller import APIException
 from .controller import Controller
 from .controller import handle_exceptions
@@ -26,6 +27,7 @@ __all__ = [
     "dataclass_to_json",
     "dataclass_to_json_bytes",
     "dataclass_to_msgpack",
+    "DestinationAnnouncer",
     "LinkClient",
     "LinkService",
     "LXMFService",

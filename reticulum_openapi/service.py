@@ -17,9 +17,10 @@ import RNS
 from jsonschema import ValidationError
 from jsonschema import validate
 
+from .announcer import DestinationAnnouncer
 from .codec_msgpack import from_bytes as msgpack_from_bytes
-from .logging import configure_logging
 from .identity import load_or_create_identity
+from .logging import configure_logging
 from .model import compress_json
 from .model import dataclass_from_json
 from .model import dataclass_from_msgpack
@@ -90,6 +91,10 @@ class LXMFService:
         stamp_cost: int = 0,
         auth_token: str = None,
         max_payload_size: int = 32_000,
+        announce_application: str = "openapi",
+        announce_aspect: str = "lxmf_service",
+        announce_direction: Optional[int] = None,
+        announce_destination_type: Optional[int] = None,
     ):
         """
         Initialize the LXMF Service dispatcher.
@@ -98,6 +103,10 @@ class LXMFService:
         :param identity: (Optional) Predefined RNS.Identity to use. If None, a new identity is created.
         :param display_name: Name announced for this service (for LXMF presence).
         :param stamp_cost: LXMF "postage stamp" cost required from senders (anti-spam).
+        :param announce_application: Application component for destination announcements.
+        :param announce_aspect: Aspect component for destination announcements.
+        :param announce_direction: Override for the Reticulum destination direction.
+        :param announce_destination_type: Override for the Reticulum destination type.
         """
         # Initialize Reticulum (network stack). Reuse existing if already running.
         self.reticulum = RNS.Reticulum(
@@ -118,6 +127,24 @@ class LXMFService:
         self.source_identity = self.router.register_delivery_identity(
             identity, display_name=display_name, stamp_cost=stamp_cost
         )
+        destination_direction = (
+            announce_direction
+            if announce_direction is not None
+            else RNS.Destination.IN
+        )
+        destination_type = (
+            announce_destination_type
+            if announce_destination_type is not None
+            else RNS.Destination.SINGLE
+        )
+        self.announcer = DestinationAnnouncer(
+            identity,
+            announce_application,
+            announce_aspect,
+            direction=destination_direction,
+            destination_type=destination_type,
+        )
+        self.destination = self.announcer.destination
         # Routing table: command -> (handler_coroutine, payload_type)
         self._routes: Dict[str, (Callable, Optional[Type], Optional[dict])] = {}
         self._loop = asyncio.get_event_loop()
@@ -410,10 +437,10 @@ class LXMFService:
     def announce(self):
         """Announce this service's identity (make its address known on the network)."""
         try:
-            self.source_identity.announce()
+            destination_hash = self.announcer.announce()
             logger.info(
-                "Service identity announced: %s",
-                RNS.prettyhexrep(self.source_identity.hash),
+                "Service destination announced: %s",
+                RNS.prettyhexrep(destination_hash),
             )
         except Exception as exc:
             logger.exception("Announcement failed: %s", exc)

@@ -67,3 +67,7 @@
 
 - [x] Ensure EmergencyManagement server announces its identity using the Reticulum Destination API. (2025-09-25)
 
+
+## 2025-09-26
+- [x] Add DestinationAnnouncer helper for LXMF services to broadcast identities.
+
