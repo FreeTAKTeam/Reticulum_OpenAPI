@@ -8,8 +8,10 @@ from dataclasses import is_dataclass
 from typing import Any
 from typing import Callable
 from typing import Dict
+from typing import Any
 from typing import Optional
 from typing import Type
+from .model import dataclass_to_json  # Add this import alongside other model imports
 
 import LXMF
 import RNS
@@ -51,6 +53,7 @@ def _normalise_for_msgpack(value: Any) -> Any:
         return [_normalise_for_msgpack(item) for item in value]
     if isinstance(value, (set, frozenset)):
         return [_normalise_for_msgpack(item) for item in value]
+
     return value
 
 
@@ -261,10 +264,12 @@ class LXMFService:
                 logger.exception("Exception in handler for %s: %s", cmd, exc)
             # If handler returned a result, attempt to send a response back to sender
             if result is not None:
-                if isinstance(result, bytes):
-                    resp_bytes = result
+                serialisable_result = _convert_dataclasses_to_primitives(result)
+                if isinstance(serialisable_result, bytes):
+                    resp_bytes = serialisable_result
                 else:
                     try:
+
                         safe_result = _normalise_for_msgpack(result)
                     except Exception:
                         logger.exception(
@@ -277,14 +282,17 @@ class LXMFService:
                         try:
                             json_bytes = dataclass_to_json_bytes(safe_result)
                             resp_bytes = compress_json(json_bytes)
+
                         except Exception as exc:
                             logger.exception(
                                 "Failed to serialize result dataclass for %s: %s",
                                 cmd,
                                 exc,
                             )
+
                             fallback_json = json.dumps(safe_result).encode("utf-8")
                             resp_bytes = compress_json(fallback_json)
+
                 # Determine response command name (could be something like "<command>_response" or a generic)
                 resp_title = f"{cmd}_response"
                 dest_identity = message.source
