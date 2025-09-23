@@ -1,3 +1,7 @@
-"""Client utilities for the emergency management examples."""
 
-__all__ = []
+"""Client utilities for the Emergency Management example."""
+
+from .client import LXMFClient
+
+__all__ = ["LXMFClient"]
+
