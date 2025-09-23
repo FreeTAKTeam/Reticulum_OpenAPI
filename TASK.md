@@ -58,11 +58,12 @@
 - [x] Handle EmergencyManagement client timeouts gracefully to avoid shutdowns.
 - [x] Stream LXMF announces in EmergencyManagement client using LXMFClient. (2025-09-23)
 
-
 - [x] Refactor EmergencyManagement client to use shared helper library for API interactions. (2025-09-24)
-
 - [x] Add FastAPI web gateway and API tests for EmergencyManagement example. (2025-09-23)
-
 - [x] Build Emergency Action Messages web UI with CRUD flows, optimistic toasts, and
   Vitest coverage. (2025-09-23)
+- [x] Extend Emergency Management web UI with React Query, SSE updates, and CRUD
+  coverage for messages/events with automated Vitest suites.
+- [x] Ensure EmergencyManagement server announces its identity using the Reticulum Destination API. (2025-09-25)
+
 
