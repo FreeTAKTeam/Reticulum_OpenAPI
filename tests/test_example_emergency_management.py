@@ -1,5 +1,6 @@
 """Tests for the Emergency Management example application."""
 
+import asyncio
 import runpy
 import sys
 from pathlib import Path
@@ -18,6 +19,7 @@ from examples.EmergencyManagement.Server.models_emergency import Base
 from examples.EmergencyManagement.Server.models_emergency import EmergencyActionMessage
 from examples.EmergencyManagement.Server.models_emergency import EAMStatus
 from examples.EmergencyManagement.Server.models_emergency import Event
+from reticulum_openapi.model import dataclass_to_msgpack
 
 
 @pytest_asyncio.fixture
@@ -161,3 +163,80 @@ def test_server_script_importable_from_directory(monkeypatch) -> None:
 
     assert "EmergencyService" in globals_ns
     assert "init_db" in globals_ns
+
+
+@pytest.mark.asyncio
+async def test_server_main_announces(monkeypatch) -> None:
+    """The server's ``main`` coroutine announces its identity before waiting."""
+
+    from examples.EmergencyManagement.Server import server_emergency as server_module
+
+    calls = {"announce": 0}
+
+    class DummyService:
+        def __init__(self, *args, **kwargs) -> None:
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+        def announce(self) -> None:
+            calls["announce"] += 1
+
+    async def fake_init_db() -> None:
+        return None
+
+    def fake_register(event: asyncio.Event) -> None:
+        event.set()
+
+    monkeypatch.setattr(server_module, "EmergencyService", DummyService)
+    monkeypatch.setattr(server_module, "init_db", fake_init_db)
+    monkeypatch.setattr(server_module, "_register_shutdown_signals", fake_register)
+
+    await server_module.main()
+
+    assert calls["announce"] == 1
+
+
+@pytest.mark.asyncio
+async def test_client_main_announces(monkeypatch) -> None:
+    """The client script announces its identity before sending messages."""
+
+    from examples.EmergencyManagement.client import client_emergency as client_module
+
+    created_clients = []
+
+    class DummyClient:
+        def __init__(self) -> None:
+            self.announce_called = False
+            self._created_payload = None
+            created_clients.append(self)
+
+        def announce(self) -> None:
+            self.announce_called = True
+
+        async def send_command(
+            self,
+            dest_hex,
+            command,
+            payload_obj=None,
+            await_response=True,
+            response_title=None,
+        ):
+            if command == "CreateEmergencyActionMessage":
+                self._created_payload = payload_obj
+                return dataclass_to_msgpack(payload_obj)
+            if command == "RetrieveEmergencyActionMessage":
+                return dataclass_to_msgpack(self._created_payload)
+            raise AssertionError(f"Unexpected command {command}")
+
+    monkeypatch.setattr(client_module, "LXMFClient", DummyClient)
+    monkeypatch.setattr("builtins.input", lambda prompt: "aa")
+
+    await client_module.main()
+
+    assert created_clients
+    assert created_clients[0].announce_called is True

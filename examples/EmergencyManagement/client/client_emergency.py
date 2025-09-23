@@ -28,6 +28,7 @@ async def main():
     """
 
     client = LXMFClient()
+    client.announce()
     server_id = input("Server Identity Hash: ")
     eam = EmergencyActionMessage(
         callsign="Bravo1",
