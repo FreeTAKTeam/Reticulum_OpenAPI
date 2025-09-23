@@ -7,6 +7,7 @@ from dataclasses import asdict
 from dataclasses import is_dataclass
 from typing import Callable
 from typing import Dict
+from typing import Any
 from typing import Optional
 from typing import Type
 
@@ -28,6 +29,38 @@ from .model import dataclass_to_msgpack
 
 configure_logging()
 logger = logging.getLogger(__name__)
+
+
+def _convert_dataclasses_to_primitives(value: Any) -> Any:
+    """Convert dataclasses in a nested structure to plain Python primitives.
+
+    Args:
+        value (Any): Value that may contain dataclasses, dictionaries or iterables.
+
+    Returns:
+        Any: Structure with all dataclasses converted to serialisable primitives.
+    """
+
+    if is_dataclass(value):
+        value = asdict(value)
+    if isinstance(value, dict):
+        return {
+            key: _convert_dataclasses_to_primitives(item)
+            for key, item in value.items()
+        }
+    if isinstance(value, list):
+        return [_convert_dataclasses_to_primitives(item) for item in value]
+    if isinstance(value, tuple):
+        return [
+            _convert_dataclasses_to_primitives(item)
+            for item in value
+        ]
+    if isinstance(value, set):
+        return [
+            _convert_dataclasses_to_primitives(item)
+            for item in value
+        ]
+    return value
 
 
 class LXMFService:
@@ -237,23 +270,27 @@ class LXMFService:
                 logger.exception("Exception in handler for %s: %s", cmd, exc)
             # If handler returned a result, attempt to send a response back to sender
             if result is not None:
-                if isinstance(result, bytes):
-                    resp_bytes = result
+                serialisable_result = _convert_dataclasses_to_primitives(result)
+                if isinstance(serialisable_result, bytes):
+                    resp_bytes = serialisable_result
                 else:
                     try:
-                        resp_bytes = dataclass_to_msgpack(result)
+                        resp_bytes = dataclass_to_msgpack(serialisable_result)
                     except Exception:
                         try:
-                            json_bytes = dataclass_to_json_bytes(result)
-                            resp_bytes = compress_json(json_bytes)
+
+                            resp_bytes = dataclass_to_json(serialisable_result)
+
                         except Exception as exc:
                             logger.exception(
                                 "Failed to serialize result dataclass for %s: %s",
                                 cmd,
                                 exc,
                             )
-                            fallback_json = json.dumps(result).encode("utf-8")
-                            resp_bytes = compress_json(fallback_json)
+
+                            resp_bytes = zlib.compress(
+                                json.dumps(serialisable_result).encode("utf-8")
+                            )
                 # Determine response command name (could be something like "<command>_response" or a generic)
                 resp_title = f"{cmd}_response"
                 dest_identity = message.source
