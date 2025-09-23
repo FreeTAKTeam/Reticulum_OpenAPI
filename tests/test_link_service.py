@@ -48,6 +48,11 @@ async def test_service_accepts_links_and_keepalive(monkeypatch):
     monkeypatch.setattr(ls_module.RNS, "Reticulum", lambda *_: object())
     monkeypatch.setattr(ls_module.RNS, "Identity", FakeIdentity)
     monkeypatch.setattr(ls_module.RNS, "Destination", FakeDestination)
+    monkeypatch.setattr(
+        ls_module,
+        "load_or_create_identity",
+        lambda *a, **k: FakeIdentity(),
+    )
 
     handler_called = asyncio.Event()
 
@@ -71,6 +76,11 @@ async def test_service_stop_closes_links(monkeypatch):
     monkeypatch.setattr(ls_module.RNS, "Reticulum", lambda *_: object())
     monkeypatch.setattr(ls_module.RNS, "Identity", FakeIdentity)
     monkeypatch.setattr(ls_module.RNS, "Destination", FakeDestination)
+    monkeypatch.setattr(
+        ls_module,
+        "load_or_create_identity",
+        lambda *a, **k: FakeIdentity(),
+    )
 
     service = ls_module.LinkService(keepalive_interval=0.1)
     link = FakeLink()
@@ -192,6 +202,11 @@ async def test_loopback_link_established(monkeypatch):
         monkeypatch.setattr(module.RNS, "Identity", LoopbackIdentity)
         monkeypatch.setattr(module.RNS, "Destination", LoopbackDestination)
         monkeypatch.setattr(module.RNS, "Link", LoopbackLink)
+        monkeypatch.setattr(
+            module,
+            "load_or_create_identity",
+            lambda *a, **k: LoopbackIdentity(),
+        )
 
     handler_called = asyncio.Event()
 

@@ -1,9 +1,9 @@
 """Helpers for handling incoming resources on Reticulum links."""
 
 import asyncio
+import logging
 import os
 import shutil
-
 from typing import Any
 from typing import Awaitable
 from typing import Callable
@@ -11,6 +11,12 @@ from typing import Dict
 from typing import Optional
 
 import RNS
+
+from .identity import load_or_create_identity
+from .logging import configure_logging
+
+configure_logging()
+logger = logging.getLogger(__name__)
 
 
 class LinkResourceService:
@@ -59,7 +65,7 @@ class LinkResourceService:
             if self.on_download_complete:
                 self.on_download_complete(dest_path)
         except Exception as exc:
-            RNS.log(f"Failed to store resource: {exc}")
+            logger.exception("Failed to store resource: %s", exc)
 
 
 class LinkService:
@@ -84,7 +90,9 @@ class LinkService:
                 transmissions.
         """
         self.reticulum = RNS.Reticulum(config_path)
-        self.identity = identity or RNS.Identity()
+        if identity is None:
+            identity = load_or_create_identity(config_path)
+        self.identity = identity
         self._loop = asyncio.get_event_loop()
         self.destination = RNS.Destination(
             self.identity,

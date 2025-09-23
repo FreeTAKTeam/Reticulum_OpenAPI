@@ -3,15 +3,21 @@ from dataclasses import dataclass
 from types import SimpleNamespace
 from unittest.mock import Mock
 
-import msgpack
 import pytest
 
 from reticulum_openapi.service import LXMFService
-from reticulum_openapi.model import dataclass_to_json
+from reticulum_openapi.model import dataclass_to_msgpack
+from reticulum_openapi.codec_msgpack import from_bytes as msgpack_from_bytes
 
 
 @dataclass
 class Sample:
+    text: str
+
+
+@dataclass
+class AuthSample:
+    auth_token: str
     text: str
 
 
@@ -33,7 +39,7 @@ async def test_lxmf_callback_decodes_dataclass_and_dispatches():
     service._routes = {"CMD": (handler, Sample, None)}
 
     message = SimpleNamespace(
-        title="CMD", content=dataclass_to_json(Sample(text="hello")), source=None
+        title="CMD", content=dataclass_to_msgpack(Sample(text="hello")), source=None
     )
 
     service._lxmf_delivery_callback(message)
@@ -41,6 +47,60 @@ async def test_lxmf_callback_decodes_dataclass_and_dispatches():
 
     assert isinstance(received.get("payload"), Sample)
     assert received["payload"].text == "hello"
+
+
+@pytest.mark.asyncio
+async def test_lxmf_callback_accepts_byte_titles():
+    """Byte titles are normalised before route lookup."""
+    loop = asyncio.get_running_loop()
+    service = LXMFService.__new__(LXMFService)
+    service._loop = loop
+    service.auth_token = None
+    service.max_payload_size = 32000
+    service._send_lxmf = Mock()
+
+    called = {}
+
+    async def handler(payload: Sample):
+        called["payload"] = payload
+
+    service._routes = {"CMD": (handler, Sample, None)}
+
+    message = SimpleNamespace(
+        title=b"CMD", content=dataclass_to_msgpack(Sample(text="hi")), source=None
+    )
+
+    service._lxmf_delivery_callback(message)
+    await asyncio.sleep(0.01)
+
+    assert isinstance(called.get("payload"), Sample)
+    assert called["payload"].text == "hi"
+
+
+@pytest.mark.asyncio
+async def test_lxmf_callback_rejects_invalid_byte_titles():
+    """Invalid UTF-8 titles are ignored without dispatch."""
+    loop = asyncio.get_running_loop()
+    service = LXMFService.__new__(LXMFService)
+    service._loop = loop
+    service.auth_token = None
+    service.max_payload_size = 32000
+    service._send_lxmf = Mock()
+
+    called = False
+
+    async def handler():
+        nonlocal called
+        called = True
+
+    service._routes = {"CMD": (handler, None, None)}
+
+    message = SimpleNamespace(title=b"\xff", content=b"", source=None)
+
+    service._lxmf_delivery_callback(message)
+    await asyncio.sleep(0.01)
+
+    assert not called
 
 
 @pytest.mark.asyncio
@@ -69,7 +129,7 @@ async def test_lxmf_callback_schema_validation():
 
     valid_msg = SimpleNamespace(
         title="SCHEMA",
-        content=dataclass_to_json({"num": 5}),
+        content=dataclass_to_msgpack({"num": 5}),
         source=None,
     )
     service._lxmf_delivery_callback(valid_msg)
@@ -79,12 +139,72 @@ async def test_lxmf_callback_schema_validation():
     called = False
     invalid_msg = SimpleNamespace(
         title="SCHEMA",
-        content=dataclass_to_json({"num": "bad"}),
+        content=dataclass_to_msgpack({"num": "bad"}),
         source=None,
     )
     service._lxmf_delivery_callback(invalid_msg)
     await asyncio.sleep(0.01)
     assert not called
+
+
+@pytest.mark.asyncio
+async def test_lxmf_callback_rejects_dataclass_with_incorrect_token():
+    """Dataclass payloads with wrong auth tokens are rejected."""
+    loop = asyncio.get_running_loop()
+    service = LXMFService.__new__(LXMFService)
+    service._loop = loop
+    service.auth_token = "token"
+    service.max_payload_size = 32000
+    service._send_lxmf = Mock()
+
+    called = False
+
+    async def handler(payload: AuthSample):
+        nonlocal called
+        called = True
+
+    service._routes = {"AUTH": (handler, AuthSample, None)}
+
+    message = SimpleNamespace(
+        title="AUTH",
+        content=dataclass_to_msgpack(AuthSample(auth_token="wrong", text="hi")),
+        source=None,
+    )
+
+    service._lxmf_delivery_callback(message)
+    await asyncio.sleep(0.01)
+
+    assert not called
+
+
+@pytest.mark.asyncio
+async def test_lxmf_callback_accepts_dataclass_with_valid_token():
+    """Dataclass payloads with a valid auth token reach the handler."""
+    loop = asyncio.get_running_loop()
+    service = LXMFService.__new__(LXMFService)
+    service._loop = loop
+    service.auth_token = "token"
+    service.max_payload_size = 32000
+    service._send_lxmf = Mock()
+
+    received = {}
+
+    async def handler(payload: AuthSample):
+        received["payload"] = payload
+
+    service._routes = {"AUTH": (handler, AuthSample, None)}
+
+    message = SimpleNamespace(
+        title="AUTH",
+        content=dataclass_to_msgpack(AuthSample(auth_token="token", text="hi")),
+        source=None,
+    )
+
+    service._lxmf_delivery_callback(message)
+    await asyncio.sleep(0.01)
+
+    assert isinstance(received.get("payload"), AuthSample)
+    assert received["payload"].text == "hi"
 
 
 @pytest.mark.asyncio
@@ -114,7 +234,7 @@ async def test_lxmf_callback_dispatches_response():
     dest, title, payload_bytes = send_mock.call_args.args[:3]
     assert dest is src
     assert title == "PING_response"
-    assert msgpack.unpackb(payload_bytes, raw=False) == {"status": "ok"}
+    assert msgpack_from_bytes(payload_bytes) == {"status": "ok"}
 
 
 def test_get_api_specification_returns_registered_routes():

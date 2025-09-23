@@ -1,4 +1,14 @@
 import asyncio
+import sys
+from pathlib import Path
+
+# Reason: Allow running the example from the client directory by ensuring
+# the project root is on sys.path so that absolute imports resolve.
+if __package__ is None or __package__ == "":
+    project_root = Path(__file__).resolve().parents[3]
+    project_root_str = str(project_root)
+    if project_root_str not in sys.path:
+        sys.path.insert(0, project_root_str)
 
 from reticulum_openapi.client import LXMFClient
 from reticulum_openapi.codec_msgpack import from_bytes

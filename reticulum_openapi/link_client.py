@@ -10,7 +10,10 @@ from typing import Optional
 
 import RNS
 
-from .model import dataclass_to_json
+from .identity import load_or_create_identity
+from .model import compress_json
+from .model import dataclass_to_json_bytes
+from .model import dataclass_to_msgpack
 
 
 class LinkFileClient:
@@ -85,10 +88,13 @@ class LinkClient:
             identity (RNS.Identity, optional): Local identity. Defaults to a new identity.
         """
         self.reticulum = RNS.Reticulum(config_path)
-        self.identity = identity or RNS.Identity()
+        if identity is None:
+            identity = load_or_create_identity(config_path)
+        self.identity = identity
         self._loop = asyncio.get_event_loop()
-        self.established = asyncio.Event()
-        self.closed = asyncio.Event()
+        self.established: asyncio.Event = asyncio.Event()
+        self.closed: asyncio.Event = asyncio.Event()
+        self.packet_queue: asyncio.Queue[bytes] = asyncio.Queue()
         remote_hash = bytes.fromhex(dest_hash)
         if hasattr(RNS.Identity, "recall"):
             remote_id = RNS.Identity.recall(remote_hash) or RNS.Identity.recall(
@@ -103,17 +109,12 @@ class LinkClient:
             "openapi",
             "link",
         )
-        self.established = asyncio.Event()
-        self.closed = asyncio.Event()
-        self.packet_queue: asyncio.Queue[bytes] = asyncio.Queue()
         self.link = RNS.Link(
             destination,
             established_callback=self._on_established,
             closed_callback=self._on_closed,
         )
         self.link.set_packet_callback(self._handle_packet)
-        self.packet_queue: asyncio.Queue[bytes] = asyncio.Queue()
-
 
     def _on_established(self, _link: RNS.Link) -> None:
         """Internal callback when link is established."""
@@ -135,14 +136,19 @@ class LinkClient:
 
         Args:
             data (Any): Payload to transmit. If not ``bytes`` it will be
-                serialised using :func:`dataclass_to_json`.
+                serialised using :func:`dataclass_to_msgpack` with JSON fallback.
         """
         if isinstance(data, bytes):
             payload = data
         else:
             if is_dataclass(data):
                 data = asdict(data)
-            payload = dataclass_to_json(data)
+            try:
+                payload = dataclass_to_msgpack(data)
+            except Exception:
+                json_bytes = dataclass_to_json_bytes(data)
+                payload = compress_json(json_bytes)
+
         self.link.send(payload)
 
     async def request(
@@ -152,8 +158,9 @@ class LinkClient:
 
         Args:
             path (str): Remote path string.
-            data (Any, optional): Optional payload. Uses
-                :func:`dataclass_to_json` if not ``bytes``. Defaults to ``None``.
+
+            data (Any, optional): Optional payload. Serialised with
+                :func:`dataclass_to_msgpack` with JSON fallback if not ``bytes``.
             timeout (float, optional): Request timeout in seconds. Defaults to
                 ``None`` letting Reticulum choose.
 
@@ -168,7 +175,11 @@ class LinkClient:
         else:
             if is_dataclass(data):
                 data = asdict(data)
-            payload = dataclass_to_json(data)
+            try:
+                payload = dataclass_to_msgpack(data)
+            except Exception:
+                json_bytes = dataclass_to_json_bytes(data)
+                payload = compress_json(json_bytes)
 
         fut: asyncio.Future[bytes] = self._loop.create_future()
 

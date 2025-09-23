@@ -1,18 +1,11 @@
 import logging
-from typing import Callable, Any, Coroutine, TypeVar
 from functools import wraps
+from typing import Any, Callable, Coroutine, TypeVar
 
+from .logging import configure_logging
 
-# pretty sure every import of this class will trigger a new addHandler event which will result
-# in as many duplicate handlers for the controller logger as there are imports.
-# Setup module logger
-logger = logging.getLogger("reticulum_openapi.controller")
-logger.setLevel(logging.INFO)
-handler = logging.StreamHandler()
-formatter = logging.Formatter("[%(asctime)s] %(levelname)s %(name)s: %(message)s")
-handler.setFormatter(formatter)
-if not logger.handlers:
-    logger.addHandler(handler)
+configure_logging()
+logger = logging.getLogger(__name__)
 
 
 class APIException(Exception):
@@ -28,10 +21,8 @@ class APIException(Exception):
 F = TypeVar("F", bound=Callable[..., Coroutine[Any, Any, Any]])
 
 
-# requires functools.wraps decorator
 def handle_exceptions(func: F) -> F:
     """Decorator to wrap controller methods with logging and exception handling."""
-
 
     @wraps(func)
     async def wrapper(*args, **kwargs):
@@ -59,7 +50,7 @@ class Controller:
     on endpoint methods to ensure consistent behavior.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.logger = logger
 
     # As far as I can tell this isn't actually being used anywhere though maybe I'm missing something.

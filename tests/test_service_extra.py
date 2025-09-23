@@ -1,12 +1,13 @@
 import asyncio
+import logging
+from dataclasses import dataclass
 from types import SimpleNamespace
 from unittest.mock import Mock
 
 import pytest
 
-from dataclasses import dataclass
 from reticulum_openapi import service as service_module
-from reticulum_openapi.model import dataclass_to_json
+from reticulum_openapi.model import dataclass_to_msgpack
 
 
 @dataclass
@@ -181,6 +182,11 @@ async def test_init_and_add_route(monkeypatch):
 
     monkeypatch.setattr(service_module, "RNS", FakeRNS)
     monkeypatch.setattr(service_module, "LXMF", FakeLXMF)
+    monkeypatch.setattr(
+        service_module,
+        "load_or_create_identity",
+        lambda *a, **k: FakeIdentity(),
+    )
     svc = service_module.LXMFService()
     assert isinstance(svc.router, FakeLXMRouter)
     svc.add_route("PING", lambda: None)
@@ -195,19 +201,29 @@ async def test_handle_get_schema_method():
     assert "openapi" in spec
 
 
-def test_lxmf_delivery_callback_no_route(monkeypatch):
+def test_lxmf_delivery_callback_no_route():
     svc = service_module.LXMFService.__new__(service_module.LXMFService)
     svc._routes = {}
     svc.max_payload_size = 10
     svc._loop = asyncio.get_event_loop()
-    logs = []
-    monkeypatch.setattr(service_module.RNS, "log", lambda msg: logs.append(msg))
     message = SimpleNamespace(title="UNKNOWN", content=b"{}")
-    svc._lxmf_delivery_callback(message)
-    assert any("No route" in m for m in logs)
+    records = []
+
+    class RecordingHandler(logging.Handler):
+        def emit(self, record: logging.LogRecord) -> None:
+            records.append(record.getMessage())
+
+    handler = RecordingHandler()
+    service_module.logger.addHandler(handler)
+    try:
+        svc._lxmf_delivery_callback(message)
+    finally:
+        service_module.logger.removeHandler(handler)
+        handler.close()
+    assert any("No route" in message for message in records)
 
 
-def test_lxmf_delivery_invalid_msgpack(monkeypatch):
+def test_lxmf_delivery_invalid_msgpack():
     async def handler(payload):
         return None
 
@@ -216,12 +232,22 @@ def test_lxmf_delivery_invalid_msgpack(monkeypatch):
     svc.max_payload_size = 100
     svc._loop = asyncio.get_event_loop()
     svc.auth_token = None
-    logs = []
-    monkeypatch.setattr(service_module.RNS, "log", lambda msg: logs.append(msg))
     bad = b"not-msgpack"
     message = SimpleNamespace(title="CMD", content=bad)
-    svc._lxmf_delivery_callback(message)
-    assert any("Invalid MessagePack" in m for m in logs)
+    records = []
+
+    class RecordingHandler(logging.Handler):
+        def emit(self, record: logging.LogRecord) -> None:
+            records.append(record.getMessage())
+
+    handler = RecordingHandler()
+    service_module.logger.addHandler(handler)
+    try:
+        svc._lxmf_delivery_callback(message)
+    finally:
+        service_module.logger.removeHandler(handler)
+        handler.close()
+    assert any("Invalid MessagePack" in message for message in records)
 
 
 @pytest.mark.asyncio
@@ -238,7 +264,9 @@ async def test_lxmf_delivery_auth_failure(monkeypatch):
     monkeypatch.setattr(
         svc._loop, "call_soon_threadsafe", lambda fn: called.update(flag=True)
     )
-    payload = dataclass_to_json({"auth_token": "wrong"})
+
+    payload = dataclass_to_msgpack({"auth_token": "wrong"})
+
     message = SimpleNamespace(title="CMD", content=payload)
     svc._lxmf_delivery_callback(message)
     assert called["flag"] is False
@@ -257,7 +285,7 @@ async def test_lxmf_delivery_handler_exception(monkeypatch):
     monkeypatch.setattr(service_module.RNS, "log", lambda *a, **k: None)
     message = SimpleNamespace(
         title="CMD",
-        content=dataclass_to_json({}),
+        content=dataclass_to_msgpack({}),
         source=None,
     )
     svc._send_lxmf = Mock()

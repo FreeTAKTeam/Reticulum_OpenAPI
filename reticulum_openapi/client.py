@@ -5,7 +5,10 @@ from dataclasses import asdict
 from dataclasses import is_dataclass
 from typing import Optional
 from typing import Dict
-from .model import dataclass_to_json
+from .identity import load_or_create_identity
+from .model import compress_json
+from .model import dataclass_to_json_bytes
+from .model import dataclass_to_msgpack
 
 
 class LXMFClient:
@@ -21,12 +24,11 @@ class LXMFClient:
         timeout: float = 10.0,
     ):
         self.reticulum = RNS.Reticulum(config_path)
-        # we should probably think more deeply about the paths being used
         storage_path = storage_path or (RNS.Reticulum.storagepath + "/lxmf_client")
         self.router = LXMF.LXMRouter(storagepath=storage_path)
         self.router.register_delivery_callback(self._callback)
         if identity is None:
-            identity = RNS.Identity()
+            identity = load_or_create_identity(config_path)
         self.identity = identity
         self.source_identity = self.router.register_delivery_identity(
             identity, display_name=display_name, stamp_cost=0
@@ -36,8 +38,24 @@ class LXMFClient:
         self.auth_token = auth_token
         self.timeout = timeout
 
+    @staticmethod
+    def _normalise_message_title(title) -> Optional[str]:
+        """Return a string title or ``None`` if it cannot be decoded."""
+
+        if isinstance(title, str):
+            return title
+        if isinstance(title, bytes):
+            try:
+                return title.decode("utf-8")
+            except UnicodeDecodeError:
+                return None
+        return str(title)
+
     def _callback(self, message: LXMF.LXMessage):
-        title = message.title
+        title = self._normalise_message_title(message.title)
+        if title is None:
+            RNS.log(f"Invalid response title received: {message.title!r}")
+            return
         future = self._futures.pop(title, None)
         if future is not None and not future.done():
             future.set_result(message.content)
@@ -46,17 +64,41 @@ class LXMFClient:
         self,
         dest_hex: str,
         command: str,
-        payload_obj=None,
+        payload_obj: object = None,
+        path_timeout: Optional[float] = None,
         await_response: bool = True,
         response_title: Optional[str] = None,
-    ):
+    ) -> Optional[bytes]:
+        """Send a command to a remote LXMF node.
+
+        Args:
+            dest_hex (str): Destination identity hash as hex string.
+            command (str): Command name placed in the LXMF title.
+            payload_obj (object, optional): Dataclass, dict or bytes payload. Defaults to ``None``.
+            path_timeout (float, optional): Maximum seconds to wait for path discovery. Defaults to ``self.timeout``.
+            await_response (bool, optional): Wait for a response message. Defaults to ``True``.
+            response_title (str, optional): Expected response title. Defaults to ``<command>_response``.
+
+        Returns:
+            Optional[bytes]: Response payload if ``await_response`` is ``True``.
+
+        Raises:
+            TimeoutError: If a transport path cannot be established before ``path_timeout`` elapses.
+        """
         dest_hash = bytes.fromhex(dest_hex)
+        if path_timeout is None:
+            path_timeout = self.timeout
+
         if not RNS.Transport.has_path(dest_hash):
             RNS.Transport.request_path(dest_hash)
-            # probably better not hardcoded
-            for _ in range(50):
-                if RNS.Transport.has_path(dest_hash):
-                    break
+            deadline = (
+                None if path_timeout is None else self._loop.time() + path_timeout
+            )
+            while not RNS.Transport.has_path(dest_hash):
+                if deadline is not None and self._loop.time() >= deadline:
+                    raise TimeoutError(
+                        f"Path to {dest_hex} not available after {path_timeout} seconds"
+                    )
                 await asyncio.sleep(0.1)
 
         dest_identity = RNS.Identity.recall(dest_hash) or RNS.Identity.recall(
@@ -66,20 +108,18 @@ class LXMFClient:
             content_bytes = b""
         elif isinstance(payload_obj, bytes):
             content_bytes = payload_obj
-        # nit: bad practice to have imports outside of top of file
-        # also this behavior is a mess, we begin by converting the data
-        # to the target json string but then go ahead and convert it back to a dataclass
-        # which we then convert to a dict so we can set an auth_token which is then
-        # recompressed.
         else:
-            if is_dataclass(payload_obj):
-                data_dict = asdict(payload_obj)
-            else:
-                data_dict = payload_obj
+            data_dict = (
+                asdict(payload_obj) if is_dataclass(payload_obj) else payload_obj
+            )
             if self.auth_token:
-
                 data_dict["auth_token"] = self.auth_token
-            content_bytes = dataclass_to_json(data_dict)
+            try:
+                content_bytes = dataclass_to_msgpack(data_dict)
+            except Exception:
+                json_bytes = dataclass_to_json_bytes(data_dict)
+                content_bytes = compress_json(json_bytes)
+
         lxmsg = LXMF.LXMessage(
             RNS.Destination(
                 dest_identity,

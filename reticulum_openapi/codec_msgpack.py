@@ -80,6 +80,8 @@ def _pack_int(n: int) -> bytes:
             return b"\xd1" + (n & 0xFFFF).to_bytes(2, "big")
         if -2147483648 <= n <= 2147483647:
             return b"\xd2" + (n & 0xFFFFFFFF).to_bytes(4, "big")
+        if n < -(2**63) or n > 2**64 - 1:
+            raise CodecError("Integer out of range for MessagePack")
         return b"\xd3" + (n & 0xFFFFFFFFFFFFFFFF).to_bytes(8, "big")
     else:
         # unsigned
@@ -89,6 +91,8 @@ def _pack_int(n: int) -> bytes:
             return b"\xcd" + n.to_bytes(2, "big")
         if n <= 0xFFFFFFFF:
             return b"\xce" + n.to_bytes(4, "big")
+        if n < -(2**63) or n > 2**64 - 1:
+            raise CodecError("Integer out of range for MessagePack")
         return b"\xcf" + n.to_bytes(8, "big")
 
 
