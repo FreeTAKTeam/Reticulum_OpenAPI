@@ -5,6 +5,7 @@ import logging
 import zlib
 from dataclasses import asdict
 from dataclasses import is_dataclass
+from typing import Any
 from typing import Callable
 from typing import Dict
 from typing import Optional
@@ -28,6 +29,29 @@ from .model import dataclass_to_msgpack
 
 configure_logging()
 logger = logging.getLogger(__name__)
+
+
+def _normalise_for_msgpack(value: Any) -> Any:
+    """Convert values into structures supported by canonical MessagePack encoding.
+
+    Args:
+        value (Any): Arbitrary value returned by a handler.
+
+    Returns:
+        Any: A representation containing only MessagePack-safe primitives.
+    """
+
+    if is_dataclass(value):
+        return _normalise_for_msgpack(asdict(value))
+    if isinstance(value, dict):
+        return {key: _normalise_for_msgpack(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_normalise_for_msgpack(item) for item in value]
+    if isinstance(value, tuple):
+        return [_normalise_for_msgpack(item) for item in value]
+    if isinstance(value, (set, frozenset)):
+        return [_normalise_for_msgpack(item) for item in value]
+    return value
 
 
 class LXMFService:
@@ -241,10 +265,17 @@ class LXMFService:
                     resp_bytes = result
                 else:
                     try:
-                        resp_bytes = dataclass_to_msgpack(result)
+                        safe_result = _normalise_for_msgpack(result)
+                    except Exception:
+                        logger.exception(
+                            "Failed to normalise handler result for %s", cmd
+                        )
+                        safe_result = result
+                    try:
+                        resp_bytes = dataclass_to_msgpack(safe_result)
                     except Exception:
                         try:
-                            json_bytes = dataclass_to_json_bytes(result)
+                            json_bytes = dataclass_to_json_bytes(safe_result)
                             resp_bytes = compress_json(json_bytes)
                         except Exception as exc:
                             logger.exception(
@@ -252,7 +283,7 @@ class LXMFService:
                                 cmd,
                                 exc,
                             )
-                            fallback_json = json.dumps(result).encode("utf-8")
+                            fallback_json = json.dumps(safe_result).encode("utf-8")
                             resp_bytes = compress_json(fallback_json)
                 # Determine response command name (could be something like "<command>_response" or a generic)
                 resp_title = f"{cmd}_response"

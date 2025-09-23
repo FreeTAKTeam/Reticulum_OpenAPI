@@ -43,3 +43,9 @@
 - [x] Refresh EmergencyManagement README with current client/service/controller flow terminology.
 
 
+## 2025-09-19
+- [x] Normalise LXMF iterable handler responses to MessagePack-safe format.
+- [x] Harden LXMF iterable normalisation error handling for response serialization.
+
+
+
