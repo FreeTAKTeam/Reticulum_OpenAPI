@@ -1,0 +1,158 @@
+:root {
+  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI',
+    sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+  color: #0f172a;
+  background-color: #f1f5f9;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body,
+#root {
+  min-height: 100vh;
+  margin: 0;
+}
+
+body {
+  background-color: inherit;
+}
+
+.app-shell {
+  display: flex;
+  min-height: 100vh;
+}
+
+.app-sidebar {
+  width: 280px;
+  background-color: #0f172a;
+  color: #e2e8f0;
+  display: flex;
+  flex-direction: column;
+  padding: 2rem 1.5rem;
+}
+
+.sidebar-header {
+  margin-bottom: 2rem;
+}
+
+.sidebar-title {
+  font-size: 1.5rem;
+  margin: 0;
+}
+
+.sidebar-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.sidebar-link {
+  color: #cbd5f5;
+  text-decoration: none;
+  padding: 0.75rem 1rem;
+  border-radius: 0.5rem;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.sidebar-link:hover {
+  background-color: rgba(148, 163, 184, 0.24);
+}
+
+.sidebar-link-active {
+  background-color: #38bdf8;
+  color: #0f172a;
+}
+
+.app-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.app-topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 2rem;
+  background-color: #ffffff;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.topbar-label {
+  font-weight: 600;
+  margin-right: 0.5rem;
+}
+
+.topbar-value {
+  color: #475569;
+}
+
+.topbar-gateway {
+  font-size: 0.9rem;
+  color: #334155;
+}
+
+.app-main {
+  flex: 1;
+  padding: 2rem;
+  overflow-y: auto;
+  background-color: #f8fafc;
+}
+
+.page-section {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.page-header h2 {
+  margin: 0 0 0.5rem;
+  font-size: 2rem;
+}
+
+.page-header p {
+  margin: 0;
+  color: #475569;
+}
+
+.page-card {
+  background-color: #ffffff;
+  border-radius: 1rem;
+  padding: 1.5rem;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.12);
+}
+
+.page-card h3 {
+  margin-top: 0;
+}
+
+.page-error {
+  color: #dc2626;
+  font-weight: 600;
+}
+
+.page-definition-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 1rem;
+  margin: 0;
+}
+
+.page-definition-list div {
+  background-color: #f1f5f9;
+  border-radius: 0.75rem;
+  padding: 1rem;
+}
+
+.page-definition-list dt {
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+}
+
+.page-definition-list dd {
+  margin: 0;
+}
