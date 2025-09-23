@@ -10,6 +10,7 @@ from typing import Dict
 from typing import Any
 from typing import Optional
 from typing import Type
+from .model import dataclass_to_json  # Add this import alongside other model imports
 
 import LXMF
 import RNS
