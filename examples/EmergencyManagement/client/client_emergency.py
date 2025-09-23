@@ -153,7 +153,9 @@ async def main():
         print(f"Invalid server identity hash: {exc}")
         return
     except TimeoutError as exc:
+
         print(f"Request timed out: {exc}")
+
         return
     # Decode MessagePack bytes into a dataclass for readability
     created_eam = EmergencyActionMessage(**from_bytes(resp))
@@ -168,7 +170,10 @@ async def main():
             await_response=True,
         )
     except TimeoutError as exc:
+
+   
         print(f"Request timed out: {exc}")
+
         return
     # Convert MessagePack bytes to an EmergencyActionMessage dataclass
     retrieved_eam = EmergencyActionMessage(**from_bytes(retrieved))
