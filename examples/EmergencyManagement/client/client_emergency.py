@@ -1,6 +1,8 @@
 import asyncio
+import json
 import sys
 from pathlib import Path
+from typing import Optional
 
 # Reason: Allow running the example from the client directory by ensuring
 # the project root is on sys.path so that absolute imports resolve.
@@ -18,6 +20,53 @@ from examples.EmergencyManagement.Server.models_emergency import (
 )
 
 
+CONFIG_FILENAME = "client_config.json"
+SERVER_IDENTITY_KEY = "server_identity_hash"
+EXAMPLE_IDENTITY_HASH = (
+    "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff"
+)
+PROMPT_MESSAGE = (
+    "Server Identity Hash (64 hexadecimal characters, e.g. "
+    f"{EXAMPLE_IDENTITY_HASH}): "
+)
+CONFIG_PATH = Path(__file__).with_name(CONFIG_FILENAME)
+
+
+def read_server_identity_from_config(
+    config_path: Optional[Path] = None,
+) -> Optional[str]:
+    """Return the stored server identity hash if available.
+
+    Args:
+        config_path (Optional[Path]): Location of the configuration file.
+
+    Returns:
+        Optional[str]: Stored server identity hash or ``None`` when missing.
+    """
+
+    target_path = config_path or CONFIG_PATH
+    if not target_path.exists():
+        return None
+    try:
+        contents = target_path.read_text(encoding="utf-8")
+    except OSError as exc:
+        print(
+            f"Unable to read server identity hash from {target_path}: {exc}",
+        )
+        return None
+    try:
+        data = json.loads(contents)
+    except json.JSONDecodeError as exc:
+        print(
+            f"Invalid JSON in {target_path}: {exc}",
+        )
+        return None
+    value = data.get(SERVER_IDENTITY_KEY)
+    if isinstance(value, str) and value.strip():
+        return value.strip()
+    return None
+
+
 async def main():
     """Send and retrieve an emergency action message.
 
@@ -28,7 +77,19 @@ async def main():
     """
 
     client = LXMFClient()
-    server_id = input("Server Identity Hash: ")
+    server_id = read_server_identity_from_config()
+    if server_id is not None:
+        try:
+            LXMFClient._normalise_destination_hex(server_id)
+        except (TypeError, ValueError) as exc:
+            print(
+                f"Configured server identity hash in {CONFIG_PATH} is invalid: {exc}",
+            )
+            server_id = None
+        else:
+            print(f"Using server identity hash from {CONFIG_PATH}")
+    if server_id is None:
+        server_id = input(PROMPT_MESSAGE).strip()
     eam = EmergencyActionMessage(
         callsign="Bravo1",
         groupName="Bravo",

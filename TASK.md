@@ -48,5 +48,5 @@
 - [x] Normalise LXMF iterable handler responses to MessagePack-safe format.
 - [x] Harden LXMF iterable normalisation error handling for response serialization.
 
-
-
+## 2025-09-23
+- [x] Allow the EmergencyManagement client to reuse a stored server identity hash before prompting users.

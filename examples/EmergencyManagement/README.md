@@ -78,7 +78,7 @@ the client.
 - `server_emergency.py` – starts the service, announces its identity and runs for ~30 seconds.
 
 ### Client
-- `client_emergency.py` – prompts for the server identity hash and sends a sample request using `LXMFClient`.
+- `client_emergency.py` – reuses a stored server identity hash when available and otherwise prompts before sending a sample request using `LXMFClient`.
 
 ## Running the example
 
@@ -96,7 +96,15 @@ python Server/server_emergency.py
 
    The server prints its identity hash on startup. Keep this hash handy.
 
-3. In another terminal, run the client and enter the identity hash when prompted:
+   Optionally, save the hash in `client/client_config.json` so the client can reuse it automatically:
+
+   ```json
+   {
+     "server_identity_hash": "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff"
+   }
+   ```
+
+3. In another terminal, run the client. It will reuse the stored hash when available or prompt you for one:
 
 ```bash
 python client/client_emergency.py
