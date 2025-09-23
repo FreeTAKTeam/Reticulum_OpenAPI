@@ -60,6 +60,46 @@ class LXMFClient:
         if future is not None and not future.done():
             future.set_result(message.content)
 
+    @staticmethod
+    def _normalise_destination_hex(dest_hex: str) -> str:
+        """Return a cleaned hexadecimal destination hash string.
+
+        Args:
+            dest_hex (str): Raw destination hash input.
+
+        Returns:
+            str: Lowercase hexadecimal string suitable for ``bytes.fromhex``.
+
+        Raises:
+            TypeError: If ``dest_hex`` is not provided as a string.
+            ValueError: If no hexadecimal characters are supplied.
+        """
+
+        if not isinstance(dest_hex, str):
+            raise TypeError("Destination identity hash must be provided as a string")
+
+        cleaned = dest_hex.strip()
+        if cleaned.startswith("<") and cleaned.endswith(">"):
+            cleaned = cleaned[1:-1]
+        cleaned = cleaned.replace(" ", "")
+
+        if not cleaned:
+            raise ValueError("Destination identity hash cannot be empty")
+
+        try:
+            bytes.fromhex(cleaned)
+        except ValueError as exc:
+            raise ValueError(
+                "Destination identity hash must be a hexadecimal string"
+            ) from exc
+
+        if len(cleaned) % 2 != 0:
+            raise ValueError(
+                "Destination identity hash must contain an even number of characters"
+            )
+
+        return cleaned.lower()
+
     async def send_command(
         self,
         dest_hex: str,
@@ -85,6 +125,7 @@ class LXMFClient:
         Raises:
             TimeoutError: If a transport path cannot be established before ``path_timeout`` elapses.
         """
+        dest_hex = self._normalise_destination_hex(dest_hex)
         dest_hash = bytes.fromhex(dest_hex)
         if path_timeout is None:
             path_timeout = self.timeout
