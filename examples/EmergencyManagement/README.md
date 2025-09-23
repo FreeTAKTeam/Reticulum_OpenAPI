@@ -104,7 +104,7 @@ python Server/server_emergency.py
 
    ```json
    {
-     "server_identity_hash": "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff"
+     "server_identity_hash": "761dfb354cfe5a3c9d8f5c4465b6c7f5"
    }
    ```
 
