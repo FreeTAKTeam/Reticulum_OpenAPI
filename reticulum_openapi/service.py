@@ -57,6 +57,31 @@ def _normalise_for_msgpack(value: Any) -> Any:
     return value
 
 
+def _convert_dataclasses_to_primitives(value: Any) -> Any:
+    """Convert dataclasses and nested containers into primitive Python types.
+
+    Args:
+        value (Any): Value potentially containing dataclasses or non-serialisable
+            containers.
+
+    Returns:
+        Any: Structure composed of built-in types compatible with JSON or
+        MessagePack encoding.
+    """
+
+    if is_dataclass(value):
+        return _convert_dataclasses_to_primitives(asdict(value))
+    if isinstance(value, dict):
+        return {
+            key: _convert_dataclasses_to_primitives(item) for key, item in value.items()
+        }
+    if isinstance(value, (list, tuple)):
+        return [_convert_dataclasses_to_primitives(item) for item in value]
+    if isinstance(value, (set, frozenset)):
+        return [_convert_dataclasses_to_primitives(item) for item in value]
+    return value
+
+
 class LXMFService:
     def __init__(
         self,
@@ -184,9 +209,7 @@ class LXMFService:
             cmd,
             payload_length,
         )
-        RNS.log(
-            f"Received LXMF message - Title: '{cmd}', Size: {payload_length} bytes"
-        )
+        RNS.log(f"Received LXMF message - Title: '{cmd}', Size: {payload_length} bytes")
         # Look up the handler for the command
         if cmd not in self._routes:
             logger.warning("No route found for command: %s", cmd)
@@ -218,7 +241,9 @@ class LXMFService:
                         try:
                             payload_obj = json.loads(payload_bytes.decode("utf-8"))
                         except Exception as json_exc:
-                            logger.error("Invalid JSON payload for %s: %s", cmd, json_exc)
+                            logger.error(
+                                "Invalid JSON payload for %s: %s", cmd, json_exc
+                            )
                             return
             if payload_schema is not None:
                 try:
@@ -269,13 +294,12 @@ class LXMFService:
                     resp_bytes = serialisable_result
                 else:
                     try:
-
-                        safe_result = _normalise_for_msgpack(result)
+                        safe_result = _normalise_for_msgpack(serialisable_result)
                     except Exception:
                         logger.exception(
                             "Failed to normalise handler result for %s", cmd
                         )
-                        safe_result = result
+                        safe_result = serialisable_result
                     try:
                         resp_bytes = dataclass_to_msgpack(safe_result)
                     except Exception:
@@ -303,7 +327,9 @@ class LXMFService:
                     except Exception as exc:
                         logger.exception("Failed to send response for %s: %s", cmd, exc)
                 else:
-                    logger.warning("No source identity to respond to for message: %s", cmd)
+                    logger.warning(
+                        "No source identity to respond to for message: %s", cmd
+                    )
 
         # Schedule the handler execution on the asyncio event loop
         self._loop.call_soon_threadsafe(lambda: asyncio.create_task(handle_and_reply()))
