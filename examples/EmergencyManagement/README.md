@@ -24,7 +24,8 @@ participant Codec as MsgPackCodec
 participant LXMF as LXMFTransport
 participant ServerApp as Emergency Server (server_emergency.py)
 participant Service as EmergencyService (LXMFService)
-participant Controller as Emergency/Event Controllers
+participant EmergencyCtrl as EmergencyController
+participant EventCtrl as EventController
 
 note over ServerApp: On start, prints its identity hash (client needs it)
 
@@ -37,8 +38,11 @@ LXMF-->>ServerApp: deliver(envelope)
 ServerApp->>Service: on_message(envelope)
 Service->>Codec: decode(bytes)
 Codec-->>Service: obj
-Service->>Controller: invoke "CreateEmergencyActionMessage"
-Controller-->>Service: ack {id, status}
+Service->>EmergencyCtrl: invoke "CreateEmergencyActionMessage"
+EmergencyCtrl-->>Service: ack {id, status}
+
+Service->>EventCtrl: invoke event commands
+EventCtrl-->>Service: ack/list/data
 
 Service->>Codec: encode(response)
 Codec-->>Service: bytes
@@ -51,11 +55,14 @@ Codec-->>ApiClient: ack/status
 ApiClient-->>ClientApp: display result
 ```
 
-The `LXMFClient` in `client_emergency.py` handles MessagePack encoding for the
-requests and forwards them over the LXMF transport. On the server side,
-`EmergencyService` subclasses `LXMFService`, decodes the payload, and dispatches
-each command to the appropriate controller (`EmergencyController` or
-`EventController`) before packaging the response for the client.
+The `LXMFClient` in `client_emergency.py` wraps the MessagePack codec used by
+the SDK, so the client code can hand off dataclasses directly when calling
+`send_command`. On the server side, `server_emergency.py` instantiates the
+`EmergencyService` (a subclass of `LXMFService` defined in
+`service_emergency.py`). That service decodes the payload, resolves the matching
+route, and invokes the controller registered for the command (either
+`EmergencyController` or `EventController`) before packaging the response for
+the client.
 
 | Folder | Description |
 |-------|-------------|
