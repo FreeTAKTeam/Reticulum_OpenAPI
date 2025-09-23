@@ -217,7 +217,7 @@ def sign(canon_bytes: bytes, sk: Union[bytes, "SigningKey"]) -> bytes:
     return bytes(signed.signature)
 
 
-def verify(canon_bytes: bytes, pk: Union[bytes, "VerifyKey"], sig: bytes) -> bool:
+def verify(canon_bytes: bytes, pk: Union[bytes, VerifyKey], sig: bytes) -> bool:
     """
     Verify an Ed25519 signature over canonical bytes. `pk` can be 32-byte public key or VerifyKey.
     """
