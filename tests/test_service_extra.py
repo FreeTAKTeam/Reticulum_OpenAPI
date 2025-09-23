@@ -105,12 +105,12 @@ async def test_send_lxmf_uses_router(monkeypatch):
 async def test_announce_logs(monkeypatch):
     svc = service_module.LXMFService.__new__(service_module.LXMFService)
     ann_mock = Mock()
-    svc.router = SimpleNamespace(announce=ann_mock)
-    svc.source_identity = SimpleNamespace(hash=b"x")
+    svc.router = SimpleNamespace(announce=Mock())
+    svc.source_identity = SimpleNamespace(hash=b"x", announce=ann_mock)
     monkeypatch.setattr(service_module.RNS, "prettyhexrep", lambda x: "x")
     monkeypatch.setattr(service_module.RNS, "log", lambda *a, **k: None)
     svc.announce()
-    ann_mock.assert_called_once_with(svc.source_identity.hash)
+    ann_mock.assert_called_once_with()
 
 
 @pytest.mark.asyncio

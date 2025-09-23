@@ -159,7 +159,8 @@ async def test_send_command_dict_payload(monkeypatch):
 def test_client_announce(monkeypatch):
     cli = client_module.LXMFClient.__new__(client_module.LXMFClient)
     cli.router = SimpleNamespace(announce=Mock())
-    cli.source_identity = SimpleNamespace(hash=b"\x01")
+    ann_mock = Mock()
+    cli.source_identity = SimpleNamespace(hash=b"\x01", announce=ann_mock)
     monkeypatch.setattr(client_module.RNS, "prettyhexrep", lambda data: "01")
     cli.announce()
-    cli.router.announce.assert_called_once_with(cli.source_identity.hash)
+    ann_mock.assert_called_once_with()
