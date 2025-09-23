@@ -52,5 +52,6 @@
 
 ## 2025-09-23
 - [x] Keep the EmergencyManagement example service running until interrupted and fix LXMF response serialisation regression.
+- [x] Ensure EmergencyManagement server and client announce their identities on the network.
 
 
