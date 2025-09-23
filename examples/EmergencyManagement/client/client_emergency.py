@@ -40,9 +40,13 @@ async def main():
         commsStatus=EAMStatus.Green,
         commsMethod="VOIP",
     )
-    resp = await client.send_command(
-        server_id, "CreateEmergencyActionMessage", eam, await_response=True
-    )
+    try:
+        resp = await client.send_command(
+            server_id, "CreateEmergencyActionMessage", eam, await_response=True
+        )
+    except (TypeError, ValueError) as exc:
+        print(f"Invalid server identity hash: {exc}")
+        return
     # Decode MessagePack bytes into a dataclass for readability
     created_eam = EmergencyActionMessage(**from_bytes(resp))
     print("Create response:", created_eam)

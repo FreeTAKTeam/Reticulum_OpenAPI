@@ -33,6 +33,33 @@ configure_logging()
 logger = logging.getLogger(__name__)
 
 
+def _convert_dataclasses_to_primitives(value: Any) -> Any:
+    """Convert dataclasses within the value into primitive containers.
+
+    Args:
+        value (Any): Value potentially containing dataclasses.
+
+    Returns:
+        Any: Value with dataclasses recursively converted to dictionaries.
+    """
+
+    if is_dataclass(value):
+        return {
+            key: _convert_dataclasses_to_primitives(item)
+            for key, item in asdict(value).items()
+        }
+    if isinstance(value, dict):
+        return {
+            key: _convert_dataclasses_to_primitives(item)
+            for key, item in value.items()
+        }
+    if isinstance(value, (list, tuple, set, frozenset)):
+        return [
+            _convert_dataclasses_to_primitives(item) for item in value
+        ]
+    return value
+
+
 def _normalise_for_msgpack(value: Any) -> Any:
     """Convert values into structures supported by canonical MessagePack encoding.
 
