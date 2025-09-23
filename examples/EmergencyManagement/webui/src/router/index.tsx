@@ -3,7 +3,7 @@ import { createBrowserRouter } from 'react-router-dom';
 import { Layout } from '../components/layout/Layout';
 import { DashboardPage } from '../pages/DashboardPage';
 import { EmergencyActionMessagesPage } from '../pages/EmergencyActionMessages/EmergencyActionMessagesPage';
-import { EventsPage } from '../pages/EventsPage';
+import { EventsPage } from '../pages/Events/EventsPage';
 
 export const router = createBrowserRouter([
   {

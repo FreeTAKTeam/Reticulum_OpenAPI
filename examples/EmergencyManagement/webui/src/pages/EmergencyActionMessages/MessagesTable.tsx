@@ -1,113 +1,104 @@
-import { useMemo, useState } from 'react';
+import type { EmergencyActionMessage } from '../../lib/apiClient';
 
-import type { EAMStatus, EmergencyActionMessage } from '../../lib/apiClient';
+import { StatusBadge } from './StatusBadge';
 
-type StatusFilter = 'all' | EAMStatus;
-
-interface MessagesTableProps {
+export interface MessagesTableProps {
   messages: EmergencyActionMessage[];
-  selectedCallsign: string | null;
-  onSelect: (callsign: string) => void;
-}
-
-const STATUS_FILTER_OPTIONS: StatusFilter[] = ['all', 'Red', 'Yellow', 'Green'];
-
-function normaliseText(value: string | undefined | null): string {
-  return (value ?? '').toLowerCase();
+  isLoading: boolean;
+  onEdit: (message: EmergencyActionMessage) => void;
+  onDelete: (message: EmergencyActionMessage) => void;
 }
 
 export function MessagesTable({
   messages,
-  selectedCallsign,
-  onSelect,
+  isLoading,
+  onEdit,
+  onDelete,
 }: MessagesTableProps): JSX.Element {
-  const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
-
-  const filteredMessages = useMemo(() => {
-    const term = searchTerm.trim().toLowerCase();
-    return messages.filter((message) => {
-      const matchesTerm = term
-        ? normaliseText(message.callsign).includes(term) ||
-          normaliseText(message.groupName).includes(term)
-        : true;
-      const matchesStatus =
-        statusFilter === 'all' || message.securityStatus === statusFilter;
-      return matchesTerm && matchesStatus;
-    });
-  }, [messages, searchTerm, statusFilter]);
-
   return (
-    <div className="messages-table" aria-live="polite">
-      <div className="messages-table-controls">
-        <label className="field-label" htmlFor="eam-search-input">
-          Search
-        </label>
-        <input
-          id="eam-search-input"
-          type="search"
-          value={searchTerm}
-          placeholder="Search by callsign or group"
-          onChange={(event) => setSearchTerm(event.target.value)}
-        />
-        <label className="field-label" htmlFor="eam-status-filter">
-          Security status
-        </label>
-        <select
-          id="eam-status-filter"
-          value={statusFilter}
-          onChange={(event) => setStatusFilter(event.target.value as StatusFilter)}
-        >
-          {STATUS_FILTER_OPTIONS.map((option) => (
-            <option key={option} value={option}>
-              {option === 'all' ? 'All statuses' : option}
-            </option>
-          ))}
-        </select>
+    <div className="table-card">
+      <header className="table-card__header">
+        <div>
+          <h3>Emergency action messages</h3>
+          <p>Monitor status updates from field teams and dispatch support.</p>
+        </div>
+        <span className="pill pill--subtle">{messages.length} active</span>
+      </header>
+      <div className="table-card__body">
+        {isLoading && <p>Loading messages…</p>}
+        {!isLoading && messages.length === 0 && <p>No messages recorded yet.</p>}
+        {!isLoading && messages.length > 0 && (
+          <table>
+            <thead>
+              <tr>
+                <th>Callsign</th>
+                <th>Group</th>
+                <th>Security</th>
+                <th>Capability</th>
+                <th>Preparedness</th>
+                <th>Medical</th>
+                <th>Mobility</th>
+                <th>Comms</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {messages
+                .slice()
+                .sort((a, b) => a.callsign.localeCompare(b.callsign))
+                .map((message) => (
+                  <tr key={message.callsign}>
+                    <td>
+                      <div className="callsign-cell">
+                        <span className="callsign">{message.callsign}</span>
+                        {message.commsMethod && (
+                          <span className="callsign-subtitle">{message.commsMethod}</span>
+                        )}
+                      </div>
+                    </td>
+                    <td>{message.groupName ?? '—'}</td>
+                    <td>
+                      <StatusBadge status={message.securityStatus} />
+                    </td>
+                    <td>
+                      <StatusBadge status={message.securityCapability} />
+                    </td>
+                    <td>
+                      <StatusBadge status={message.preparednessStatus} />
+                    </td>
+                    <td>
+                      <StatusBadge status={message.medicalStatus} />
+                    </td>
+                    <td>
+                      <StatusBadge status={message.mobilityStatus} />
+                    </td>
+                    <td>
+                      <StatusBadge status={message.commsStatus} />
+                    </td>
+                    <td>
+                      <div className="table-actions">
+                        <button
+                          type="button"
+                          className="button button--secondary"
+                          onClick={() => onEdit(message)}
+                        >
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          className="button button--danger"
+                          onClick={() => onDelete(message)}
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+            </tbody>
+          </table>
+        )}
       </div>
-      <table>
-        <thead>
-          <tr>
-            <th scope="col">Callsign</th>
-            <th scope="col">Group</th>
-            <th scope="col">Security</th>
-            <th scope="col">Comms</th>
-          </tr>
-        </thead>
-        <tbody>
-          {filteredMessages.length === 0 ? (
-            <tr>
-              <td colSpan={4} className="messages-table-empty">
-                No messages match the current filters.
-              </td>
-            </tr>
-          ) : (
-            filteredMessages.map((message) => {
-              const isSelected = message.callsign === selectedCallsign;
-              return (
-                <tr
-                  key={message.callsign}
-                  className={isSelected ? 'messages-table-row-selected' : ''}
-                  onClick={() => onSelect(message.callsign)}
-                  tabIndex={0}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter' || event.key === ' ') {
-                      event.preventDefault();
-                      onSelect(message.callsign);
-                    }
-                  }}
-                  aria-selected={isSelected}
-                >
-                  <td>{message.callsign}</td>
-                  <td>{message.groupName ?? '—'}</td>
-                  <td>{message.securityStatus ?? '—'}</td>
-                  <td>{message.commsStatus ?? '—'}</td>
-                </tr>
-              );
-            })
-          )}
-        </tbody>
-      </table>
     </div>
   );
 }
