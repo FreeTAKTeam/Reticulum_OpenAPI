@@ -10,6 +10,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from examples.EmergencyManagement.Server.models_emergency import (
+    EAMStatus,
     EmergencyActionMessage,
     Event,
 )
@@ -104,6 +105,54 @@ def test_list_emergency_action_messages_decodes_messagepack(gateway_app) -> None
     assert args[0] == SERVER_IDENTITY
     assert args[1] == module.COMMAND_LIST_EAM
     assert args[2] is None
+
+
+def test_create_event_accepts_structured_detail(gateway_app) -> None:
+    """Creating events should forward structured detail payloads."""
+
+    module, client, stub = gateway_app
+    stub.send_command.return_value = to_canonical_bytes(
+        {"uid": 42, "detail": {"emergencyActionMessage": {"callsign": "Bravo"}}}
+    )
+
+    payload = {
+        "uid": 42,
+        "detail": {
+            "emergencyActionMessage": {
+                "callsign": "Bravo",
+                "groupName": "Rescue",
+                "securityStatus": "Green",
+                "commsStatus": "Yellow",
+            }
+        },
+    }
+
+    response = client.post(
+        "/events",
+        params={"server_identity": SERVER_IDENTITY},
+        json=payload,
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "uid": 42,
+        "detail": {"emergencyActionMessage": {"callsign": "Bravo"}},
+    }
+
+    args, kwargs = stub.send_command.await_args
+    assert args[0] == SERVER_IDENTITY
+    assert args[1] == module.COMMAND_CREATE_EVENT
+    assert isinstance(args[2], Event)
+    assert args[2].uid == 42
+    assert kwargs["await_response"] is True
+
+    assert args[2].detail is not None
+    message = args[2].detail.emergencyActionMessage
+    assert message is not None
+    assert message.callsign == "Bravo"
+    assert message.groupName == "Rescue"
+    assert message.securityStatus == EAMStatus.Green
+    assert message.commsStatus == EAMStatus.Yellow
 
 
 def test_update_event_uses_path_identifier(gateway_app) -> None:
