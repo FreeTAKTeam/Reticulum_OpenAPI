@@ -14,8 +14,12 @@ ROOT_PATH = Path(__file__).resolve().parents[3]
 if str(ROOT_PATH) not in sys.path:
     sys.path.append(str(ROOT_PATH))
 
-from examples.EmergencyManagement.client.north_api import config as config_module
-from examples.EmergencyManagement.client.north_api import dependencies as dependencies_module
+config_module = importlib.import_module(
+    "examples.EmergencyManagement.client.north_api.config"
+)
+dependencies_module = importlib.import_module(
+    "examples.EmergencyManagement.client.north_api.dependencies"
+)
 
 
 @pytest.fixture(autouse=True)

@@ -4,4 +4,3 @@
 from .client import LXMFClient
 
 __all__ = ["LXMFClient"]
-
