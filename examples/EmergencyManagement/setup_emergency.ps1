@@ -24,7 +24,11 @@ function Assert-CommandExists {
     }
 }
 
-$scriptRoot = Split-Path -LiteralPath $MyInvocation.MyCommand.Path -Parent
+if ($PSScriptRoot) {
+    $scriptRoot = $PSScriptRoot
+} else {
+    $scriptRoot = Split-Path -Path $MyInvocation.MyCommand.Path -Parent
+}
 $repoRoot   = (Resolve-Path (Join-Path $scriptRoot '..\..')).Path
 $serverDir  = Join-Path $scriptRoot 'Server'
 $webUiDir   = Join-Path $scriptRoot 'webui'
