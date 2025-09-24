@@ -20,6 +20,8 @@ MessagePack Canonicalization Rules (Critical for Signatures)
 8) Signature input = UTF-8 bytes of rid|ts|op concatenated with payloadDigest bytes.
 """
 
+import json
+import zlib
 from typing import Any, TYPE_CHECKING, Union
 
 # Optional dependencies
@@ -200,6 +202,43 @@ def from_bytes(b: bytes) -> Any:
             "msgpack is required for from_bytes(). Install `msgpack`."
         )
     return msgpack.unpackb(b, raw=False)
+
+
+def decode_payload_bytes(payload: bytes) -> Any:
+    """Decode LXMF payload bytes into JSON-compatible Python values.
+
+    Args:
+        payload (bytes): Raw payload bytes returned by LXMF.
+
+    Returns:
+        Any: Python representation of the decoded payload.
+
+    Raises:
+        CodecError: Raised when the payload cannot be decoded.
+    """
+
+    if not payload:
+        return None
+
+    try:
+        return from_bytes(payload)
+    except Exception:
+        pass
+
+    try:
+        json_bytes = zlib.decompress(payload)
+    except zlib.error:
+        json_bytes = payload
+
+    try:
+        text = json_bytes.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise CodecError("Unable to decode payload bytes") from exc
+
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError as exc:
+        raise CodecError("Unable to decode payload bytes") from exc
 
 
 def digest(obj: Any) -> bytes:

@@ -36,7 +36,8 @@ from reticulum_openapi.api.notifications import (
     attach_client_notifications,
     router as notifications_router,
 )
-from reticulum_openapi.codec_msgpack import from_bytes
+from reticulum_openapi.codec_msgpack import CodecError
+from reticulum_openapi.codec_msgpack import decode_payload_bytes
 
 
 COMMAND_CREATE_EAM = "CreateEmergencyActionMessage"
@@ -308,7 +309,13 @@ async def _send_command(
 
     if response is None:
         return JSONResponse(content=None)
-    data = from_bytes(response)
+    try:
+        data = decode_payload_bytes(response)
+    except CodecError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=str(exc),
+        ) from exc
     return JSONResponse(content=data)
 
 
