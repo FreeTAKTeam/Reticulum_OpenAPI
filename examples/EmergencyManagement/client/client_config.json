@@ -3,5 +3,6 @@
   "client_display_name": "Emergency Management Client",
   "request_timeout_seconds": 30,
   "lxmf_config_path": null,
-  "lxmf_storage_path": null
+  "lxmf_storage_path": null,
+  "generate_test_messages": false
 }

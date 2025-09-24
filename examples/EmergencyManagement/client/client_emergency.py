@@ -55,6 +55,8 @@ LXMF_CONFIG_PATH_KEY = "lxmf_config_path"
 LXMF_STORAGE_PATH_KEY = "lxmf_storage_path"
 DEFAULT_DISPLAY_NAME = "OpenAPIClient"
 DEFAULT_TIMEOUT_SECONDS = 30.0
+GENERATE_TEST_MESSAGES_KEY = "generate_test_messages"
+TEST_MESSAGE_COUNT = 5
 EXAMPLE_IDENTITY_HASH = (
     "761dfb354cfe5a3c9d8f5c4465b6c7f5"
 )
@@ -132,13 +134,18 @@ async def main():
         create_emergency_action_message,
         retrieve_emergency_action_message,
     )
-    from examples.EmergencyManagement.Server.models_emergency import (
-        EmergencyActionMessage,
-        EAMStatus,
+    from examples.EmergencyManagement.client.eam_test import (
+        generate_random_eam,
+        seed_test_messages,
     )
     from reticulum_openapi.identity import load_or_create_identity
 
     config_data = load_client_config()
+    raw_test_flag = config_data.get(GENERATE_TEST_MESSAGES_KEY, False)
+    if isinstance(raw_test_flag, str):
+        generate_test_data = raw_test_flag.strip().lower() in {"1", "true", "yes", "on"}
+    else:
+        generate_test_data = bool(raw_test_flag)
     config_path_value = config_data.get(LXMF_CONFIG_PATH_KEY)
     if isinstance(config_path_value, str):
         config_path_value = config_path_value.strip()
@@ -205,17 +212,15 @@ async def main():
     if server_id is None:
         server_id = await _prompt_for_server_identity()
 
-    eam = EmergencyActionMessage(
-        callsign="Bravo1",
-        groupName="Bravo",
-        securityStatus=EAMStatus.Green,
-        securityCapability=EAMStatus.Green,
-        preparednessStatus=EAMStatus.Green,
-        medicalStatus=EAMStatus.Green,
-        mobilityStatus=EAMStatus.Green,
-        commsStatus=EAMStatus.Green,
-        commsMethod="VOIP",
-    )
+    if generate_test_data:
+        print("Generating test emergency messages...")
+        await seed_test_messages(
+            client,
+            server_id,
+            count=TEST_MESSAGE_COUNT,
+        )
+
+    eam = generate_random_eam()
     try:
         created_eam = await create_emergency_action_message(
             client,
