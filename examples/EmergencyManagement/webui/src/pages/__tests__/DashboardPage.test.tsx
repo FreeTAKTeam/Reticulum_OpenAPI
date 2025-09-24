@@ -26,14 +26,39 @@ describe('DashboardPage', () => {
 
   it('clears dashboard errors after successfully loading gateway info', async () => {
     const gatewayInfoResponse = {
-      data: { version: '1.2.3', uptime: '4 hours' },
-    } as AxiosResponse<{ version: string; uptime: string }>;
+      data: {
+        version: '1.2.3',
+        uptime: '4 hours',
+        serverIdentity: 'abc123',
+        clientDisplayName: 'Responder',
+        requestTimeoutSeconds: 45.5,
+        lxmfConfigPath: '/tmp/config.json',
+        lxmfStoragePath: '/tmp/storage',
+        allowedOrigins: ['https://example.com'],
+      },
+    } as AxiosResponse<{
+      version: string;
+      uptime: string;
+      serverIdentity?: string | null;
+      clientDisplayName: string;
+      requestTimeoutSeconds: number;
+      lxmfConfigPath: string | null;
+      lxmfStoragePath: string | null;
+      allowedOrigins: string[];
+    }>;
     vi.spyOn(apiClientModule.apiClient, 'get').mockResolvedValueOnce(gatewayInfoResponse);
 
     render(<DashboardPage />);
 
     expect(await screen.findByText('1.2.3')).toBeInTheDocument();
     expect(screen.getByText('4 hours')).toBeInTheDocument();
+    expect(screen.getByText('Responder')).toBeInTheDocument();
+    expect(screen.getByText('45.5 seconds')).toBeInTheDocument();
+    expect(screen.getByText('/tmp/config.json')).toBeInTheDocument();
+    expect(screen.getByText('/tmp/storage')).toBeInTheDocument();
+    expect(screen.getByText('https://example.com')).toBeInTheDocument();
+    expect(screen.getByText('http://localhost:8000')).toBeInTheDocument();
+    expect(screen.getByText('http://localhost:8000/notifications/stream')).toBeInTheDocument();
     expect(
       screen.queryByText((_, element) => element?.classList.contains('page-error') ?? false),
     ).not.toBeInTheDocument();

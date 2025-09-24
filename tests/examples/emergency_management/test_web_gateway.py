@@ -309,3 +309,13 @@ def test_gateway_status_returns_version_and_uptime(gateway_app) -> None:
     assert payload["version"] == module._GATEWAY_VERSION
     assert isinstance(payload["uptime"], str)
     assert payload["uptime"].count(":") == 2
+    assert payload["serverIdentity"] == module._DEFAULT_SERVER_IDENTITY
+    assert payload["clientDisplayName"] == module._resolve_display_name(
+        module._CONFIG_DATA
+    )
+    assert payload["requestTimeoutSeconds"] == module._resolve_timeout(
+        module._CONFIG_DATA
+    )
+    assert payload["lxmfConfigPath"] == str(module.CONFIG_PATH)
+    assert payload["lxmfStoragePath"] is None
+    assert payload["allowedOrigins"] == module._ALLOWED_ORIGINS

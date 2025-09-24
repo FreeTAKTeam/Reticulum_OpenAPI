@@ -81,6 +81,19 @@ if (serverIdentity) {
   apiClient.defaults.headers.common['X-Server-Identity'] = serverIdentity;
 }
 
+export function getConfiguredServerIdentity(): string | undefined {
+  const headerValue = apiClient.defaults.headers.common['X-Server-Identity'];
+  if (typeof headerValue === 'string') {
+    const trimmed = headerValue.trim();
+    return trimmed ? trimmed : undefined;
+  }
+  if (Array.isArray(headerValue) && headerValue.length > 0) {
+    const firstValue = `${headerValue[0]}`.trim();
+    return firstValue ? firstValue : undefined;
+  }
+  return undefined;
+}
+
 export async function listEmergencyActionMessages(): Promise<EmergencyActionMessage[]> {
   const response = await apiClient.get<EmergencyActionMessage[] | null>(
     '/emergency-action-messages',

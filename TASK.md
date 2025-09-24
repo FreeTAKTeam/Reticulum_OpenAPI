@@ -76,6 +76,7 @@
 - [x] Stream EmergencyService notifications to FastAPI subscribers via SSE.
 - [x] Ensure EmergencyManagement client runs until interrupted.
 - [x] Surface dashboard gateway errors using extractApiErrorMessage and recover view state after successful loads.
+- [x] Surface gateway server identity and API configuration details on the dashboard page.
 
 ## 2025-09-26
 - [x] Document how to start the Emergency Management FastAPI gateway on http://localhost:8000 in the project README.
