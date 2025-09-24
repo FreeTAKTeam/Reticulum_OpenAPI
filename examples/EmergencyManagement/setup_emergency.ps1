@@ -61,11 +61,12 @@ function Start-AppConsole {
         [Parameter(Mandatory=$true)][string]$Command
     )
 
-    $escapedDir = $WorkingDirectory.Replace('"', '""')
-    $escapedTitle = $Title.Replace('"', '""')
-    $fullCommand = "$Host.UI.RawUI.WindowTitle = `"$escapedTitle`"; Set-Location -LiteralPath `"$escapedDir`"; $Command"
+    $escapedTitle = $Title.Replace("'", "''")
+    $escapedDir = $WorkingDirectory.Replace("'", "''")
+    $commandBlock = "& {`$Host.UI.RawUI.WindowTitle = '$escapedTitle'; Set-Location -LiteralPath '$escapedDir'; $Command }"
+
     Write-Host "Launching: $Title -> $Command" -ForegroundColor Cyan
-    Start-Process -FilePath 'powershell.exe' -ArgumentList '-NoExit','-Command', $fullCommand -WorkingDirectory $WorkingDirectory
+    Start-Process -FilePath 'powershell.exe' -ArgumentList @('-NoExit', '-Command', $commandBlock) -WorkingDirectory $WorkingDirectory
 }
 
 
@@ -86,4 +87,5 @@ Start-AppConsole -Title 'FastAPI Gateway' -WorkingDirectory $repoRoot -Command '
 Start-AppConsole -Title 'Web UI Dev Server' -WorkingDirectory $webUiDir -Command 'npm run dev'
 
 Write-Host 'All components launched. Use Ctrl+C in each console to stop them when finished.' -ForegroundColor Green
+
 
