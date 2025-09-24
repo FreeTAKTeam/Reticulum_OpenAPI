@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 from dataclasses import fields, is_dataclass
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Type, TypeVar, Union, get_args, get_origin
+
+from importlib import metadata
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, status
 from fastapi.responses import JSONResponse
@@ -45,11 +48,22 @@ T = TypeVar("T")
 
 app = FastAPI(title="Emergency Management Gateway")
 
+
+def _resolve_gateway_version() -> str:
+    """Return the installed package version or a development placeholder."""
+
+    try:
+        return metadata.version("reticulum-openapi")
+    except metadata.PackageNotFoundError:
+        return "0.1.0-dev"
+
 _CONFIG_DATA: ConfigDict = load_client_config(CONFIG_PATH)
 _DEFAULT_SERVER_IDENTITY: Optional[str] = read_server_identity_from_config(
     CONFIG_PATH, _CONFIG_DATA
 )
 _CLIENT_INSTANCE: Optional[LXMFClient] = None
+_GATEWAY_VERSION: str = _resolve_gateway_version()
+_START_TIME: datetime = datetime.now(timezone.utc)
 
 
 def _normalise_optional_path(value: Optional[str]) -> Optional[str]:
@@ -108,6 +122,15 @@ def get_shared_client() -> LXMFClient:
     if _CLIENT_INSTANCE is None:
         _CLIENT_INSTANCE = _create_client_from_config()
     return _CLIENT_INSTANCE
+
+
+def _format_uptime(uptime_seconds: float) -> str:
+    """Format seconds since startup as an ``HH:MM:SS`` string."""
+
+    total_seconds = int(max(uptime_seconds, 0))
+    hours, remainder = divmod(total_seconds, 3600)
+    minutes, seconds = divmod(remainder, 60)
+    return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
 
 
 @app.on_event("startup")
@@ -192,6 +215,17 @@ async def _send_command(
         return JSONResponse(content=None)
     data = from_bytes(response)
     return JSONResponse(content=data)
+
+
+@app.get("/")
+async def get_gateway_status() -> Dict[str, str]:
+    """Return basic metadata about the running gateway instance."""
+
+    uptime_seconds = (datetime.now(timezone.utc) - _START_TIME).total_seconds()
+    return {
+        "version": _GATEWAY_VERSION,
+        "uptime": _format_uptime(uptime_seconds),
+    }
 
 
 async def _resolve_server_identity(

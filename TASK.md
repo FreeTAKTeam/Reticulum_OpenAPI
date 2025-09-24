@@ -66,4 +66,5 @@
   coverage for messages/events with automated Vitest suites.
 - [x] Ensure EmergencyManagement server announces its identity using the Reticulum Destination API. (2025-09-25)
 - [x] Add DestinationAnnouncer helper for LXMF services to broadcast identities.
+- [x] Expose gateway status endpoint for the Emergency Management web UI. (2025-09-23)
 

@@ -179,3 +179,17 @@ def test_invalid_server_identity_returns_422(gateway_app) -> None:
     )
 
     assert response.status_code == 422
+
+
+def test_gateway_status_returns_version_and_uptime(gateway_app) -> None:
+    """The root endpoint should expose version metadata and uptime."""
+
+    module, client, _stub = gateway_app
+
+    response = client.get("/")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["version"] == module._GATEWAY_VERSION
+    assert isinstance(payload["uptime"], str)
+    assert payload["uptime"].count(":") == 2
