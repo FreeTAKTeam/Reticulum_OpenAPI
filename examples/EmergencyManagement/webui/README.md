@@ -25,7 +25,7 @@ deployment target.
 | Variable               | Description                                                                 |
 | ---------------------- | --------------------------------------------------------------------------- |
 | `VITE_API_BASE_URL`    | Base URL of the FastAPI gateway that proxies service operations.           |
-| `VITE_UPDATES_URL`     | Optional SSE/WebSocket bridge used for live updates. Defaults to `/stream`. |
+| `VITE_UPDATES_URL`     | Optional SSE/WebSocket bridge used for live updates. Defaults to `/notifications/stream`. |
 | `VITE_SERVER_IDENTITY` | Optional LXMF destination hash forwarded as `X-Server-Identity`.            |
 
 ## Available scripts

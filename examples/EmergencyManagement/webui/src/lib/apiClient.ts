@@ -67,7 +67,7 @@ export function getLiveUpdatesUrl(): string {
     }
     return `${apiBaseUrl.replace(/\/$/, '')}${updatesUrl.startsWith('/') ? '' : '/'}${updatesUrl}`;
   }
-  return `${apiBaseUrl.replace(/\/$/, '')}/stream`;
+  return `${apiBaseUrl.replace(/\/$/, '')}/notifications/stream`;
 }
 
 export const apiClient = axios.create({
