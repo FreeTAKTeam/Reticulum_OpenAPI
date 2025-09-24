@@ -1,11 +1,14 @@
 import asyncio
+import inspect
 import logging
 from dataclasses import asdict
 from dataclasses import is_dataclass
 from typing import Any
+from typing import Awaitable
 from typing import Callable
 from typing import Dict
 from typing import Optional
+from typing import Set
 
 import LXMF
 import RNS
@@ -74,6 +77,10 @@ class LXMFClient:
         self._announce_task: Optional[asyncio.Task] = None
         self._announce_handler = _AnnounceHandler(self._loop, self._announce_queue)
         RNS.Transport.register_announce_handler(self._announce_handler)
+        self._notification_listeners: Set[
+            Callable[[str, bytes], Awaitable[None] | None]
+        ] = set()
+        self._listener_lock = asyncio.Lock()
 
     def announce(self) -> None:
         """Announce this client's identity on the Reticulum network."""
@@ -108,8 +115,20 @@ class LXMFClient:
             RNS.log(f"Invalid response title received: {message.title!r}")
             return
         future = self._futures.pop(title, None)
-        if future is not None and not future.done():
-            future.set_result(message.content)
+        if future is not None:
+            if not future.done():
+                future.set_result(message.content)
+            return
+
+        if not self._notification_listeners:
+            return
+
+        def _dispatch() -> None:
+            asyncio.create_task(
+                self._dispatch_notification(title, message.content or b"")
+            )
+
+        self._loop.call_soon_threadsafe(_dispatch)
 
     @staticmethod
     def _normalise_destination_hex(dest_hex: str) -> str:
@@ -336,3 +355,45 @@ class LXMFClient:
                 logger.debug("Unable to pretty-print app data", exc_info=True)
                 return app_data.hex()
         return str(app_data)
+
+    async def add_notification_listener(
+        self, listener: Callable[[str, bytes], Awaitable[None] | None]
+    ) -> Callable[[], Awaitable[None]]:
+        """Register a coroutine or callable to receive unsolicited messages.
+
+        Args:
+            listener (Callable[[str, bytes], Awaitable[None] | None]): Function
+                invoked with the LXMF title and raw payload.
+
+        Returns:
+            Callable[[], Awaitable[None]]: Awaitable used to remove the listener.
+
+        Raises:
+            TypeError: If ``listener`` is not callable.
+        """
+
+        if not callable(listener):
+            raise TypeError("listener must be callable")
+
+        async with self._listener_lock:
+            self._notification_listeners.add(listener)
+
+        async def _unsubscribe() -> None:
+            async with self._listener_lock:
+                self._notification_listeners.discard(listener)
+
+        return _unsubscribe
+
+    async def _dispatch_notification(self, title: str, payload: bytes) -> None:
+        """Invoke registered notification listeners with the supplied payload."""
+
+        async with self._listener_lock:
+            listeners = list(self._notification_listeners)
+
+        for listener in listeners:
+            try:
+                result = listener(title, payload)
+                if inspect.isawaitable(result):
+                    await result
+            except Exception:  # pragma: no cover - defensive logging path
+                logger.exception("Notification listener failed", exc_info=True)

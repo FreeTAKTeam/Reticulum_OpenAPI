@@ -68,3 +68,6 @@
 - [x] Add DestinationAnnouncer helper for LXMF services to broadcast identities.
 - [x] Expose gateway status endpoint for the Emergency Management web UI. (2025-09-23)
 
+## 2025-09-28
+- [x] Stream EmergencyService notifications to FastAPI subscribers via SSE.
+
