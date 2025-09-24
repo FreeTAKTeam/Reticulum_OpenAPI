@@ -1,7 +1,9 @@
 import asyncio
 import json
-from pathlib import Path
+import signal
 import sys
+from contextlib import suppress
+from pathlib import Path
 from typing import Optional
 
 
@@ -55,12 +57,8 @@ DEFAULT_TIMEOUT_SECONDS = 30.0
 
 GENERATE_TEST_MESSAGES_KEY = "generate_test_messages"
 TEST_MESSAGE_COUNT = 5
-EXAMPLE_IDENTITY_HASH = (
-    "761dfb354cfe5a3c9d8f5c4465b6c7f5"
-)
-DEFAULT_CONFIG_DIRECTORY = (
-    Path(__file__).resolve().parent / ".reticulum_client"
-)
+EXAMPLE_IDENTITY_HASH = "761dfb354cfe5a3c9d8f5c4465b6c7f5"
+DEFAULT_CONFIG_DIRECTORY = Path(__file__).resolve().parent / ".reticulum_client"
 DEFAULT_STORAGE_DIRECTORY = DEFAULT_CONFIG_DIRECTORY / "storage"
 PROMPT_MESSAGE = (
     "Server Identity Hash (32 hexadecimal characters, e.g. "
@@ -111,6 +109,40 @@ async def _prompt_for_server_identity() -> str:
     loop = asyncio.get_running_loop()
     response = await loop.run_in_executor(None, input, PROMPT_MESSAGE)
     return response.strip()
+
+
+async def _wait_until_interrupted(
+    stop_event: Optional[asyncio.Event] = None,
+) -> None:
+    """Block until an external interruption request is received.
+
+    Args:
+        stop_event (Optional[asyncio.Event]): Optional event that triggers
+            shutdown when set. Primarily used for unit tests.
+    """
+
+    loop = asyncio.get_running_loop()
+    event = stop_event or asyncio.Event()
+    registered_signals = []
+
+    def _request_shutdown() -> None:
+        event.set()
+
+    for sig in (signal.SIGINT, signal.SIGTERM):
+        try:
+            loop.add_signal_handler(sig, _request_shutdown)
+        except (NotImplementedError, RuntimeError):
+            continue
+        registered_signals.append(sig)
+
+    try:
+        await event.wait()
+    except asyncio.CancelledError:
+        raise
+    finally:
+        for sig in registered_signals:
+            with suppress(NotImplementedError, RuntimeError):
+                loop.remove_signal_handler(sig)
 
 
 def load_client_config(config_path: Optional[Path] = None) -> dict:
@@ -233,59 +265,64 @@ async def main():
 
     client.listen_for_announces()
     client.announce()
-    server_id = read_server_identity_from_config(data=config_data)
-    if server_id is not None:
-        try:
-            LXMFClient._normalise_destination_hex(server_id)
-        except (TypeError, ValueError) as exc:
-            print(
-                f"Configured server identity hash in {CONFIG_PATH} is invalid: {exc}",
+    try:
+        server_id = read_server_identity_from_config(data=config_data)
+        if server_id is not None:
+            try:
+                LXMFClient._normalise_destination_hex(server_id)
+            except (TypeError, ValueError) as exc:
+                print(
+                    f"Configured server identity hash in {CONFIG_PATH} is invalid: {exc}",
+                )
+                server_id = None
+            else:
+                print(f"Using server identity hash from {CONFIG_PATH}")
+        if server_id is None:
+            server_id = await _prompt_for_server_identity()
+
+        if generate_test_data:
+            print("Generating test emergency messages...")
+            await seed_test_messages(
+                client,
+                server_id,
+                count=TEST_MESSAGE_COUNT,
             )
-            server_id = None
-        else:
-            print(f"Using server identity hash from {CONFIG_PATH}")
-    if server_id is None:
-        server_id = await _prompt_for_server_identity()
 
-    if generate_test_data:
-        print("Generating test emergency messages...")
-        await seed_test_messages(
-            client,
-            server_id,
-            count=TEST_MESSAGE_COUNT,
-        )
+        eam = generate_random_eam()
+        try:
+            created_eam = await create_emergency_action_message(
+                client,
+                server_id,
+                eam,
+            )
+        except (TypeError, ValueError) as exc:
+            print(f"Invalid server identity hash: {exc}")
+            return
+        except TimeoutError as exc:
+            print(f"Request timed out: {exc}")
+            return
+        print("Create response:", created_eam)
 
-    eam = generate_random_eam()
-    try:
-        created_eam = await create_emergency_action_message(
-            client,
-            server_id,
-            eam,
-        )
-    except (TypeError, ValueError) as exc:
-        print(f"Invalid server identity hash: {exc}")
-        return
-    except TimeoutError as exc:
+        # Retrieve the message back from the server to demonstrate persistence
+        try:
+            retrieved_eam = await retrieve_emergency_action_message(
+                client,
+                server_id,
+                eam.callsign,
+            )
+        except TimeoutError as exc:
+            print(f"Request timed out: {exc}")
+            return
+        print("Retrieve response:", retrieved_eam)
 
-        print(f"Request timed out: {exc}")
-
-        return
-    print("Create response:", created_eam)
-
-    # Retrieve the message back from the server to demonstrate persistence
-    try:
-        retrieved_eam = await retrieve_emergency_action_message(
-            client,
-            server_id,
-            eam.callsign,
-        )
-    except TimeoutError as exc:
-
-        print(f"Request timed out: {exc}")
-
-        return
-    print("Retrieve response:", retrieved_eam)
+        print("Emergency client is running. Press Ctrl+C to exit.")
+        await _wait_until_interrupted()
+    finally:
+        client.stop_listening_for_announces()
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        print("Emergency client interrupted. Shutting down.")
