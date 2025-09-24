@@ -69,6 +69,7 @@
 - [x] Expose gateway status endpoint for the Emergency Management web UI. (2025-09-23)
 
 ## 2025-09-24
+- [x] Restore EmergencyManagement gateway CORS defaults for web UI connectivity.
 - [x] Add datetime pickers and access dropdown to the EmergencyManagement event form.
 - [x] Update EmergencyManagement live updates fallback to `/notifications/stream` and align documentation/tests.
 - [x] Align EmergencyManagement event detail flows with structured emergency action messages in the web UI and gateway. (2025-09-24)

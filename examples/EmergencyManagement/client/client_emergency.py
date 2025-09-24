@@ -164,6 +164,40 @@ async def main():
     _ensure_project_root_on_path()
 
 
+    global LXMFClient
+    global create_emergency_action_message
+    global retrieve_emergency_action_message
+    global EmergencyActionMessage
+    global EAMStatus
+
+    if any(
+        item is None
+        for item in (
+            LXMFClient,
+            create_emergency_action_message,
+            retrieve_emergency_action_message,
+            EmergencyActionMessage,
+            EAMStatus,
+        )
+    ):
+        from examples.EmergencyManagement.client.client import (
+            LXMFClient as _LXMFClient,
+            create_emergency_action_message as _create_eam,
+            retrieve_emergency_action_message as _retrieve_eam,
+        )
+        from examples.EmergencyManagement.Server.models_emergency import (
+            EmergencyActionMessage as _EmergencyActionMessage,
+        )
+        from examples.EmergencyManagement.Server.models_emergency import (
+            EAMStatus as _EAMStatus,
+        )
+
+        LXMFClient = _LXMFClient
+        create_emergency_action_message = _create_eam
+        retrieve_emergency_action_message = _retrieve_eam
+        EmergencyActionMessage = _EmergencyActionMessage
+        EAMStatus = _EAMStatus
+
     if any(
         item is None
         for item in (
@@ -178,11 +212,6 @@ async def main():
             "Emergency Management client dependencies were not loaded correctly."
         )
 
-    from examples.EmergencyManagement.client.client import (
-        LXMFClient,
-        create_emergency_action_message,
-        retrieve_emergency_action_message,
-    )
     from examples.EmergencyManagement.client.eam_test import (
         generate_random_eam,
         seed_test_messages,

@@ -115,6 +115,12 @@ mesh state once the LXMF service completes a command.【F:examples/EmergencyMana
    uvicorn examples.EmergencyManagement.web_gateway.app:app --host 0.0.0.0 --port 8000 --reload
    ```
 
+   The gateway enables CORS by default so the Vite UI can call it from
+   `http://localhost:5173`. To restrict the allowed origins, set the
+   `EMERGENCY_GATEWAY_ALLOWED_ORIGINS` environment variable to a
+   comma-separated list before starting Uvicorn (for example,
+   `EMERGENCY_GATEWAY_ALLOWED_ORIGINS=http://localhost:5173`).
+
    The gateway loads the LXMF client singleton during startup and announces it
    on the mesh using the configured display name and identity paths.【F:examples/EmergencyManagement/web_gateway/app.py†L101-L143】
 
