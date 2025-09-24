@@ -359,9 +359,78 @@ class LXMFService:
         # Schedule the handler execution on the asyncio event loop
         self._loop.call_soon_threadsafe(lambda: asyncio.create_task(handle_and_reply()))
 
+    @staticmethod
+    def _normalise_response_identity(
+        identity_candidate: Any,
+    ) -> Optional[Any]:
+        """Return an identity or hash suitable for constructing a destination.
+
+        Args:
+            identity_candidate (Any): Raw value describing the response target.
+
+        Returns:
+            Optional[Any]: ``RNS.Identity`` instance or truncated hash bytes that
+                can be passed to :class:`RNS.Destination`.
+        """
+
+        if isinstance(identity_candidate, RNS.Identity):
+            return identity_candidate
+
+        nested_identity = getattr(identity_candidate, "identity", None)
+        if nested_identity is not None:
+            resolved_nested = LXMFService._normalise_response_identity(nested_identity)
+            if resolved_nested is not None:
+                return resolved_nested
+
+        candidate_hash: Optional[bytes] = None
+        raw_hash = getattr(identity_candidate, "hash", None)
+        if isinstance(raw_hash, RNS.Identity):
+            return raw_hash
+        if isinstance(raw_hash, memoryview):
+            raw_hash = raw_hash.tobytes()
+        if isinstance(raw_hash, (bytes, bytearray)):
+            candidate_hash = bytes(raw_hash)
+        elif isinstance(raw_hash, str):
+            cleaned = raw_hash.strip()
+            if cleaned.startswith("<") and cleaned.endswith(">"):
+                cleaned = cleaned[1:-1]
+            cleaned = cleaned.replace(" ", "")
+            try:
+                candidate_hash = bytes.fromhex(cleaned)
+            except ValueError:
+                candidate_hash = None
+
+        if candidate_hash is None:
+            if isinstance(identity_candidate, memoryview):
+                candidate_hash = identity_candidate.tobytes()
+            elif isinstance(identity_candidate, (bytes, bytearray)):
+                candidate_hash = bytes(identity_candidate)
+            elif isinstance(identity_candidate, str):
+                cleaned = identity_candidate.strip()
+                if cleaned.startswith("<") and cleaned.endswith(">"):
+                    cleaned = cleaned[1:-1]
+                cleaned = cleaned.replace(" ", "")
+                try:
+                    candidate_hash = bytes.fromhex(cleaned)
+                except ValueError:
+                    candidate_hash = None
+
+        if candidate_hash is None:
+            return None
+
+        identity = RNS.Identity.recall(candidate_hash)
+        if identity is not None:
+            return identity
+
+        truncated_length = RNS.Reticulum.TRUNCATED_HASHLENGTH // 8
+        if len(candidate_hash) >= truncated_length:
+            return candidate_hash[:truncated_length]
+
+        return None
+
     def _send_lxmf(
         self,
-        dest_identity: RNS.Identity,
+        dest_identity: Any,
         title: str,
         content_bytes: bytes,
         propagate: bool = False,
@@ -374,8 +443,15 @@ class LXMFService:
         :param propagate: If True, send via propagation (store-and-forward); if False, direct where possible.
         """
         # Create an RNS Destination for the recipient (using LXMF "delivery" namespace)
+        identity_material = self._normalise_response_identity(dest_identity)
+        if identity_material is None:
+            logger.warning(
+                "Unable to resolve destination identity for response '%s'", title
+            )
+            identity_material = dest_identity
+
         dest = RNS.Destination(
-            dest_identity,
+            identity_material,
             RNS.Destination.OUT,
             RNS.Destination.SINGLE,
             "lxmf",
@@ -418,8 +494,7 @@ class LXMFService:
         # Recall or create Identity object for destination
         dest_identity = RNS.Identity.recall(dest_hash)
         if dest_identity is None:
-            # If identity not known, create a stub identity (we can still send opportunistically)
-            dest_identity = RNS.Identity.recall(dest_hash, create=True)
+            dest_identity = dest_hash
         # Prepare content bytes
         if payload_obj is None:
             content_bytes = b""  # no content

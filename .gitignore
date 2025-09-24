@@ -195,3 +195,4 @@ cython_debug/
 .cursorignore
 .cursorindexingignore
 examples/EmergencyManagement/emergency.db
+examples/EmergencyManagement/client/.reticulum_client/
