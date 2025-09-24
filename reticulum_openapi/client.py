@@ -1,14 +1,17 @@
 import asyncio
 import inspect
+import json
 import logging
 from dataclasses import asdict
 from dataclasses import is_dataclass
+from pathlib import Path
 from typing import Any
 from typing import Awaitable
 from typing import Callable
 from typing import Dict
 from typing import Optional
 from typing import Set
+from typing import Union
 
 import LXMF
 import RNS
@@ -397,3 +400,164 @@ class LXMFClient:
                     await result
             except Exception:  # pragma: no cover - defensive logging path
                 logger.exception("Notification listener failed", exc_info=True)
+
+    async def wait_for_server_announce(
+        self,
+        predicate: Optional[Callable[[Dict[str, Any]], bool]] = None,
+        timeout: Optional[float] = None,
+    ) -> Dict[str, Any]:
+        """Wait for an announce event that satisfies ``predicate``.
+
+        Args:
+            predicate (Callable[[Dict[str, Any]], bool], optional): Function used
+                to evaluate announce metadata. When ``None`` the first announce
+                received is returned.
+            timeout (float, optional): Maximum number of seconds to wait for a
+                matching announce. Waits indefinitely when ``None``.
+
+        Returns:
+            Dict[str, Any]: Raw announce event produced by Reticulum.
+
+        Raises:
+            TimeoutError: If no matching announce is received before
+                ``timeout`` expires.
+            TypeError: If ``predicate`` is provided but is not callable.
+        """
+
+        if predicate is not None and not callable(predicate):
+            raise TypeError("predicate must be callable")
+
+        deadline = None if timeout is None else self._loop.time() + timeout
+
+        while True:
+            remaining = None
+            if deadline is not None:
+                remaining = deadline - self._loop.time()
+                if remaining <= 0:
+                    raise TimeoutError("No matching announce received before timeout")
+
+            event = await self.get_next_announce(timeout=remaining)
+
+            if predicate is None:
+                return event
+
+            try:
+                if predicate(event):
+                    return event
+            except Exception:  # pragma: no cover - defensive logging path
+                logger.debug("Announce predicate raised an exception", exc_info=True)
+                continue
+
+    async def discover_server_identity(
+        self,
+        predicate: Optional[Callable[[Dict[str, Any]], bool]] = None,
+        timeout: Optional[float] = None,
+    ) -> str:
+        """Return the destination hash of an announced server.
+
+        Args:
+            predicate (Callable[[Dict[str, Any]], bool], optional): Optional
+                filter invoked for each announce event. When omitted the first
+                announce received is used.
+            timeout (float, optional): Maximum seconds to wait for a matching
+                announce. Waits indefinitely when ``None``.
+
+        Returns:
+            str: Lowercase hexadecimal destination hash of the matching server.
+
+        Raises:
+            TimeoutError: If a matching announce is not received before the
+                timeout expires.
+            ValueError: If the announce event does not contain a destination
+                hash.
+        """
+
+        event = await self.wait_for_server_announce(
+            predicate=predicate,
+            timeout=timeout,
+        )
+
+        destination_hash = event.get("destination_hash")
+        if not isinstance(destination_hash, (bytes, bytearray)):
+            raise ValueError("Announce event does not include a destination hash")
+
+        return bytes(destination_hash).hex()
+
+    @staticmethod
+    def load_client_config(
+        config_path: Optional[Union[str, Path]] = None,
+        *,
+        error_handler: Optional[Callable[[str], None]] = None,
+    ) -> Dict[str, Any]:
+        """Load configuration data from the provided JSON file.
+
+        Args:
+            config_path (Union[str, Path], optional): File system path to the
+                configuration JSON document. When ``None`` an empty mapping is
+                returned.
+            error_handler (Callable[[str], None], optional): Callback used to
+                report I/O or parsing errors. Defaults to logging a warning.
+
+        Returns:
+            Dict[str, Any]: Parsed configuration data or an empty dictionary
+                when the file is missing or invalid.
+        """
+
+        if config_path is None:
+            return {}
+
+        handler = error_handler or (lambda message: logger.warning(message))
+        target_path = Path(config_path)
+
+        if not target_path.exists():
+            return {}
+
+        try:
+            contents = target_path.read_text(encoding="utf-8")
+        except OSError as exc:
+            handler(f"Unable to read configuration from {target_path}: {exc}")
+            return {}
+
+        try:
+            data = json.loads(contents)
+        except json.JSONDecodeError as exc:
+            handler(f"Invalid JSON in {target_path}: {exc}")
+            return {}
+
+        if not isinstance(data, dict):
+            handler(f"Configuration in {target_path} must be a JSON object.")
+            return {}
+
+        return data
+
+    @classmethod
+    def read_server_identity_from_config(
+        cls,
+        config_path: Optional[Union[str, Path]] = None,
+        data: Optional[Dict[str, Any]] = None,
+        *,
+        key: str = "server_identity_hash",
+    ) -> Optional[str]:
+        """Return a stored server identity hash from configuration data.
+
+        Args:
+            config_path (Union[str, Path], optional): Path used when loading the
+                configuration file if ``data`` is not supplied.
+            data (Dict[str, Any], optional): Preloaded configuration mapping.
+            key (str): Dictionary key containing the server identity hash.
+
+        Returns:
+            Optional[str]: Trimmed identity hash or ``None`` when missing.
+        """
+
+        if data is None:
+            data = cls.load_client_config(config_path)
+
+        if not isinstance(data, dict):
+            return None
+
+        value = data.get(key)
+        if isinstance(value, str):
+            cleaned = value.strip()
+            return cleaned or None
+        return None
