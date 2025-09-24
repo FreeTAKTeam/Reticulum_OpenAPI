@@ -222,6 +222,7 @@ def test_cors_preflight_allows_custom_headers(gateway_app) -> None:
     allow_headers = response.headers.get("access-control-allow-headers", "").lower()
     assert "*" in allow_headers or "x-server-identity" in allow_headers
 
+
 def test_timeout_returns_gateway_timeout(gateway_app) -> None:
     """Transport timeouts are surfaced as HTTP 504 errors."""
 
