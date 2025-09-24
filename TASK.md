@@ -77,3 +77,6 @@
 - [x] Ensure EmergencyManagement client runs until interrupted.
 - [x] Surface dashboard gateway errors using extractApiErrorMessage and recover view state after successful loads.
 
+## 2025-09-26
+- [x] Document how to start the Emergency Management FastAPI gateway on http://localhost:8000 in the project README.
+
