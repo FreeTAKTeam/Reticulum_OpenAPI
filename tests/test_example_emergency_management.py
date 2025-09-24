@@ -4,6 +4,7 @@ import importlib
 import json
 import runpy
 import sys
+from dataclasses import asdict
 from pathlib import Path
 
 import pytest
@@ -24,7 +25,10 @@ from examples.EmergencyManagement.Server.models_emergency import Base
 from examples.EmergencyManagement.Server.models_emergency import EmergencyActionMessage
 from examples.EmergencyManagement.Server.models_emergency import EAMStatus
 from examples.EmergencyManagement.Server.models_emergency import Event
+from examples.EmergencyManagement.Server.models_emergency import Point
 from reticulum_openapi.model import dataclass_to_msgpack
+from reticulum_openapi.model import dataclass_to_json_bytes
+from reticulum_openapi.model import compress_json
 
 
 @pytest_asyncio.fixture
@@ -146,6 +150,58 @@ async def test_event_controller_delete_missing(emergency_db) -> None:
     controller = EventController()
     result = await controller.DeleteEvent("999")
     assert result == {"status": "not_found", "uid": "999"}
+
+
+def test_decode_event_fallback_handles_compressed_json() -> None:
+    """The client decoder accepts compressed JSON event payloads."""
+
+    from examples.EmergencyManagement.client import client as client_module
+
+    event = Event(uid=7, type="Drill", point=Point(lat=12.34, lon=56.78))
+    payload = compress_json(dataclass_to_json_bytes(event))
+
+    decoded = client_module._decode_event(payload)
+
+    assert isinstance(decoded, Event)
+    assert decoded.uid == event.uid
+    assert decoded.point is not None
+    assert decoded.point.lat == event.point.lat
+
+
+def test_decode_optional_event_fallback_handles_compressed_json() -> None:
+    """Optional event decoding also supports compressed JSON payloads."""
+
+    from examples.EmergencyManagement.client import client as client_module
+
+    event = Event(uid=11, type="Alert", point=Point(lat=1.5, lon=2.5))
+    payload = compress_json(dataclass_to_json_bytes(event))
+
+    decoded = client_module._decode_optional_event(payload)
+
+    assert isinstance(decoded, Event)
+    assert decoded.uid == event.uid
+    assert decoded.point is not None
+    assert decoded.point.lon == event.point.lon
+
+
+def test_decode_event_list_fallback_handles_compressed_json() -> None:
+    """List decoder returns dataclasses when given compressed JSON payloads."""
+
+    from examples.EmergencyManagement.client import client as client_module
+
+    events = [
+        Event(uid=21, type="Test", point=Point(lat=3.0, lon=4.0)),
+        Event(uid=22, type="Exercise", point=Point(lat=5.0, lon=6.0)),
+    ]
+    payload = compress_json(
+        dataclass_to_json_bytes([asdict(item) for item in events])
+    )
+
+    decoded = client_module._decode_event_list(payload)
+
+    assert [item.uid for item in decoded] == [21, 22]
+    assert decoded[0].point is not None
+    assert decoded[0].point.lat == events[0].point.lat
 
 
 def test_client_script_importable_from_directory(monkeypatch) -> None:

@@ -7,10 +7,38 @@ from typing import Optional
 
 from reticulum_openapi.client import LXMFClient as BaseLXMFClient
 from reticulum_openapi.codec_msgpack import from_bytes
+from reticulum_openapi.model import dataclass_from_json
 from examples.EmergencyManagement.Server.models_emergency import (
     EmergencyActionMessage,
     Event,
 )
+
+_JSON_DECODE_FAILED = object()
+
+
+def _decode_json_payload(payload: Optional[bytes], target_type):
+    """Attempt to decode a compressed JSON payload into ``target_type``.
+
+    Args:
+        payload (Optional[bytes]): Raw payload returned by the service.
+        target_type: Dataclass or typing annotation describing the desired
+            structure.
+
+    Returns:
+        object: Decoded dataclass instance or iterable when successful. When
+        the payload does not appear to be compressed JSON, returns the
+        ``_JSON_DECODE_FAILED`` sentinel value.
+    """
+
+    if payload is None:
+        return _JSON_DECODE_FAILED
+    if len(payload) < 2 or payload[0] != 0x78:
+        return _JSON_DECODE_FAILED
+    try:
+        return dataclass_from_json(target_type, payload)
+    except (ValueError, UnicodeDecodeError):
+        return _JSON_DECODE_FAILED
+
 
 COMMAND_CREATE_EMERGENCY_ACTION_MESSAGE = "CreateEmergencyActionMessage"
 COMMAND_RETRIEVE_EMERGENCY_ACTION_MESSAGE = "RetrieveEmergencyActionMessage"
@@ -53,7 +81,14 @@ def _decode_event(payload: Optional[bytes]) -> Event:
     if payload is None:
         raise ValueError("Response payload is required")
 
+    json_result = _decode_json_payload(payload, Event)
+    if json_result is not _JSON_DECODE_FAILED:
+        if json_result is None:
+            raise ValueError("Decoded payload cannot be null")
+        return json_result
+
     data = from_bytes(payload)
+
     if data is None:
         raise ValueError("Decoded payload cannot be null")
     if not isinstance(data, dict):
@@ -67,7 +102,12 @@ def _decode_optional_event(payload: Optional[bytes]) -> Optional[Event]:
     if payload is None:
         return None
 
+    json_result = _decode_json_payload(payload, Event)
+    if json_result is not _JSON_DECODE_FAILED:
+        return json_result
+
     data = from_bytes(payload)
+
     if data is None:
         return None
     if not isinstance(data, dict):
@@ -81,7 +121,14 @@ def _decode_event_list(payload: Optional[bytes]) -> List[Event]:
     if payload is None:
         return []
 
+    json_result = _decode_json_payload(payload, List[Event])
+    if json_result is not _JSON_DECODE_FAILED:
+        if json_result is None:
+            return []
+        return list(json_result)
+
     data = from_bytes(payload)
+
     if data is None:
         return []
     if not isinstance(data, list):
