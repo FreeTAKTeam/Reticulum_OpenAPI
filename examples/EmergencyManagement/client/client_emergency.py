@@ -44,9 +44,6 @@ def _ensure_project_root_on_path() -> None:
             sys.path.insert(0, project_root_str)
 
 
-_ensure_standard_library_on_path()
-
-
 CONFIG_FILENAME = "client_config.json"
 SERVER_IDENTITY_KEY = "server_identity_hash"
 CLIENT_DISPLAY_NAME_KEY = "client_display_name"
@@ -55,6 +52,7 @@ LXMF_CONFIG_PATH_KEY = "lxmf_config_path"
 LXMF_STORAGE_PATH_KEY = "lxmf_storage_path"
 DEFAULT_DISPLAY_NAME = "OpenAPIClient"
 DEFAULT_TIMEOUT_SECONDS = 30.0
+
 GENERATE_TEST_MESSAGES_KEY = "generate_test_messages"
 TEST_MESSAGE_COUNT = 5
 EXAMPLE_IDENTITY_HASH = (
@@ -69,6 +67,42 @@ PROMPT_MESSAGE = (
     f"{EXAMPLE_IDENTITY_HASH}): "
 )
 CONFIG_PATH = Path(__file__).with_name(CONFIG_FILENAME)
+
+
+_ensure_standard_library_on_path()
+_ensure_project_root_on_path()
+
+
+try:
+    from examples.EmergencyManagement.client.client import LXMFClient
+    from examples.EmergencyManagement.client.client import (
+        create_emergency_action_message,
+    )
+    from examples.EmergencyManagement.client.client import (
+        retrieve_emergency_action_message,
+    )
+    from examples.EmergencyManagement.Server.models_emergency import (
+        EmergencyActionMessage,
+    )
+    from examples.EmergencyManagement.Server.models_emergency import EAMStatus
+except ImportError:  # pragma: no cover
+    LXMFClient = None
+    create_emergency_action_message = None
+    retrieve_emergency_action_message = None
+    EmergencyActionMessage = None
+    EAMStatus = None
+
+
+__all__ = [
+    "LXMFClient",
+    "create_emergency_action_message",
+    "retrieve_emergency_action_message",
+    "EmergencyActionMessage",
+    "EAMStatus",
+    "main",
+    "read_server_identity_from_config",
+    "load_client_config",
+]
 
 
 async def _prompt_for_server_identity() -> str:
@@ -129,6 +163,21 @@ async def main():
 
     _ensure_project_root_on_path()
 
+
+    if any(
+        item is None
+        for item in (
+            LXMFClient,
+            create_emergency_action_message,
+            retrieve_emergency_action_message,
+            EmergencyActionMessage,
+            EAMStatus,
+        )
+    ):
+        raise ImportError(
+            "Emergency Management client dependencies were not loaded correctly."
+        )
+
     from examples.EmergencyManagement.client.client import (
         LXMFClient,
         create_emergency_action_message,
@@ -138,6 +187,7 @@ async def main():
         generate_random_eam,
         seed_test_messages,
     )
+
     from reticulum_openapi.identity import load_or_create_identity
 
     config_data = load_client_config()
