@@ -104,3 +104,57 @@ Key aspects of the northbound design:
 
 Together, these components define the full command lifecycle from REST request
 through LXMF transport to asynchronous database persistence.
+
+## UI and API Interaction
+
+The sequence diagram below illustrates how a single web request travels from the browser through the FastAPI gateway and into the LXMF service before returning a response.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant SPA as Web UI (React/Vite)
+    participant Gateway as FastAPI Gateway
+    participant Client as LXMFClient Helper
+    participant Service as EmergencyService
+    participant Controllers as Controllers
+    participant DB as SQLite
+
+    SPA->>Gateway: HTTP request (JSON)
+    Gateway->>Client: build dataclass & send_command()
+    Client->>Service: LXMF frame (MessagePack)
+    Service->>Controllers: invoke command coroutine
+    Controllers->>DB: CRUD via AsyncSession
+    DB-->>Controllers: ORM result
+    Controllers-->>Service: dataclass response
+    Service-->>Client: LXMF reply (MessagePack)
+    Client-->>Gateway: decode to JSON dict
+    Gateway-->>SPA: HTTP response (JSON)
+```
+
+## Deployment Topology
+
+This deployment view highlights the three tiers involved during development: the browser-based SPA, the FastAPI edge layer, and the Reticulum mesh components.
+
+```mermaid
+graph TB
+    subgraph Browser
+        SPA[Emergency Management SPA]
+    end
+    subgraph EdgeGateway[FastAPI Tier]
+        GatewayApp[web_gateway.app]
+        NorthAPI[north_api.app (health/config)]
+    end
+    subgraph Mesh[Reticulum Mesh Network]
+        LXMFClient[Shared LXMFClient]
+        EmergencyService[EmergencyService]
+        SQLite[(SQLite DB)]
+    end
+
+    SPA -- REST --> GatewayApp
+    SPA -- Health --> NorthAPI
+    GatewayApp -- LXMF commands --> LXMFClient
+    LXMFClient -- Mesh frames --> EmergencyService
+    EmergencyService -- Async CRUD --> SQLite
+    EmergencyService -- SSE/Event bridge --> GatewayApp
+    GatewayApp -- Live updates --> SPA
+```
