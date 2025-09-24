@@ -1,139 +1,172 @@
 # Emergency Management Example
 
-This directory contains a minimal example built with **Reticulum OpenAPI**. It demonstrates how to define an API using an OpenAPI specification and expose it over the Reticulum mesh network.
+The Emergency Management example demonstrates how to combine a Reticulum LXMF service, a shared northbound client, a FastAPI gateway, and a Vite-powered React UI that all speak the same OpenAPI contract. The stack models two resources:
 
-The example models an emergency management system with two main resources:
+- **EmergencyActionMessage** – status reports scoped to a `callsign`.
+- **Event** – event envelopes keyed by a `uid`.
 
-* **EmergencyActionMessage** – a status report for a callsign
-* **Event** – a wrapper that may contain one or more emergency action messages
+Both dataclasses treat their identifying field (`callsign` or `uid`) as required; every other property may be omitted or `null` in the JSON payload. The complete contract lives in [`API/EmergencyActionMessageManagement-OAS.yaml`](API/EmergencyActionMessageManagement-OAS.yaml).
 
-The dataclass models treat `callsign` (for EmergencyActionMessage) and `uid`
-(for Event) as **required** fields. All other properties are optional and may be
-omitted or `null` when encoding the JSON payload.
-
-The API contract is described in [`API/EmergencyActionMessageManagement-OAS.yaml`](API/EmergencyActionMessageManagement-OAS.yaml).
-
-## Components
-
-``` mermaid
-sequenceDiagram
-autonumber
-participant ClientApp as Emergency Client (client_emergency.py)
-participant ApiClient as LXMFClient
-participant Codec as MsgPackCodec
-participant LXMF as LXMFTransport
-participant ServerApp as Emergency Server (server_emergency.py)
-participant Service as EmergencyService (LXMFService)
-participant EmergencyCtrl as EmergencyController
-participant EventCtrl as EventController
-
-note over ServerApp: On start, prints its identity hash (client needs it)
-
-ClientApp->>ApiClient: init(server_hash)
-ApiClient->>Codec: encode(emergency_payload)
-Codec-->>ApiClient: bytes
-ApiClient->>LXMF: send(to=server_hash, content=bytes)
-LXMF-->>ServerApp: deliver(envelope)
-
-ServerApp->>Service: on_message(envelope)
-Service->>Codec: decode(bytes)
-Codec-->>Service: obj
-Service->>EmergencyCtrl: invoke "CreateEmergencyActionMessage"
-EmergencyCtrl-->>Service: ack {id, status}
-
-Service->>EventCtrl: invoke event commands
-EventCtrl-->>Service: ack/list/data
-
-Service->>Codec: encode(response)
-Codec-->>Service: bytes
-Service->>LXMF: reply(to=client_hash, content=bytes)
-LXMF-->>ClientApp: deliver(reply)
-
-ClientApp->>ApiClient: receive(reply)
-ApiClient->>Codec: decode(bytes)
-Codec-->>ApiClient: ack/status
-ApiClient-->>ClientApp: display result
-```
-
-The `LXMFClient` in `client_emergency.py` wraps the MessagePack codec used by
-the SDK, so the client code can hand off dataclasses directly when calling
-`send_command`. On the server side, `server_emergency.py` instantiates the
-`EmergencyService` (a subclass of `LXMFService` defined in
-`service_emergency.py`). That service decodes the payload, resolves the matching
-route, and invokes the controller registered for the command (either
-`EmergencyController` or `EventController`) before packaging the response for
-the client.
+## Repository layout
 
 | Folder | Description |
-|-------|-------------|
-| `Server/` | Asynchronous service implementation. Defines dataclasses, controllers, a small SQLite database and the service class. |
-| `client/` | Simple client that connects to the server, creates a message and then retrieves it back to demonstrate persistence. |
-| `API/` | OpenAPI specification for the example. |
+| --- | --- |
+| `API/` | OpenAPI specification that drives the example. |
+| `Server/` | LXMF service, controllers, dataclasses, and a SQLite persistence layer. |
+| `client/` | Shared LXMF client helper, CLI demo, and optional northbound FastAPI utilities. |
+| `web_gateway/` | FastAPI gateway that exposes REST endpoints backed by the LXMF service. |
+| `webui/` | Vite + React + TypeScript single-page application that consumes the gateway. |
 
-### Server
+## Prerequisites
 
-* `models_emergency.py` – dataclass models for the API payloads.
-* `controllers_emergency.py` – async handlers for API commands.
-* `database.py` – initializes a small SQLite database used for persistence.
-* `service_emergency.py` – subclass of `LXMFService` that registers the routes.
-* `server_emergency.py` – starts the service, announces its identity and keeps running until interrupted (e.g. with Ctrl+C).
+- Python 3.11+
+- Node.js 18+ and npm
+- Reticulum installed and configured so both the server and client can join the mesh
 
-### Client
+## Install dependencies
 
-* `client_emergency.py` – reuses a stored server identity hash when available, streams Reticulum announces to the console, and otherwise prompts before sending a sample request using `LXMFClient`.
-
-## Running the example
-
-1. Install the project dependencies from the repository root:
+From the repository root:
 
 ```bash
 pip install -r requirements.txt
 ```
 
-2. Start the server in one terminal:
+Install the web UI toolchain once:
 
 ```bash
-python Server/server_emergency.py
+cd examples/EmergencyManagement/webui
+npm install
 ```
 
-   The server prints its identity hash on startup. Keep this hash handy.
-   Leave the server running until you are done experimenting, then press
-   `Ctrl+C` (or send `SIGTERM`) to stop it gracefully.
+## Configuration
 
-   Optionally, save the hash in `client/client_config.json` so the client can reuse it automatically:
+### LXMF client defaults
 
-   ```json
-   {
-     "server_identity_hash": "761dfb354cfe5a3c9d8f5c4465b6c7f5"
-   }
+Both the CLI demo and the FastAPI gateway read [`client/client_config.json`](client/client_config.json). Update or create the file with settings that match your mesh:
+
+```json
+{
+  "server_identity_hash": "<destination hash>",
+  "client_display_name": "Emergency Client",
+  "request_timeout_seconds": 30,
+  "lxmf_config_path": null,
+  "lxmf_storage_path": null
+}
+```
+
+- Override the location of the configuration file with `NORTH_API_CONFIG_PATH` or provide JSON directly through `NORTH_API_CONFIG_JSON`.
+- Requests can target different LXMF services by supplying an `X-Server-Identity` header or a `server_identity` query parameter to the gateway.
+
+### Web UI environment
+
+Copy [`webui/.env.example`](webui/.env.example) to `webui/.env` and set:
+
+| Variable | Purpose |
+| --- | --- |
+| `VITE_API_BASE_URL` | Base URL of the FastAPI gateway. |
+| `VITE_UPDATES_URL` | Optional SSE endpoint (defaults to `<base>/notifications/stream`). |
+| `VITE_SERVER_IDENTITY` | Optional LXMF destination hash forwarded as `X-Server-Identity`. |
+
+## Running the stack
+
+1. **Start the LXMF service**
+
+   ```bash
+   cd examples/EmergencyManagement/Server
+   python server_emergency.py
    ```
 
-3. In another terminal, run the client. It will reuse the stored hash when available or prompt you for one:
+   The service prints its identity hash on startup. Record it in `client_config.json`. Stop it with `Ctrl+C` when finished.
 
-```bash
-python client/client_emergency.py
+2. **(Optional) Run the CLI demo**
+
+   ```bash
+   cd examples/EmergencyManagement
+   python client/client_emergency.py
+   ```
+
+   The client reuses the stored identity hash (or prompts for one), sends a `CreateEmergencyActionMessage` command, and then retrieves the stored record to verify persistence in `emergency.db`.
+
+3. **Expose the REST gateway**
+
+   In a new terminal session:
+
+   ```bash
+   uvicorn examples.EmergencyManagement.web_gateway.app:app --host 0.0.0.0 --port 8000 --reload
+   ```
+
+   - Set `EMERGENCY_GATEWAY_ALLOWED_ORIGINS` to a comma-separated list to restrict CORS.
+   - The gateway loads the shared LXMF client during startup and keeps it alive until shutdown.
+
+4. **Launch the React UI**
+
+   ```bash
+   cd examples/EmergencyManagement/webui
+   VITE_API_BASE_URL=http://localhost:8000 npm run dev
+   ```
+
+   The development server listens on <http://localhost:5173>. The UI consumes the REST gateway and subscribes to the optional live update stream.
+
+5. **Optional health API**
+
+   Run the lightweight health and configuration API alongside the gateway if desired:
+
+   ```bash
+   uvicorn examples.EmergencyManagement.client.north_api.app:app --host 0.0.0.0 --port 8100
+   ```
+
+## Building and compiling
+
+- **Server and gateway** – both are pure Python applications; no compilation step is required beyond installing dependencies.
+- **Web UI** – compile the production bundle with:
+
+  ```bash
+  cd examples/EmergencyManagement/webui
+  npm run build
+  ```
+
+  Preview the output locally using `npm run preview`.
+
+## Component interaction
+
+```mermaid
+sequenceDiagram
+  autonumber
+  participant ClientApp as Emergency Client (client_emergency.py)
+  participant ApiClient as LXMFClient
+  participant Codec as MsgPackCodec
+  participant LXMF as LXMFTransport
+  participant ServerApp as Emergency Server (server_emergency.py)
+  participant Service as EmergencyService (LXMFService)
+  participant EmergencyCtrl as EmergencyController
+  participant EventCtrl as EventController
+
+  note over ServerApp: On start, prints its identity hash (client needs it)
+
+  ClientApp->>ApiClient: init(server_hash)
+  ApiClient->>Codec: encode(emergency_payload)
+  Codec-->>ApiClient: bytes
+  ApiClient->>LXMF: send(to=server_hash, content=bytes)
+  LXMF-->>ServerApp: deliver(envelope)
+
+  ServerApp->>Service: on_message(envelope)
+  Service->>Codec: decode(bytes)
+  Codec-->>Service: obj
+  Service->>EmergencyCtrl: invoke "CreateEmergencyActionMessage"
+  EmergencyCtrl-->>Service: ack {id, status}
+
+  Service->>EventCtrl: invoke event commands
+  EventCtrl-->>Service: ack/list/data
+
+  Service->>Codec: encode(response)
+  Codec-->>Service: bytes
+  Service->>LXMF: reply(to=client_hash, content=bytes)
+  LXMF-->>ClientApp: deliver(reply)
+
+  ClientApp->>ApiClient: receive(reply)
+  ApiClient->>Codec: decode(bytes)
+  Codec-->>ApiClient: ack/status
+  ApiClient-->>ClientApp: display result
 ```
 
-The client first sends a `CreateEmergencyActionMessage` request and prints the
-response returned by the server. It then issues a `RetrieveEmergencyActionMessage`
-command for the same callsign and displays the stored record, demonstrating that
-the data is persisted in `emergency.db`.
-
-This example assumes a working Reticulum environment. When running on separate machines, ensure that both client and server can communicate over the Reticulum network.
-
-## Web UI
-
-A Vite + React web interface lives in [`webui/`](./webui/). The UI provides a
-sidebar layout with routes for the dashboard, emergency action messages, and
-events while exposing a mesh status bar placeholder.
-
-```bash
-cd webui
-npm install
-npm run dev
-```
-
-Create a `.env` file based on [`.env.example`](./webui/.env.example) to point the
-interface at a specific FastAPI gateway. All network requests use the Axios
-client defined in `src/lib/apiClient.ts`, so the same bundle can be reused in
-different environments by changing `VITE_API_BASE_URL`.
+With all components running, the SPA issues REST commands to the gateway, which converts JSON payloads into dataclasses, dispatches LXMF commands through the shared client, and translates MessagePack responses back into JSON for the browser.
