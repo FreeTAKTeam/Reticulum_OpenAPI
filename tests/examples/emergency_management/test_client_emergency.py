@@ -46,3 +46,16 @@ async def test_prompt_for_server_identity_uses_executor_and_strips(monkeypatch):
         (None, fake_input, (client_emergency.PROMPT_MESSAGE,)),
     ]
     assert prompts["value"] == client_emergency.PROMPT_MESSAGE
+
+
+@pytest.mark.asyncio
+async def test_wait_until_interrupted_respects_external_event():
+    """The interruption helper should exit once the provided event is set."""
+
+    stop_event = asyncio.Event()
+    wait_task = asyncio.create_task(
+        client_emergency._wait_until_interrupted(stop_event=stop_event)
+    )
+    await asyncio.sleep(0)
+    stop_event.set()
+    await asyncio.wait_for(wait_task, timeout=0.1)
