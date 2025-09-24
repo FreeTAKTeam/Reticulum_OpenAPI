@@ -83,3 +83,6 @@
 ## 2025-09-27
 - [x] Add random event seeding helper for the EmergencyManagement client CLI.
 
+## 2025-09-28
+- [x] Ensure EmergencyManagement FastAPI gateway decodes compressed responses when relaying server commands.
+

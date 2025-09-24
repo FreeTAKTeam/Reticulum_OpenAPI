@@ -5,7 +5,6 @@ from __future__ import annotations
 import asyncio
 import base64
 import json
-import zlib
 from dataclasses import asdict
 from dataclasses import is_dataclass
 from typing import Any
@@ -20,7 +19,8 @@ from fastapi import Request
 from fastapi.responses import StreamingResponse
 
 from ..client import LXMFClient
-from ..codec_msgpack import from_bytes as msgpack_from_bytes
+from ..codec_msgpack import CodecError
+from ..codec_msgpack import decode_payload_bytes
 
 
 class NotificationHub:
@@ -98,19 +98,12 @@ def _decode_payload(payload: bytes) -> Dict[str, Any]:
 
     encoded = base64.b64encode(payload).decode("ascii")
     try:
-        decoded = msgpack_from_bytes(payload)
-        normalised = _normalise_payload(decoded)
-        return {"payload": normalised, "payload_raw": encoded}
-    except Exception:
-        try:
-            json_bytes = zlib.decompress(payload)
-        except zlib.error:
-            json_bytes = payload
-        try:
-            normalised = json.loads(json_bytes.decode("utf-8"))
-            return {"payload": normalised, "payload_raw": encoded}
-        except (UnicodeDecodeError, json.JSONDecodeError):
-            return {"payload": None, "payload_raw": encoded}
+        decoded = decode_payload_bytes(payload)
+    except CodecError:
+        return {"payload": None, "payload_raw": encoded}
+
+    normalised = _normalise_payload(decoded)
+    return {"payload": normalised, "payload_raw": encoded}
 
 
 async def _event_stream(
