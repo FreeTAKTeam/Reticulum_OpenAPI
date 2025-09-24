@@ -75,4 +75,5 @@
 - [x] Align EmergencyManagement event detail flows with structured emergency action messages in the web UI and gateway. (2025-09-24)
 - [x] Stream EmergencyService notifications to FastAPI subscribers via SSE.
 - [x] Ensure EmergencyManagement client runs until interrupted.
+- [x] Configure EmergencyManagement web UI environment to target the FastAPI gateway base URL. (2025-09-24)
 
