@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import random
 from typing import List
+from typing import cast
 
 from examples.EmergencyManagement.Server.models_emergency import (
     EAMStatus,
@@ -49,7 +50,11 @@ COMMUNICATION_METHODS: tuple[str, ...] = (
     "DATA",
 )
 
-_STATUS_VALUES: tuple[EAMStatus, ...] = tuple(EAMStatus)
+_STATUS_VALUES: tuple[EAMStatus, ...] = tuple(
+    cast(EAMStatus, value)
+    for name, value in vars(EAMStatus).items()
+    if not name.startswith("_") and isinstance(value, str)
+)
 
 
 def _random_nato_word() -> str:
