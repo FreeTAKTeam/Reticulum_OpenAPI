@@ -208,6 +208,71 @@ async def test_lxmf_callback_accepts_dataclass_with_valid_token():
 
 
 @pytest.mark.asyncio
+async def test_link_established_runs_handler_and_keepalive(monkeypatch):
+    """LXMF service should execute link handlers and keepalives."""
+
+    loop = asyncio.get_running_loop()
+    service = LXMFService.__new__(LXMFService)
+    service._loop = loop
+    service._links_enabled = True
+    handler_calls = {"count": 0}
+
+    async def handler(link):
+        handler_calls["count"] += 1
+
+    service._link_handler = handler
+    service._link_keepalive_interval = 0.01
+    service._active_links = {}
+    service._link_keepalive_tasks = {}
+
+    created_tasks = []
+
+    def create_task(coro):
+        task = loop.create_task(coro)
+        created_tasks.append(task)
+        return task
+
+    monkeypatch.setattr(asyncio, "create_task", create_task)
+
+    def call_soon_threadsafe(callback):
+        callback()
+
+    service._loop.call_soon_threadsafe = call_soon_threadsafe
+
+    class FakeLink:
+        def __init__(self):
+            self.link_id = b"lk"
+            self.closed_callback = None
+            self.keepalives = 0
+
+        def set_link_closed_callback(self, callback):
+            self.closed_callback = callback
+
+        def send_keepalive(self):
+            self.keepalives += 1
+
+        def close(self):
+            if self.closed_callback is not None:
+                self.closed_callback(self)
+
+    link = FakeLink()
+    service._link_established(link)
+    await asyncio.sleep(0.05)
+
+    assert handler_calls["count"] == 1
+    assert link.keepalives > 0
+    assert link.link_id in service._active_links
+
+    service._link_closed(link)
+    await asyncio.sleep(0.01)
+
+    assert link.link_id not in service._active_links
+    assert service._link_keepalive_tasks == {}
+
+    await asyncio.gather(*created_tasks, return_exceptions=True)
+
+
+@pytest.mark.asyncio
 async def test_lxmf_callback_dispatches_response():
     """Handler return values are sent back via _send_lxmf."""
     loop = asyncio.get_running_loop()
