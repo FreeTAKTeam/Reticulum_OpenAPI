@@ -237,7 +237,7 @@ def test_server_script_importable_from_directory(monkeypatch) -> None:
 
 
 @pytest.mark.asyncio
-async def test_client_main_prints_timeout(monkeypatch, capsys) -> None:
+async def test_client_main_prints_timeout(monkeypatch, capsys, tmp_path) -> None:
     """The client example prints a timeout message when the path is unavailable."""
 
     from examples.EmergencyManagement.client import client_emergency as client_module
@@ -262,8 +262,38 @@ async def test_client_main_prints_timeout(monkeypatch, capsys) -> None:
         def listen_for_announces(self):
             return None
 
+        def stop_listening_for_announces(self):
+            return None
+
+    config_path = tmp_path / client_module.CONFIG_FILENAME
+    monkeypatch.setattr(client_module, "CONFIG_PATH", config_path, raising=False)
     monkeypatch.setattr(client_module, "LXMFClient", FailingClient)
     monkeypatch.setattr("builtins.input", lambda _: "761dfb354cfe5a3c9d8f5c4465b6c7f5")
+
+    async def fail_create(*args, **kwargs):
+        raise TimeoutError("Path to destination not available after 10.0 seconds")
+
+    monkeypatch.setattr(
+        client_module,
+        "create_emergency_action_message",
+        fail_create,
+        raising=False,
+    )
+    monkeypatch.setattr(
+        "examples.EmergencyManagement.client.client.create_emergency_action_message",
+        fail_create,
+        raising=False,
+    )
+
+    async def immediate_wait(*args, **kwargs):
+        return None
+
+    monkeypatch.setattr(
+        client_module,
+        "_wait_until_interrupted",
+        immediate_wait,
+        raising=False,
+    )
 
     await client_module.main()
 
@@ -335,6 +365,9 @@ async def test_main_uses_configured_identity(monkeypatch, tmp_path) -> None:
             return None
 
         def listen_for_announces(self):
+            return None
+
+        def stop_listening_for_announces(self):
             return None
 
     interactions = []
@@ -413,6 +446,9 @@ async def test_main_prompts_when_config_missing(monkeypatch, tmp_path) -> None:
             return None
 
         def listen_for_announces(self):
+            return None
+
+        def stop_listening_for_announces(self):
             return None
 
     interactions = []
@@ -499,6 +535,9 @@ async def test_main_prompts_when_config_invalid(monkeypatch, tmp_path) -> None:
             return None
 
         def listen_for_announces(self):
+            return None
+
+        def stop_listening_for_announces(self):
             return None
 
     interactions = []
