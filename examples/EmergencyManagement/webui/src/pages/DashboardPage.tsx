@@ -1,15 +1,42 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
-import { apiClient, extractApiErrorMessage } from '../lib/apiClient';
+import {
+  apiClient,
+  extractApiErrorMessage,
+  getApiBaseUrl,
+  getConfiguredServerIdentity,
+  getLiveUpdatesUrl,
+} from '../lib/apiClient';
 
 interface GatewayInfo {
   version: string;
   uptime: string;
+  serverIdentity?: string | null;
+  clientDisplayName: string;
+  requestTimeoutSeconds: number;
+  lxmfConfigPath?: string | null;
+  lxmfStoragePath?: string | null;
+  allowedOrigins?: string[];
 }
 
 export function DashboardPage(): JSX.Element {
   const [gatewayInfo, setGatewayInfo] = useState<GatewayInfo | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const webUiConfig = useMemo(
+    () => ({
+      apiBaseUrl: getApiBaseUrl(),
+      liveUpdatesUrl: getLiveUpdatesUrl(),
+      serverIdentityHeader: getConfiguredServerIdentity() ?? null,
+    }),
+    [],
+  );
+  const allowedOrigins = useMemo(
+    () =>
+      gatewayInfo && Array.isArray(gatewayInfo.allowedOrigins)
+        ? gatewayInfo.allowedOrigins
+        : [],
+    [gatewayInfo],
+  );
 
   useEffect(() => {
     let isMounted = true;
@@ -63,6 +90,62 @@ export function DashboardPage(): JSX.Element {
             </div>
           </dl>
         )}
+      </div>
+      {gatewayInfo && (
+        <div className="page-card">
+          <h3>Gateway Configuration</h3>
+          <dl className="page-definition-list">
+            <div>
+              <dt>Server Identity</dt>
+              <dd>{gatewayInfo.serverIdentity ?? 'Not configured'}</dd>
+            </div>
+            <div>
+              <dt>Client Display Name</dt>
+              <dd>{gatewayInfo.clientDisplayName}</dd>
+            </div>
+            <div>
+              <dt>Request Timeout</dt>
+              <dd>
+                {Number.isInteger(gatewayInfo.requestTimeoutSeconds)
+                  ? `${gatewayInfo.requestTimeoutSeconds} seconds`
+                  : `${gatewayInfo.requestTimeoutSeconds.toFixed(1)} seconds`}
+              </dd>
+            </div>
+            <div>
+              <dt>LXMF Config Path</dt>
+              <dd>{gatewayInfo.lxmfConfigPath ?? 'Not configured'}</dd>
+            </div>
+            <div>
+              <dt>LXMF Storage Path</dt>
+              <dd>{gatewayInfo.lxmfStoragePath ?? 'Not configured'}</dd>
+            </div>
+            <div>
+              <dt>Allowed Origins</dt>
+              <dd>
+                {allowedOrigins.length > 0
+                  ? allowedOrigins.join(', ')
+                  : 'Not configured'}
+              </dd>
+            </div>
+          </dl>
+        </div>
+      )}
+      <div className="page-card">
+        <h3>Web UI API Configuration</h3>
+        <dl className="page-definition-list">
+          <div>
+            <dt>API Base URL</dt>
+            <dd>{webUiConfig.apiBaseUrl}</dd>
+          </div>
+          <div>
+            <dt>Live Updates URL</dt>
+            <dd>{webUiConfig.liveUpdatesUrl}</dd>
+          </div>
+          <div>
+            <dt>Server Identity Header</dt>
+            <dd>{webUiConfig.serverIdentityHeader ?? 'Not configured'}</dd>
+          </div>
+        </dl>
       </div>
     </section>
   );

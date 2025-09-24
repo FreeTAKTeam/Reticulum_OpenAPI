@@ -320,13 +320,26 @@ async def _send_command(
 
 
 @app.get("/")
-async def get_gateway_status() -> Dict[str, str]:
-    """Return basic metadata about the running gateway instance."""
+async def get_gateway_status() -> Dict[str, Any]:
+    """Return gateway metadata and configuration details."""
 
     uptime_seconds = (datetime.now(timezone.utc) - _START_TIME).total_seconds()
+    config_path_override = _normalise_optional_path(
+        _CONFIG_DATA.get(LXMF_CONFIG_PATH_KEY)
+    )
+    storage_path_override = _normalise_optional_path(
+        _CONFIG_DATA.get(LXMF_STORAGE_PATH_KEY)
+    )
+
     return {
         "version": _GATEWAY_VERSION,
         "uptime": _format_uptime(uptime_seconds),
+        "serverIdentity": _DEFAULT_SERVER_IDENTITY,
+        "clientDisplayName": _resolve_display_name(_CONFIG_DATA),
+        "requestTimeoutSeconds": _resolve_timeout(_CONFIG_DATA),
+        "lxmfConfigPath": config_path_override or str(CONFIG_PATH),
+        "lxmfStoragePath": storage_path_override,
+        "allowedOrigins": _ALLOWED_ORIGINS,
     }
 
 
