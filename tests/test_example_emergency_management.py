@@ -293,14 +293,29 @@ async def test_main_uses_configured_identity(monkeypatch, tmp_path) -> None:
 
     monkeypatch.setattr(module, "LXMFClient", DummyLXMFClient, raising=False)
     monkeypatch.setattr(
+        "examples.EmergencyManagement.client.client.LXMFClient",
+        DummyLXMFClient,
+        raising=False,
+    )
+    monkeypatch.setattr(
         module,
         "create_emergency_action_message",
         fake_create,
         raising=False,
     )
     monkeypatch.setattr(
+        "examples.EmergencyManagement.client.client.create_emergency_action_message",
+        fake_create,
+        raising=False,
+    )
+    monkeypatch.setattr(
         module,
         "retrieve_emergency_action_message",
+        fake_retrieve,
+        raising=False,
+    )
+    monkeypatch.setattr(
+        "examples.EmergencyManagement.client.client.retrieve_emergency_action_message",
         fake_retrieve,
         raising=False,
     )
@@ -356,14 +371,29 @@ async def test_main_prompts_when_config_missing(monkeypatch, tmp_path) -> None:
 
     monkeypatch.setattr(module, "LXMFClient", DummyLXMFClient, raising=False)
     monkeypatch.setattr(
+        "examples.EmergencyManagement.client.client.LXMFClient",
+        DummyLXMFClient,
+        raising=False,
+    )
+    monkeypatch.setattr(
         module,
         "create_emergency_action_message",
         fake_create,
         raising=False,
     )
     monkeypatch.setattr(
+        "examples.EmergencyManagement.client.client.create_emergency_action_message",
+        fake_create,
+        raising=False,
+    )
+    monkeypatch.setattr(
         module,
         "retrieve_emergency_action_message",
+        fake_retrieve,
+        raising=False,
+    )
+    monkeypatch.setattr(
+        "examples.EmergencyManagement.client.client.retrieve_emergency_action_message",
         fake_retrieve,
         raising=False,
     )
@@ -427,14 +457,29 @@ async def test_main_prompts_when_config_invalid(monkeypatch, tmp_path) -> None:
 
     monkeypatch.setattr(module, "LXMFClient", DummyLXMFClient, raising=False)
     monkeypatch.setattr(
+        "examples.EmergencyManagement.client.client.LXMFClient",
+        DummyLXMFClient,
+        raising=False,
+    )
+    monkeypatch.setattr(
         module,
         "create_emergency_action_message",
         fake_create,
         raising=False,
     )
     monkeypatch.setattr(
+        "examples.EmergencyManagement.client.client.create_emergency_action_message",
+        fake_create,
+        raising=False,
+    )
+    monkeypatch.setattr(
         module,
         "retrieve_emergency_action_message",
+        fake_retrieve,
+        raising=False,
+    )
+    monkeypatch.setattr(
+        "examples.EmergencyManagement.client.client.retrieve_emergency_action_message",
         fake_retrieve,
         raising=False,
     )

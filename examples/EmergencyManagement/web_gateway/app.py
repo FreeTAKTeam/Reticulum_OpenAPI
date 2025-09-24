@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import json
 from dataclasses import fields, is_dataclass
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any, Awaitable, Callable, Dict, List, Optional, Type, TypeVar, Union, get_args, get_origin
 
 from importlib import metadata
@@ -96,7 +98,43 @@ def _resolve_gateway_version() -> str:
         return "0.1.0-dev"
 
 
-_CONFIG_DATA: ConfigDict = load_client_config(CONFIG_PATH)
+_CONFIG_JSON_ENV_VAR = "NORTH_API_CONFIG_JSON"
+_CONFIG_PATH_ENV_VAR = "NORTH_API_CONFIG_PATH"
+
+
+def _load_gateway_config() -> ConfigDict:
+    """Load configuration data for the gateway.
+
+    Returns:
+        ConfigDict: Parsed configuration values describing the LXMF client.
+    """
+
+    raw_json = os.getenv(_CONFIG_JSON_ENV_VAR)
+    if raw_json:
+        try:
+            parsed = json.loads(raw_json)
+        except json.JSONDecodeError:
+            parsed = None
+        else:
+            if isinstance(parsed, dict):
+                return parsed
+        # Fall back to path-based configuration when JSON is invalid or not a mapping.
+
+    path_override = os.getenv(_CONFIG_PATH_ENV_VAR)
+    if path_override:
+        try:
+            override_path = Path(path_override).expanduser()
+        except (TypeError, ValueError):
+            override_path = None
+        if override_path:
+            data = load_client_config(override_path)
+            if data:
+                return data
+
+    return load_client_config(CONFIG_PATH)
+
+
+_CONFIG_DATA: ConfigDict = _load_gateway_config()
 _DEFAULT_SERVER_IDENTITY: Optional[str] = read_server_identity_from_config(
     CONFIG_PATH, _CONFIG_DATA
 )

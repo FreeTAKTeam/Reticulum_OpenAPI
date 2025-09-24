@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib
+import json
 from typing import List
 from unittest.mock import AsyncMock
 
@@ -24,6 +25,9 @@ SERVER_IDENTITY = "00112233445566778899aabbccddeeff"
 @pytest.fixture()
 def gateway_app(monkeypatch):
     """Provide a configured TestClient and captured LXMF client instance."""
+
+    monkeypatch.delenv("NORTH_API_CONFIG_JSON", raising=False)
+    monkeypatch.delenv("NORTH_API_CONFIG_PATH", raising=False)
 
     module = importlib.import_module(
         "examples.EmergencyManagement.web_gateway.app"
@@ -57,6 +61,31 @@ def gateway_app(monkeypatch):
         yield module, client, stub
 
     module._CLIENT_INSTANCE = None
+
+
+def test_default_identity_uses_json_config(monkeypatch) -> None:
+    """The gateway should respect the server identity defined in JSON config."""
+
+    config_json = json.dumps(
+        {
+            "server_identity_hash": SERVER_IDENTITY,
+            "client_display_name": "JsonConfiguredClient",
+            "request_timeout_seconds": 12,
+        }
+    )
+    monkeypatch.setenv("NORTH_API_CONFIG_JSON", config_json)
+
+    module = importlib.import_module(
+        "examples.EmergencyManagement.web_gateway.app"
+    )
+    module = importlib.reload(module)
+
+    assert module._DEFAULT_SERVER_IDENTITY == SERVER_IDENTITY
+    assert module._CONFIG_DATA["client_display_name"] == "JsonConfiguredClient"
+    assert module._CONFIG_DATA["request_timeout_seconds"] == 12
+
+    monkeypatch.delenv("NORTH_API_CONFIG_JSON", raising=False)
+    importlib.reload(module)
 
 
 def test_create_emergency_action_message_routes_payload(gateway_app) -> None:
