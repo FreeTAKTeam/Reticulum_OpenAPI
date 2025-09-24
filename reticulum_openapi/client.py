@@ -61,8 +61,16 @@ class LXMFClient:
         display_name: str = "OpenAPIClient",
         auth_token: str = None,
         timeout: float = 10.0,
+        shared_instance_rpc_key: Optional[str] = None,
     ):
         self.reticulum = RNS.Reticulum(config_path)
+        self._shared_instance_rpc_key: Optional[bytes] = None
+        if shared_instance_rpc_key is not None:
+            key_bytes = self._decode_shared_instance_rpc_key(
+                shared_instance_rpc_key
+            )
+            self.reticulum.rpc_key = key_bytes
+            self._shared_instance_rpc_key = key_bytes
         storage_path = storage_path or (RNS.Reticulum.storagepath + "/lxmf_client")
         self.router = LXMF.LXMRouter(storagepath=storage_path)
         self.router.register_delivery_callback(self._callback)
@@ -172,6 +180,29 @@ class LXMFClient:
             )
 
         return cleaned.lower()
+
+    @staticmethod
+    def _decode_shared_instance_rpc_key(value: str) -> bytes:
+        """Return the RPC key as bytes ensuring hexadecimal input."""
+
+        if not isinstance(value, str):
+            raise TypeError("shared_instance_rpc_key must be a string when provided")
+
+        cleaned = value.strip()
+        if not cleaned:
+            raise ValueError("shared_instance_rpc_key cannot be empty")
+
+        try:
+            key_bytes = bytes.fromhex(cleaned)
+        except ValueError as exc:
+            raise ValueError(
+                "shared_instance_rpc_key must be a hexadecimal string"
+            ) from exc
+
+        if not key_bytes:
+            raise ValueError("shared_instance_rpc_key cannot decode to empty bytes")
+
+        return key_bytes
 
     async def send_command(
         self,

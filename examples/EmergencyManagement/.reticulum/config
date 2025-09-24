@@ -1,0 +1,15 @@
+# Reticulum configuration for the Emergency Management example stack.
+# This mirrors the default Reticulum template with a fixed RPC key so
+# the LXMF service, FastAPI gateway, and supporting tools can connect to
+# the same shared instance while running on a single workstation.
+
+[reticulum]
+  enable_transport = False
+  share_instance = Yes
+  instance_name = emergency-default
+  rpc_key = F1E2D3C4B5A697887766554433221100
+
+[interfaces]
+  [[Auto Interface]]
+    type = AutoInterface
+    enabled = Yes

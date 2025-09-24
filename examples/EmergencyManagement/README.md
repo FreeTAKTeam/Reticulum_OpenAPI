@@ -50,12 +50,14 @@ Both the CLI demo and the FastAPI gateway read [`client/client_config.json`](cli
   "client_display_name": "Emergency Client",
   "request_timeout_seconds": 30,
   "lxmf_config_path": null,
-  "lxmf_storage_path": null
+  "lxmf_storage_path": null,
+  "shared_instance_rpc_key": "<hex rpc key>"
 }
 ```
 
 - Override the location of the configuration file with `NORTH_API_CONFIG_PATH` or provide JSON directly through `NORTH_API_CONFIG_JSON`.
 - Requests can target different LXMF services by supplying an `X-Server-Identity` header or a `server_identity` query parameter to the gateway.
+- The repository ships with a sample Reticulum directory at [`examples/EmergencyManagement/.reticulum`](./.reticulum) that pins `rpc_key` to `F1E2D3C4B5A697887766554433221100`. When the gateway and LXMF service use this directory (or any config with the same key) they can attach to the same shared instance without prompting.
 
 ### Web UI environment
 

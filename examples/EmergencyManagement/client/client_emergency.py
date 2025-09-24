@@ -51,6 +51,7 @@ CLIENT_DISPLAY_NAME_KEY = "client_display_name"
 REQUEST_TIMEOUT_KEY = "request_timeout_seconds"
 LXMF_CONFIG_PATH_KEY = "lxmf_config_path"
 LXMF_STORAGE_PATH_KEY = "lxmf_storage_path"
+SHARED_INSTANCE_RPC_KEY = "shared_instance_rpc_key"
 DEFAULT_DISPLAY_NAME = "OpenAPIClient"
 DEFAULT_TIMEOUT_SECONDS = 30.0
 
@@ -104,6 +105,7 @@ __all__ = [
     "main",
     "read_server_identity_from_config",
     "load_client_config",
+    "SHARED_INSTANCE_RPC_KEY",
 ]
 
 
@@ -251,6 +253,14 @@ async def main():
     else:
         storage_path_override = str(DEFAULT_STORAGE_DIRECTORY)
 
+    rpc_key_value = config_data.get(SHARED_INSTANCE_RPC_KEY)
+    if isinstance(rpc_key_value, str):
+        rpc_key_value = rpc_key_value.strip()
+        if not rpc_key_value:
+            rpc_key_value = None
+    else:
+        rpc_key_value = None
+
     identity_config_dir = Path(identity_config_path)
     try:
         identity_config_dir.mkdir(parents=True, exist_ok=True)
@@ -277,6 +287,7 @@ async def main():
         identity=client_identity,
         display_name=display_name,
         timeout=timeout_seconds,
+        shared_instance_rpc_key=rpc_key_value,
     )
 
     client.listen_for_announces()

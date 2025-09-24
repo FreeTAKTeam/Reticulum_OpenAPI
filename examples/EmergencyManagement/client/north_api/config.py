@@ -31,6 +31,7 @@ class NorthAPIClientSettings(BaseModel):
     request_timeout_seconds: float = Field(300.0, ge=0.0)
     lxmf_config_path: Optional[str] = None
     lxmf_storage_path: Optional[str] = None
+    shared_instance_rpc_key: Optional[str] = None
 
     @field_validator("server_identity_hash")
     def _validate_server_identity_hash(cls, value: str) -> str:
@@ -58,6 +59,28 @@ class NorthAPIClientSettings(BaseModel):
             return None
         cleaned = str(value).strip()
         return cleaned or None
+
+    @field_validator("shared_instance_rpc_key", mode="before")
+    def _validate_shared_instance_rpc_key(
+        cls, value: Optional[str]
+    ) -> Optional[str]:
+        """Normalise and validate optional RPC key overrides."""
+
+        if value is None:
+            return None
+
+        cleaned = str(value).strip()
+        if not cleaned:
+            return None
+
+        try:
+            bytes.fromhex(cleaned)
+        except ValueError as exc:
+            raise ValueError(
+                "shared_instance_rpc_key must be a hexadecimal string"
+            ) from exc
+
+        return cleaned.lower()
 
 
 def _load_config_from_json(raw_json: str) -> Dict[str, Any]:

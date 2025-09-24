@@ -52,6 +52,7 @@ def test_load_config_from_environment_json(monkeypatch):
         "request_timeout_seconds": 42.0,
         "lxmf_config_path": "/tmp/config.cfg",
         "lxmf_storage_path": "/tmp/storage",
+        "shared_instance_rpc_key": "A1B2C3D4",
     }
     monkeypatch.setenv("NORTH_API_CONFIG_JSON", json.dumps(config_data))
     monkeypatch.delenv("NORTH_API_CONFIG_PATH", raising=False)
@@ -63,6 +64,7 @@ def test_load_config_from_environment_json(monkeypatch):
     assert settings.request_timeout_seconds == config_data["request_timeout_seconds"]
     assert settings.lxmf_config_path == config_data["lxmf_config_path"]
     assert settings.lxmf_storage_path == config_data["lxmf_storage_path"]
+    assert settings.shared_instance_rpc_key == "a1b2c3d4"
 
 
 @pytest.mark.asyncio
@@ -75,6 +77,7 @@ async def test_register_client_events_lifecycle(monkeypatch):
         "request_timeout_seconds": 10.0,
         "lxmf_config_path": None,
         "lxmf_storage_path": None,
+        "shared_instance_rpc_key": "BEEF",
     }
     monkeypatch.setenv("NORTH_API_CONFIG_JSON", json.dumps(config_data))
     monkeypatch.delenv("NORTH_API_CONFIG_PATH", raising=False)
@@ -91,11 +94,13 @@ async def test_register_client_events_lifecycle(monkeypatch):
             storage_path=None,
             display_name=None,
             timeout=None,
+            shared_instance_rpc_key=None,
         ):
             self.config_path = config_path
             self.storage_path = storage_path
             self.display_name = display_name
             self.timeout = timeout
+            self.shared_instance_rpc_key = shared_instance_rpc_key
             self.stopped = False
             DummyClient.instance = self
 
@@ -114,6 +119,7 @@ async def test_register_client_events_lifecycle(monkeypatch):
     assert isinstance(client, DummyClient)
     assert client.display_name == config_data["client_display_name"]
     assert client.timeout == config_data["request_timeout_seconds"]
+    assert client.shared_instance_rpc_key == "beef"
 
     for handler in app.router.on_shutdown:
         await handler()
