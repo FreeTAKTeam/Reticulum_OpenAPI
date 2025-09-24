@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import importlib
 import json
+import zlib
 from typing import List
 from unittest.mock import AsyncMock
 
@@ -229,6 +230,22 @@ def test_delete_event_sends_identifier_string(gateway_app) -> None:
     assert args[0] == SERVER_IDENTITY
     assert args[1] == module.COMMAND_DELETE_EVENT
     assert args[2] == "21"
+
+
+def test_list_events_decodes_compressed_json(gateway_app) -> None:
+    """Compressed JSON responses should be decompressed and parsed."""
+
+    _module, client, stub = gateway_app
+    payload = {"items": [{"uid": 1, "point": {"lat": 12.5}}]}
+    stub.send_command.return_value = zlib.compress(json.dumps(payload).encode("utf-8"))
+
+    response = client.get(
+        "/events",
+        params={"server_identity": SERVER_IDENTITY},
+    )
+
+    assert response.status_code == 200
+    assert response.json() == payload
 
 
 def test_cors_preflight_allows_custom_headers(gateway_app) -> None:
