@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import fields, is_dataclass
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional, Type, TypeVar, Union, get_args, get_origin
+from typing import Any, Awaitable, Callable, Dict, List, Optional, Type, TypeVar, Union, get_args, get_origin
 
 from importlib import metadata
 
@@ -27,6 +27,10 @@ from examples.EmergencyManagement.client.client_emergency import (
     load_client_config,
     read_server_identity_from_config,
 )
+from reticulum_openapi.api.notifications import (
+    attach_client_notifications,
+    router as notifications_router,
+)
 from reticulum_openapi.codec_msgpack import from_bytes
 
 
@@ -47,6 +51,7 @@ ConfigDict = Dict[str, Any]
 T = TypeVar("T")
 
 app = FastAPI(title="Emergency Management Gateway")
+app.include_router(notifications_router)
 
 
 def _resolve_gateway_version() -> str:
@@ -64,6 +69,7 @@ _DEFAULT_SERVER_IDENTITY: Optional[str] = read_server_identity_from_config(
 _CLIENT_INSTANCE: Optional[LXMFClient] = None
 _GATEWAY_VERSION: str = _resolve_gateway_version()
 _START_TIME: datetime = datetime.now(timezone.utc)
+_NOTIFICATION_UNSUBSCRIBER: Optional[Callable[[], Awaitable[None]]] = None
 
 
 def _normalise_optional_path(value: Optional[str]) -> Optional[str]:
@@ -137,7 +143,24 @@ def _format_uptime(uptime_seconds: float) -> str:
 async def _startup() -> None:
     """Ensure the LXMF client is ready before serving requests."""
 
-    get_shared_client()
+    client = get_shared_client()
+    global _NOTIFICATION_UNSUBSCRIBER
+    if _NOTIFICATION_UNSUBSCRIBER is None and hasattr(
+        client, "add_notification_listener"
+    ):
+        _NOTIFICATION_UNSUBSCRIBER = await attach_client_notifications(client)
+
+
+@app.on_event("shutdown")
+async def _shutdown() -> None:
+    """Tear down the notification bridge on application shutdown."""
+
+    global _NOTIFICATION_UNSUBSCRIBER
+    if _NOTIFICATION_UNSUBSCRIBER is None:
+        return
+    unsubscribe = _NOTIFICATION_UNSUBSCRIBER
+    _NOTIFICATION_UNSUBSCRIBER = None
+    await unsubscribe()
 
 
 def _convert_value(expected_type: Type[Any], value: Any) -> Any:
