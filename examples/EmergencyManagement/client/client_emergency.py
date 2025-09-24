@@ -163,21 +163,6 @@ async def main():
 
     _ensure_project_root_on_path()
 
-
-    if any(
-        item is None
-        for item in (
-            LXMFClient,
-            create_emergency_action_message,
-            retrieve_emergency_action_message,
-            EmergencyActionMessage,
-            EAMStatus,
-        )
-    ):
-        raise ImportError(
-            "Emergency Management client dependencies were not loaded correctly."
-        )
-
     from examples.EmergencyManagement.client.client import (
         LXMFClient,
         create_emergency_action_message,
