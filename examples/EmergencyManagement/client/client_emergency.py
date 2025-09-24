@@ -1,5 +1,4 @@
 import asyncio
-import json
 import signal
 import sys
 from contextlib import suppress
@@ -72,7 +71,7 @@ _ensure_project_root_on_path()
 
 
 try:
-    from examples.EmergencyManagement.client.client import LXMFClient
+    from examples.EmergencyManagement.client.client import LXMFClient as _BaseLXMFClient
     from examples.EmergencyManagement.client.client import (
         create_emergency_action_message,
     )
@@ -84,12 +83,14 @@ try:
     )
     from examples.EmergencyManagement.Server.models_emergency import EAMStatus
 except ImportError:  # pragma: no cover
-    LXMFClient = None
+    _BaseLXMFClient = None
     create_emergency_action_message = None
     retrieve_emergency_action_message = None
     EmergencyActionMessage = None
     EAMStatus = None
 
+
+LXMFClient = _BaseLXMFClient
 
 __all__ = [
     "LXMFClient",
@@ -146,25 +147,12 @@ async def _wait_until_interrupted(
 
 
 def load_client_config(config_path: Optional[Path] = None) -> dict:
-    """Return configuration data from JSON or an empty dict when unavailable."""
+    """Load configuration data using :class:`LXMFClient` helpers."""
 
     target_path = config_path or CONFIG_PATH
-    if not target_path.exists():
+    if _BaseLXMFClient is None:
         return {}
-    try:
-        contents = target_path.read_text(encoding="utf-8")
-    except OSError as exc:
-        print(f"Unable to read configuration from {target_path}: {exc}")
-        return {}
-    try:
-        data = json.loads(contents)
-    except json.JSONDecodeError as exc:
-        print(f"Invalid JSON in {target_path}: {exc}")
-        return {}
-    if not isinstance(data, dict):
-        print(f"Configuration in {target_path} must be a JSON object.")
-        return {}
-    return data
+    return _BaseLXMFClient.load_client_config(target_path, error_handler=print)
 
 
 def read_server_identity_from_config(
@@ -176,12 +164,13 @@ def read_server_identity_from_config(
     target_path = config_path or CONFIG_PATH
     if data is None:
         data = load_client_config(target_path)
-    if not isinstance(data, dict):
+    if _BaseLXMFClient is None:
         return None
-    value = data.get(SERVER_IDENTITY_KEY)
-    if isinstance(value, str) and value.strip():
-        return value.strip()
-    return None
+    return _BaseLXMFClient.read_server_identity_from_config(
+        target_path,
+        data,
+        key=SERVER_IDENTITY_KEY,
+    )
 
 
 async def main():

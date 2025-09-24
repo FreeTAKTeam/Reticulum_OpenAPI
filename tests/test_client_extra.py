@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 from types import SimpleNamespace
 from unittest.mock import Mock
 
@@ -254,3 +255,58 @@ async def test_listen_for_announces_prints(monkeypatch):
     assert output
     assert "<aabb>" in output[0]
     assert "<0102>" in output[0]
+
+
+@pytest.mark.asyncio
+async def test_wait_for_server_announce_filters_events(monkeypatch):
+    register_calls = _patch_dependencies(monkeypatch)
+    client = client_module.LXMFClient()
+    handler = register_calls["handler"]
+
+    async def _produce_events() -> None:
+        await asyncio.sleep(0)
+        handler.received_announce(b"\x00\x01", SimpleNamespace(hash=b"a"), b"\x01")
+        handler.received_announce(b"\x00\x02", SimpleNamespace(hash=b"b"), b"match")
+
+    producer = asyncio.create_task(_produce_events())
+    try:
+        event = await client.wait_for_server_announce(
+            predicate=lambda data: data.get("app_data") == b"match",
+            timeout=0.5,
+        )
+    finally:
+        producer.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await producer
+
+    assert event["destination_hash"] == b"\x00\x02"
+
+
+@pytest.mark.asyncio
+async def test_wait_for_server_announce_timeout(monkeypatch):
+    _patch_dependencies(monkeypatch)
+    client = client_module.LXMFClient()
+
+    with pytest.raises(TimeoutError):
+        await client.wait_for_server_announce(timeout=0.05)
+
+
+@pytest.mark.asyncio
+async def test_discover_server_identity_returns_hex(monkeypatch):
+    register_calls = _patch_dependencies(monkeypatch)
+    client = client_module.LXMFClient()
+    handler = register_calls["handler"]
+
+    async def _announce() -> None:
+        await asyncio.sleep(0)
+        handler.received_announce(b"\x10\x20", SimpleNamespace(hash=b"c"), None)
+
+    announcer = asyncio.create_task(_announce())
+    try:
+        result = await client.discover_server_identity(timeout=0.5)
+    finally:
+        announcer.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await announcer
+
+    assert result == "1020"
