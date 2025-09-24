@@ -56,6 +56,9 @@ DEFAULT_TIMEOUT_SECONDS = 30.0
 
 GENERATE_TEST_MESSAGES_KEY = "generate_test_messages"
 TEST_MESSAGE_COUNT = 5
+TEST_MESSAGE_COUNT_KEY = "test_message_count"
+TEST_EVENT_COUNT = 5
+TEST_EVENT_COUNT_KEY = "test_event_count"
 EXAMPLE_IDENTITY_HASH = "761dfb354cfe5a3c9d8f5c4465b6c7f5"
 DEFAULT_CONFIG_DIRECTORY = Path(__file__).resolve().parent / ".reticulum_client"
 DEFAULT_STORAGE_DIRECTORY = DEFAULT_CONFIG_DIRECTORY / "storage"
@@ -173,6 +176,29 @@ def read_server_identity_from_config(
     )
 
 
+def _coerce_positive_int(value, default: int) -> int:
+    """Return ``value`` as a positive integer when possible."""
+
+    if isinstance(value, bool):
+        return default
+    if isinstance(value, (int, float)):
+        candidate = int(value)
+        if candidate > 0:
+            return candidate
+        return default
+    if isinstance(value, str):
+        stripped = value.strip()
+        if not stripped:
+            return default
+        try:
+            candidate = int(stripped)
+        except ValueError:
+            return default
+        if candidate > 0:
+            return candidate
+    return default
+
+
 async def main():
     """Send and retrieve an emergency action message.
 
@@ -193,6 +219,7 @@ async def main():
         generate_random_eam,
         seed_test_messages,
     )
+    from examples.EmergencyManagement.client.event_test import RandomEventSeeder
 
     from reticulum_openapi.identity import load_or_create_identity
 
@@ -269,13 +296,31 @@ async def main():
         if server_id is None:
             server_id = await _prompt_for_server_identity()
 
+        message_count_setting = config_data.get(TEST_MESSAGE_COUNT_KEY)
+        event_count_setting = config_data.get(TEST_EVENT_COUNT_KEY)
+        message_count = _coerce_positive_int(
+            message_count_setting,
+            TEST_MESSAGE_COUNT,
+        )
+        event_count = _coerce_positive_int(
+            event_count_setting,
+            TEST_EVENT_COUNT,
+        )
+
         if generate_test_data:
             print("Generating test emergency messages...")
             await seed_test_messages(
                 client,
                 server_id,
-                count=TEST_MESSAGE_COUNT,
+                count=message_count,
             )
+            print("Generating test events...")
+            event_seeder = RandomEventSeeder(
+                client,
+                server_id,
+                count=event_count,
+            )
+            await event_seeder.seed()
 
         eam = generate_random_eam()
         try:
