@@ -1,17 +1,21 @@
-import { createBrowserRouter } from 'react-router-dom';
+import { Navigate, createBrowserRouter } from 'react-router-dom';
 
 import { Layout } from '../components/layout/Layout';
 import { DashboardPage } from '../pages/DashboardPage';
 import { EmergencyActionMessagesPage } from '../pages/EmergencyActionMessages/EmergencyActionMessagesPage';
 import { EventsPage } from '../pages/Events/EventsPage';
 
-export const router = createBrowserRouter([
+export const routes = [
   {
     path: '/',
     element: <Layout />,
     children: [
       {
         index: true,
+        element: <Navigate to="messages" replace />,
+      },
+      {
+        path: 'dashboard',
         element: <DashboardPage />,
       },
       {
@@ -24,4 +28,6 @@ export const router = createBrowserRouter([
       },
     ],
   },
-]);
+];
+
+export const router = createBrowserRouter(routes);
