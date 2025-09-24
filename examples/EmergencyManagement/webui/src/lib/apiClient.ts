@@ -27,10 +27,14 @@ export interface EventPoint {
   hae?: number | null;
 }
 
+export interface EventDetail {
+  emergencyActionMessage?: EmergencyActionMessage | null;
+}
+
 export interface EventRecord {
   uid: number;
   type?: string | null;
-  detail?: string | null;
+  detail?: EventDetail | null;
   how?: string | null;
   start?: string | null;
   stale?: string | null;
@@ -63,7 +67,7 @@ export function getLiveUpdatesUrl(): string {
     }
     return `${apiBaseUrl.replace(/\/$/, '')}${updatesUrl.startsWith('/') ? '' : '/'}${updatesUrl}`;
   }
-  return `${apiBaseUrl.replace(/\/$/, '')}/stream`;
+  return `${apiBaseUrl.replace(/\/$/, '')}/notifications/stream`;
 }
 
 export const apiClient = axios.create({

@@ -70,7 +70,7 @@
 
 ## 2025-09-24
 - [x] Add datetime pickers and access dropdown to the EmergencyManagement event form.
-
-## 2025-09-28
+- [x] Update EmergencyManagement live updates fallback to `/notifications/stream` and align documentation/tests.
+- [x] Align EmergencyManagement event detail flows with structured emergency action messages in the web UI and gateway. (2025-09-24)
 - [x] Stream EmergencyService notifications to FastAPI subscribers via SSE.
 
