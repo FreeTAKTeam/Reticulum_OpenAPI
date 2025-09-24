@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 
-import { apiClient } from '../lib/apiClient';
+import { apiClient, extractApiErrorMessage } from '../lib/apiClient';
 
 interface GatewayInfo {
   version: string;
@@ -14,14 +14,18 @@ export function DashboardPage(): JSX.Element {
   useEffect(() => {
     let isMounted = true;
     async function loadInfo(): Promise<void> {
+      if (isMounted) {
+        setError(null);
+      }
       try {
         const response = await apiClient.get<GatewayInfo>('/');
         if (isMounted) {
           setGatewayInfo(response.data);
+          setError(null);
         }
       } catch (err) {
         if (isMounted) {
-          setError('Unable to reach gateway');
+          setError(extractApiErrorMessage(err));
         }
       }
     }
