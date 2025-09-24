@@ -90,3 +90,6 @@
 ## 2025-09-29
 - [x] Refresh EmergencyManagement web UI with dark styling and navigation/status icons inspired by mission dashboard designs.
 
+## 2025-09-30
+- [x] Enable LXMF service link support and extend automated coverage.
+

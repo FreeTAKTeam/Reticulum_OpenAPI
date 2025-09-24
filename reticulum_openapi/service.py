@@ -6,6 +6,7 @@ import zlib
 from dataclasses import asdict
 from dataclasses import is_dataclass
 from typing import Any
+from typing import Awaitable
 from typing import Callable
 from typing import Dict
 from typing import Optional
@@ -95,6 +96,9 @@ class LXMFService:
         announce_aspect: str = "lxmf_service",
         announce_direction: Optional[int] = None,
         announce_destination_type: Optional[int] = None,
+        enable_links: bool = True,
+        link_handler: Optional[Callable[[RNS.Link], Awaitable[Any]]] = None,
+        link_keepalive_interval: float = RNS.Link.KEEPALIVE,
     ):
         """
         Initialize the LXMF Service dispatcher.
@@ -145,18 +149,96 @@ class LXMFService:
             destination_type=destination_type,
         )
         self.destination = self.announcer.destination
+        self._loop = asyncio.get_event_loop()
         # Routing table: command -> (handler_coroutine, payload_type)
         self._routes: Dict[str, (Callable, Optional[Type], Optional[dict])] = {}
-        self._loop = asyncio.get_event_loop()
         self._start_task: Optional[asyncio.Task] = None
         self.auth_token = auth_token
         self.max_payload_size = max_payload_size
+        self._links_enabled = enable_links
+        self._link_handler = link_handler
+        self._link_keepalive_interval = link_keepalive_interval
+        self._active_links: Dict[bytes, RNS.Link] = {}
+        self._link_keepalive_tasks: Dict[bytes, asyncio.Task] = {}
+        self.link_destination: Optional[RNS.Destination] = None
+        if self._links_enabled:
+            self._initialise_link_destination()
         logger.info(
             "LXMFService initialized (Identity hash: %s)",
             RNS.prettyhexrep(self.source_identity.hash),
         )
         # register built in route for schema discovery
         self.add_route("GetSchema", self._handle_get_schema)
+
+    def _initialise_link_destination(self) -> None:
+        """Create a link-capable destination for the service identity."""
+
+        destination = RNS.Destination(
+            self.identity,
+            RNS.Destination.IN,
+            RNS.Destination.SINGLE,
+            "openapi",
+            "link",
+        )
+        accepts_links_attr = getattr(destination, "accepts_links", None)
+        if callable(accepts_links_attr):
+            accepts_links_attr(True)
+        else:
+            setattr(destination, "accepts_links", True)
+        destination.set_link_established_callback(self._link_established)
+        self.link_destination = destination
+
+    def set_link_handler(
+        self, handler: Optional[Callable[[RNS.Link], Awaitable[Any]]]
+    ) -> None:
+        """Register the coroutine executed when an ``RNS.Link`` is established."""
+
+        self._link_handler = handler
+
+    def _link_established(self, link: RNS.Link) -> None:
+        """Handle a newly established link from a remote node."""
+
+        self._active_links[link.link_id] = link
+
+        if hasattr(link, "set_link_closed_callback"):
+            link.set_link_closed_callback(self._link_closed)
+
+        if self._link_handler is not None:
+            def _schedule_handler() -> None:
+                asyncio.create_task(self._link_handler(link))
+
+            self._loop.call_soon_threadsafe(_schedule_handler)
+
+        if self._link_keepalive_interval and self._link_keepalive_interval > 0:
+            def _start_keepalive() -> None:
+                task = asyncio.create_task(self._link_keepalive(link))
+                self._link_keepalive_tasks[link.link_id] = task
+
+            self._loop.call_soon_threadsafe(_start_keepalive)
+
+    def _link_closed(self, link: RNS.Link) -> None:
+        """Cleanup when a link is closed by either party."""
+
+        def _cleanup() -> None:
+            self._active_links.pop(link.link_id, None)
+            task = self._link_keepalive_tasks.pop(link.link_id, None)
+            if task is not None:
+                task.cancel()
+
+        self._loop.call_soon_threadsafe(_cleanup)
+
+    async def _link_keepalive(self, link: RNS.Link) -> None:
+        """Periodically send keep-alive packets for an active link."""
+
+        try:
+            while link.link_id in self._active_links:
+                await asyncio.sleep(self._link_keepalive_interval)
+                try:
+                    link.send_keepalive()
+                except Exception:
+                    logger.debug("Failed to send keepalive on link %r", link.link_id)
+        except asyncio.CancelledError:
+            return
 
     def add_route(
         self,
@@ -519,6 +601,16 @@ class LXMFService:
             )
         except Exception as exc:
             logger.exception("Announcement failed: %s", exc)
+        link_destination = getattr(self, "link_destination", None)
+        if link_destination is not None:
+            try:
+                link_destination.announce()
+                logger.info(
+                    "Link destination announced: %s",
+                    RNS.prettyhexrep(link_destination.hash),
+                )
+            except Exception as exc:  # pragma: no cover - defensive logging path
+                logger.warning("Link announcement failed: %s", exc)
 
     async def start(self):
         """Run the service until cancelled."""
@@ -544,6 +636,8 @@ class LXMFService:
         else:
             # If start wasn't called yet, ensure router cleanup
             self.router.exit_handler()
+        if getattr(self, "_links_enabled", False):
+            await self._shutdown_links()
 
     async def __aenter__(self):
         """Start the service when entering an async context."""
@@ -557,3 +651,21 @@ class LXMFService:
         # Ensure the background task has completed
         if hasattr(self, "_context_task"):
             await self._context_task
+
+    async def _shutdown_links(self) -> None:
+        """Close any active links and cancel keep-alive tasks."""
+
+        active_links = getattr(self, "_active_links", {})
+        for link in list(active_links.values()):
+            try:
+                link.close()
+            except Exception:
+                pass
+        active_links.clear()
+        keepalive_tasks = getattr(self, "_link_keepalive_tasks", {})
+        tasks = list(keepalive_tasks.values())
+        keepalive_tasks.clear()
+        for task in tasks:
+            task.cancel()
+        if tasks:
+            await asyncio.gather(*tasks, return_exceptions=True)
