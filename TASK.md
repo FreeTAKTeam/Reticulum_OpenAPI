@@ -86,3 +86,6 @@
 ## 2025-09-28
 - [x] Ensure EmergencyManagement FastAPI gateway decodes compressed responses when relaying server commands.
 
+## 2025-09-29
+- [x] Refresh EmergencyManagement web UI with dark styling and navigation/status icons inspired by mission dashboard designs.
+
