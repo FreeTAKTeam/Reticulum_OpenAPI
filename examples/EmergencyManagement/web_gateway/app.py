@@ -57,6 +57,7 @@ def _resolve_gateway_version() -> str:
     except metadata.PackageNotFoundError:
         return "0.1.0-dev"
 
+
 _CONFIG_DATA: ConfigDict = load_client_config(CONFIG_PATH)
 _DEFAULT_SERVER_IDENTITY: Optional[str] = read_server_identity_from_config(
     CONFIG_PATH, _CONFIG_DATA

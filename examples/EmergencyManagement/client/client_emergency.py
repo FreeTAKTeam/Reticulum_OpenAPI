@@ -1,3 +1,6 @@
+import asyncio
+import json
+from pathlib import Path
 import sys
 from typing import Optional
 
@@ -31,30 +34,17 @@ def _ensure_standard_library_on_path() -> None:
                     sys.path.append(candidate)
 
 
+def _ensure_project_root_on_path() -> None:
+    """Allow running the example as a script from the client directory."""
+
+    if __package__ in (None, ""):
+        project_root = Path(__file__).resolve().parents[3]
+        project_root_str = str(project_root)
+        if project_root_str not in sys.path:
+            sys.path.insert(0, project_root_str)
+
+
 _ensure_standard_library_on_path()
-
-import asyncio
-import json
-from pathlib import Path
-
-# Reason: Allow running the example from the client directory by ensuring
-# the project root is on sys.path so that absolute imports resolve.
-if __package__ is None or __package__ == "":
-    project_root = Path(__file__).resolve().parents[3]
-    project_root_str = str(project_root)
-    if project_root_str not in sys.path:
-        sys.path.insert(0, project_root_str)
-
-from examples.EmergencyManagement.client.client import (
-    LXMFClient,
-    create_emergency_action_message,
-    retrieve_emergency_action_message,
-)
-from examples.EmergencyManagement.Server.models_emergency import (
-    EmergencyActionMessage,
-    EAMStatus,
-)
-from reticulum_openapi.identity import load_or_create_identity
 
 
 CONFIG_FILENAME = "client_config.json"
@@ -134,6 +124,19 @@ async def main():
     Responses from the server are decoded from MessagePack into dataclasses
     before printing.
     """
+
+    _ensure_project_root_on_path()
+
+    from examples.EmergencyManagement.client.client import (
+        LXMFClient,
+        create_emergency_action_message,
+        retrieve_emergency_action_message,
+    )
+    from examples.EmergencyManagement.Server.models_emergency import (
+        EmergencyActionMessage,
+        EAMStatus,
+    )
+    from reticulum_openapi.identity import load_or_create_identity
 
     config_data = load_client_config()
     config_path_value = config_data.get(LXMF_CONFIG_PATH_KEY)
