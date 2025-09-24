@@ -2,6 +2,8 @@ import { type FormEvent, useEffect, useMemo, useState } from 'react';
 
 import type { EventPoint, EventRecord } from '../../lib/apiClient';
 
+const DEFAULT_ACCESS_OPTIONS: string[] = ['', 'Public', 'Restricted', 'Confidential'];
+
 interface EventFormProps {
   initialValue?: EventRecord | null;
   onSubmit: (event: EventRecord) => void;
@@ -57,6 +59,35 @@ function normaliseString(value: string): string | null {
   return trimmed ? trimmed : null;
 }
 
+function formatDateTimeLocal(value: string | null | undefined): string {
+  if (!value) {
+    return '';
+  }
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return '';
+  }
+  const pad = (input: number) => input.toString().padStart(2, '0');
+  const year = parsed.getFullYear();
+  const month = pad(parsed.getMonth() + 1);
+  const day = pad(parsed.getDate());
+  const hours = pad(parsed.getHours());
+  const minutes = pad(parsed.getMinutes());
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
+}
+
+function normaliseDateTime(value: string): string | null {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return null;
+  }
+  const parsed = new Date(trimmed);
+  if (Number.isNaN(parsed.getTime())) {
+    return null;
+  }
+  return parsed.toISOString();
+}
+
 export function EventForm({
   initialValue,
   onSubmit,
@@ -72,8 +103,8 @@ export function EventForm({
       type: initialValue.type ?? '',
       detail: initialValue.detail ?? '',
       how: initialValue.how ?? '',
-      start: initialValue.start ?? '',
-      stale: initialValue.stale ?? '',
+      start: formatDateTimeLocal(initialValue.start),
+      stale: formatDateTimeLocal(initialValue.stale),
       access: initialValue.access ?? '',
       qos: initialValue.qos?.toString() ?? '',
       opex: initialValue.opex?.toString() ?? '',
@@ -93,8 +124,8 @@ export function EventForm({
       type: initialValue.type ?? '',
       detail: initialValue.detail ?? '',
       how: initialValue.how ?? '',
-      start: initialValue.start ?? '',
-      stale: initialValue.stale ?? '',
+      start: formatDateTimeLocal(initialValue.start),
+      stale: formatDateTimeLocal(initialValue.stale),
       access: initialValue.access ?? '',
       qos: initialValue.qos?.toString() ?? '',
       opex: initialValue.opex?.toString() ?? '',
@@ -105,6 +136,13 @@ export function EventForm({
   }, [initialValue]);
 
   const isEditing = useMemo(() => Boolean(initialValue), [initialValue]);
+  const accessOptions = useMemo(() => {
+    const unique = new Set<string>(DEFAULT_ACCESS_OPTIONS);
+    if (initialValue?.access) {
+      unique.add(initialValue.access);
+    }
+    return Array.from(unique);
+  }, [initialValue?.access]);
 
   function handleChange(field: keyof FormState, value: string): void {
     setState((current) => ({
@@ -138,8 +176,8 @@ export function EventForm({
       type: normaliseString(state.type),
       detail: normaliseString(state.detail),
       how: normaliseString(state.how),
-      start: normaliseString(state.start),
-      stale: normaliseString(state.stale),
+      start: normaliseDateTime(state.start),
+      stale: normaliseDateTime(state.stale),
       access: normaliseString(state.access),
       qos: normaliseNumber(state.qos),
       opex: normaliseNumber(state.opex),
@@ -216,31 +254,33 @@ export function EventForm({
         <label className="form-field">
           <span>Start</span>
           <input
-            type="text"
+            type="datetime-local"
             value={state.start}
             onChange={(event) => handleChange('start', event.target.value)}
-            placeholder="ISO timestamp"
           />
         </label>
 
         <label className="form-field">
           <span>Stale</span>
           <input
-            type="text"
+            type="datetime-local"
             value={state.stale}
             onChange={(event) => handleChange('stale', event.target.value)}
-            placeholder="Expiration timestamp"
           />
         </label>
 
         <label className="form-field">
           <span>Access</span>
-          <input
-            type="text"
+          <select
             value={state.access}
             onChange={(event) => handleChange('access', event.target.value)}
-            placeholder="Public, restricted…"
-          />
+          >
+            {accessOptions.map((option) => (
+              <option key={option || 'blank'} value={option}>
+                {option || 'Unspecified'}
+              </option>
+            ))}
+          </select>
         </label>
 
         <label className="form-field">

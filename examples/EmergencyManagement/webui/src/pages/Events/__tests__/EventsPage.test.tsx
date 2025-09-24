@@ -30,6 +30,14 @@ const createMock = vi.mocked(createEvent);
 const updateMock = vi.mocked(updateEvent);
 const deleteMock = vi.mocked(deleteEvent);
 
+function toLocalInput(value: string): string {
+  const parsed = new Date(value);
+  const pad = (input: number) => input.toString().padStart(2, '0');
+  return `${parsed.getFullYear()}-${pad(parsed.getMonth() + 1)}-${pad(parsed.getDate())}T${pad(parsed.getHours())}:${pad(
+    parsed.getMinutes(),
+  )}`;
+}
+
 function renderPage(): void {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
@@ -65,12 +73,24 @@ describe('EventsPage', () => {
     const user = userEvent.setup();
     await user.type(screen.getByLabelText('UID'), '2');
     await user.type(screen.getByLabelText('Type'), 'New');
+    await user.type(screen.getByLabelText('Start'), '2025-09-19T10:30');
+    await user.type(screen.getByLabelText('Stale'), '2025-09-20T11:00');
+    await user.selectOptions(screen.getByLabelText('Access'), 'Restricted');
     await user.click(screen.getByRole('button', { name: 'Create event' }));
 
     await waitFor(() => {
       expect(createMock).toHaveBeenCalledTimes(1);
     });
-    expect(createMock.mock.calls[0][0]).toEqual(expect.objectContaining({ uid: 2 }));
+    const expectedStart = new Date('2025-09-19T10:30').toISOString();
+    const expectedStale = new Date('2025-09-20T11:00').toISOString();
+    expect(createMock.mock.calls[0][0]).toEqual(
+      expect.objectContaining({
+        uid: 2,
+        start: expectedStart,
+        stale: expectedStale,
+        access: 'Restricted',
+      }),
+    );
     expect(screen.getAllByText('New').length).toBeGreaterThan(0);
 
     await user.click(screen.getAllByRole('button', { name: 'Edit' })[0]);
@@ -141,5 +161,26 @@ describe('EventsPage', () => {
       expect(listMock).toHaveBeenCalledTimes(2);
       expect(screen.getByText('Follow-up')).toBeInTheDocument();
     });
+  });
+
+  it('prefills date/time and access inputs when editing an event', async () => {
+    const startIso = '2025-05-01T09:15:00.000Z';
+    const staleIso = '2025-05-02T10:30:00.000Z';
+    listMock.mockResolvedValue([
+      { uid: 5, type: 'Drill', start: startIso, stale: staleIso, access: 'Public' },
+    ]);
+
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getByText('Drill')).toBeInTheDocument();
+    });
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Edit' }));
+
+    expect(screen.getByLabelText('Start')).toHaveValue(toLocalInput(startIso));
+    expect(screen.getByLabelText('Stale')).toHaveValue(toLocalInput(staleIso));
+    expect(screen.getByLabelText('Access')).toHaveValue('Public');
   });
 });
