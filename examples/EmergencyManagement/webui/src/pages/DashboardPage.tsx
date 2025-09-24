@@ -14,19 +14,23 @@ export function DashboardPage(): JSX.Element {
   useEffect(() => {
     let isMounted = true;
     async function loadInfo(): Promise<void> {
-      if (isMounted) {
-        setError(null);
+      if (!isMounted) {
+        return;
       }
+      setError(null);
       try {
         const response = await apiClient.get<GatewayInfo>('/');
-        if (isMounted) {
-          setGatewayInfo(response.data);
-          setError(null);
+        if (!isMounted) {
+          return;
         }
-      } catch (err) {
-        if (isMounted) {
-          setError(extractApiErrorMessage(err));
+        setGatewayInfo(response.data);
+        setError(null);
+      } catch (err: unknown) {
+        if (!isMounted) {
+          return;
         }
+        setGatewayInfo(null);
+        setError(extractApiErrorMessage(err));
       }
     }
 
