@@ -202,6 +202,26 @@ def test_delete_event_sends_identifier_string(gateway_app) -> None:
     assert args[2] == "21"
 
 
+def test_cors_preflight_allows_custom_headers(gateway_app) -> None:
+    """The gateway should allow browser preflight requests from the UI."""
+
+    _, client, _ = gateway_app
+
+    response = client.options(
+        "/emergency-action-messages",
+        headers={
+            "origin": "http://localhost:5173",
+            "access-control-request-method": "GET",
+            "access-control-request-headers": "x-server-identity",
+        },
+    )
+
+    assert response.status_code == 200
+    allow_origin = response.headers.get("access-control-allow-origin")
+    assert allow_origin in {"*", "http://localhost:5173"}
+    allow_headers = response.headers.get("access-control-allow-headers", "").lower()
+    assert "*" in allow_headers or "x-server-identity" in allow_headers
+
 def test_timeout_returns_gateway_timeout(gateway_app) -> None:
     """Transport timeouts are surfaced as HTTP 504 errors."""
 
