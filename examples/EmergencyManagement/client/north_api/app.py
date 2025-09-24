@@ -11,10 +11,12 @@ from .dependencies import ServerIdentityHash
 from .dependencies import get_lxmf_client
 from .dependencies import get_server_identity_hash
 from .dependencies import register_client_events
+from .routes_events import router as events_router
 
 
 app = FastAPI(title="Emergency Management North API Client")
 register_client_events(app)
+app.include_router(events_router)
 
 
 @app.get("/health")
