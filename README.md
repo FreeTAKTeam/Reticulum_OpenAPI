@@ -49,9 +49,25 @@ pip install -r requirements.txt
 
 ### Running the example server
 
+The Emergency Management example exposes both a Reticulum‑backed service and an HTTP
+gateway implemented with FastAPI. Start the Reticulum service first:
+
 ```bash
 python examples/EmergencyManagement/Server/server_emergency.py
 ```
+
+### Starting the HTTP gateway
+
+Launch the FastAPI gateway with `uvicorn` to serve the OpenAPI on
+`http://localhost:8000`:
+
+```bash
+uvicorn examples.EmergencyManagement.web_gateway.app:app --host 0.0.0.0 --port 8000 --reload
+```
+
+Once the server starts you should see a log message similar to `Uvicorn running on
+http://0.0.0.0:8000`. Visit `http://localhost:8000/docs` for the interactive API docs
+or `http://localhost:8000/` to confirm the health status payload.
 
 ### Running the example client
 
