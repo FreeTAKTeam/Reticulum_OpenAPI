@@ -54,6 +54,7 @@ from examples.EmergencyManagement.Server.models_emergency import (
     EmergencyActionMessage,
     EAMStatus,
 )
+from reticulum_openapi.identity import load_or_create_identity
 
 
 CONFIG_FILENAME = "client_config.json"
@@ -67,6 +68,10 @@ DEFAULT_TIMEOUT_SECONDS = 30.0
 EXAMPLE_IDENTITY_HASH = (
     "761dfb354cfe5a3c9d8f5c4465b6c7f5"
 )
+DEFAULT_CONFIG_DIRECTORY = (
+    Path(__file__).resolve().parent / ".reticulum_client"
+)
+DEFAULT_STORAGE_DIRECTORY = DEFAULT_CONFIG_DIRECTORY / "storage"
 PROMPT_MESSAGE = (
     "Server Identity Hash (32 hexadecimal characters, e.g. "
     f"{EXAMPLE_IDENTITY_HASH}): "
@@ -123,17 +128,35 @@ async def main():
     """
 
     config_data = load_client_config()
-    config_path_override = config_data.get(LXMF_CONFIG_PATH_KEY)
-    if isinstance(config_path_override, str):
-        config_path_override = config_path_override.strip() or None
+    config_path_value = config_data.get(LXMF_CONFIG_PATH_KEY)
+    if isinstance(config_path_value, str):
+        config_path_value = config_path_value.strip()
+    else:
+        config_path_value = ""
+    if config_path_value:
+        config_path_override = config_path_value
+        identity_config_path = config_path_value
     else:
         config_path_override = None
+        identity_config_path = str(DEFAULT_CONFIG_DIRECTORY)
 
-    storage_path_override = config_data.get(LXMF_STORAGE_PATH_KEY)
-    if isinstance(storage_path_override, str):
-        storage_path_override = storage_path_override.strip() or None
+    storage_path_value = config_data.get(LXMF_STORAGE_PATH_KEY)
+    if isinstance(storage_path_value, str):
+        storage_path_value = storage_path_value.strip()
     else:
-        storage_path_override = None
+        storage_path_value = ""
+    if storage_path_value:
+        storage_path_override = storage_path_value
+    else:
+        storage_path_override = str(DEFAULT_STORAGE_DIRECTORY)
+
+    identity_config_dir = Path(identity_config_path)
+    try:
+        identity_config_dir.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        pass
+
+    client_identity = load_or_create_identity(str(identity_config_dir))
 
     display_name = config_data.get(CLIENT_DISPLAY_NAME_KEY)
     if isinstance(display_name, str) and display_name.strip():
@@ -150,6 +173,7 @@ async def main():
     client = LXMFClient(
         config_path=config_path_override,
         storage_path=storage_path_override,
+        identity=client_identity,
         display_name=display_name,
         timeout=timeout_seconds,
     )
