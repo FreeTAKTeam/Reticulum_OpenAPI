@@ -58,11 +58,49 @@ describe('EventsPage', () => {
 
   it('supports creating and updating events', async () => {
     const initialEvents: EventRecord[] = [
-      { uid: 1, type: 'Initial', detail: 'Existing', how: 'Mesh' },
+      {
+        uid: 1,
+        type: 'Initial',
+        how: 'Mesh',
+        detail: {
+          emergencyActionMessage: {
+            callsign: 'Alpha',
+            groupName: 'Team One',
+            securityStatus: 'Yellow',
+            medicalStatus: 'Green',
+            commsMethod: 'Mesh',
+          },
+        },
+      },
     ];
     listMock.mockResolvedValue(initialEvents);
-    createMock.mockResolvedValue({ uid: 2, type: 'New', detail: 'Created' });
-    updateMock.mockResolvedValue({ uid: 1, type: 'Initial', detail: 'Updated', how: 'Mesh' });
+    createMock.mockResolvedValue({
+      uid: 2,
+      type: 'New',
+      detail: {
+        emergencyActionMessage: {
+          callsign: 'Bravo',
+          groupName: 'Rescue',
+          securityStatus: 'Green',
+          commsStatus: 'Yellow',
+          commsMethod: 'VHF',
+        },
+      },
+    });
+    updateMock.mockResolvedValue({
+      uid: 1,
+      type: 'Initial',
+      how: 'Mesh',
+      detail: {
+        emergencyActionMessage: {
+          callsign: 'Alpha',
+          groupName: 'Updated Team',
+          securityStatus: 'Red',
+          medicalStatus: 'Green',
+          commsMethod: 'Mesh',
+        },
+      },
+    });
 
     renderPage();
 
@@ -76,6 +114,12 @@ describe('EventsPage', () => {
     await user.type(screen.getByLabelText('Start'), '2025-09-19T10:30');
     await user.type(screen.getByLabelText('Stale'), '2025-09-20T11:00');
     await user.selectOptions(screen.getByLabelText('Access'), 'Restricted');
+    await user.click(screen.getByLabelText('Include emergency action message detail'));
+    await user.type(screen.getByLabelText('EAM Callsign'), 'Bravo');
+    await user.type(screen.getByLabelText('EAM Group name'), 'Rescue');
+    await user.selectOptions(screen.getByLabelText('Security status'), 'Green');
+    await user.selectOptions(screen.getByLabelText('Comms status'), 'Yellow');
+    await user.type(screen.getByLabelText('Comms method'), 'VHF');
     await user.click(screen.getByRole('button', { name: 'Create event' }));
 
     await waitFor(() => {
@@ -89,23 +133,47 @@ describe('EventsPage', () => {
         start: expectedStart,
         stale: expectedStale,
         access: 'Restricted',
+        detail: {
+          emergencyActionMessage: expect.objectContaining({
+            callsign: 'Bravo',
+            groupName: 'Rescue',
+            securityStatus: 'Green',
+            commsStatus: 'Yellow',
+            commsMethod: 'VHF',
+          }),
+        },
       }),
     );
-    expect(screen.getAllByText('New').length).toBeGreaterThan(0);
+    expect(await screen.findByText('Method: VHF')).toBeInTheDocument();
 
     await user.click(screen.getAllByRole('button', { name: 'Edit' })[0]);
-    const detailField = screen.getByLabelText('Detail');
-    await user.clear(detailField);
-    await user.type(detailField, 'Updated');
+    const callsignToggle = screen.getByLabelText('Include emergency action message detail');
+    expect(callsignToggle).toBeChecked();
+    const groupField = screen.getByLabelText('EAM Group name');
+    await user.clear(groupField);
+    await user.type(groupField, 'Updated Team');
+    await user.selectOptions(screen.getByLabelText('Security status'), 'Red');
     await user.click(screen.getByRole('button', { name: 'Save event' }));
 
     await waitFor(() => {
       expect(updateMock).toHaveBeenCalledTimes(1);
     });
     expect(updateMock.mock.calls[0][0]).toEqual(
-      expect.objectContaining({ uid: 1, detail: 'Updated' }),
+      expect.objectContaining({
+        uid: 1,
+        detail: {
+          emergencyActionMessage: expect.objectContaining({
+            callsign: 'Alpha',
+            groupName: 'Updated Team',
+            securityStatus: 'Red',
+            medicalStatus: 'Green',
+            commsMethod: 'Mesh',
+          }),
+        },
+      }),
     );
-    expect(screen.getAllByText('Updated').length).toBeGreaterThan(0);
+    expect(await screen.findByText(/Updated Team/)).toBeInTheDocument();
+    expect(await screen.findByText('Security: Red')).toBeInTheDocument();
   });
 
   it('validates UID input', async () => {
@@ -167,7 +235,21 @@ describe('EventsPage', () => {
     const startIso = '2025-05-01T09:15:00.000Z';
     const staleIso = '2025-05-02T10:30:00.000Z';
     listMock.mockResolvedValue([
-      { uid: 5, type: 'Drill', start: startIso, stale: staleIso, access: 'Public' },
+      {
+        uid: 5,
+        type: 'Drill',
+        start: startIso,
+        stale: staleIso,
+        access: 'Public',
+        detail: {
+          emergencyActionMessage: {
+            callsign: 'Delta',
+            groupName: 'Logistics',
+            securityStatus: 'Green',
+            commsMethod: 'HF',
+          },
+        },
+      },
     ]);
 
     renderPage();
@@ -182,5 +264,11 @@ describe('EventsPage', () => {
     expect(screen.getByLabelText('Start')).toHaveValue(toLocalInput(startIso));
     expect(screen.getByLabelText('Stale')).toHaveValue(toLocalInput(staleIso));
     expect(screen.getByLabelText('Access')).toHaveValue('Public');
+    const detailToggle = screen.getByLabelText('Include emergency action message detail');
+    expect(detailToggle).toBeChecked();
+    expect(screen.getByLabelText('EAM Callsign')).toHaveValue('Delta');
+    expect(screen.getByLabelText('EAM Group name')).toHaveValue('Logistics');
+    expect(screen.getByLabelText('Security status')).toHaveValue('Green');
+    expect(screen.getByLabelText('Comms method')).toHaveValue('HF');
   });
 });

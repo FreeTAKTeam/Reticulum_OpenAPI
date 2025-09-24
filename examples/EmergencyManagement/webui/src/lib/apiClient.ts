@@ -27,10 +27,14 @@ export interface EventPoint {
   hae?: number | null;
 }
 
+export interface EventDetail {
+  emergencyActionMessage?: EmergencyActionMessage | null;
+}
+
 export interface EventRecord {
   uid: number;
   type?: string | null;
-  detail?: string | null;
+  detail?: EventDetail | null;
   how?: string | null;
   start?: string | null;
   stale?: string | null;

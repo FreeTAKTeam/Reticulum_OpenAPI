@@ -1,4 +1,4 @@
-import type { EventRecord } from '../../lib/apiClient';
+import type { EAMStatus, EventRecord } from '../../lib/apiClient';
 
 export interface EventsTableProps {
   events: EventRecord[];
@@ -7,11 +7,52 @@ export interface EventsTableProps {
   onDelete: (event: EventRecord) => void;
 }
 
-function truncate(text: string | null | undefined, length = 60): string {
-  if (!text) {
-    return '—';
+interface StatusEntry {
+  label: string;
+  value: EAMStatus | null | undefined;
+}
+
+function isStatus(value: StatusEntry): value is { label: string; value: EAMStatus } {
+  return value.value === 'Green' || value.value === 'Yellow' || value.value === 'Red';
+}
+
+function renderDetail(detail: EventRecord['detail']): JSX.Element {
+  const message = detail?.emergencyActionMessage;
+  if (!message) {
+    return <span>—</span>;
   }
-  return text.length > length ? `${text.slice(0, length)}…` : text;
+
+  const statuses = (
+    [
+      { label: 'Security', value: message.securityStatus },
+      { label: 'Capability', value: message.securityCapability },
+      { label: 'Preparedness', value: message.preparednessStatus },
+      { label: 'Medical', value: message.medicalStatus },
+      { label: 'Mobility', value: message.mobilityStatus },
+      { label: 'Comms', value: message.commsStatus },
+    ] satisfies StatusEntry[]
+  ).filter(isStatus);
+
+  return (
+    <div className="events-detail">
+      <div className="events-detail__headline">
+        <span className="events-detail__callsign">{message.callsign}</span>
+        {message.groupName && <span className="events-detail__group">· {message.groupName}</span>}
+      </div>
+      {statuses.length > 0 && (
+        <div className="events-detail__statuses">
+          {statuses.map(({ label, value }) => (
+            <span key={label} className={`status-badge status-badge--${value.toLowerCase()}`}>
+              {`${label}: ${value}`}
+            </span>
+          ))}
+        </div>
+      )}
+      {message.commsMethod && (
+        <div className="events-detail__meta">Method: {message.commsMethod}</div>
+      )}
+    </div>
+  );
 }
 
 export function EventsTable({ events, isLoading, onEdit, onDelete }: EventsTableProps): JSX.Element {
@@ -44,7 +85,7 @@ export function EventsTable({ events, isLoading, onEdit, onDelete }: EventsTable
                 <tr key={event.uid}>
                   <td>{event.uid}</td>
                   <td>{event.type ?? '—'}</td>
-                  <td>{truncate(event.detail)}</td>
+                  <td>{renderDetail(event.detail)}</td>
                   <td>{event.start ?? '—'}</td>
                   <td>{event.how ?? '—'}</td>
                   <td>
