@@ -29,6 +29,7 @@ from examples.EmergencyManagement.client.client_emergency import (
     LXMF_CONFIG_PATH_KEY,
     LXMF_STORAGE_PATH_KEY,
     REQUEST_TIMEOUT_KEY,
+    SHARED_INSTANCE_RPC_KEY,
     load_client_config,
     read_server_identity_from_config,
 )
@@ -154,6 +155,15 @@ def _normalise_optional_path(value: Optional[str]) -> Optional[str]:
     return None
 
 
+def _normalise_optional_hex(value: Optional[str]) -> Optional[str]:
+    """Return a stripped hexadecimal string or ``None`` when empty."""
+
+    if isinstance(value, str):
+        cleaned = value.strip()
+        return cleaned or None
+    return None
+
+
 def _resolve_timeout(config: ConfigDict) -> float:
     """Return the timeout value configured for the client."""
 
@@ -181,6 +191,9 @@ def _create_client_from_config() -> LXMFClient:
     storage_path_override = _normalise_optional_path(
         _CONFIG_DATA.get(LXMF_STORAGE_PATH_KEY)
     )
+    rpc_key_override = _normalise_optional_hex(
+        _CONFIG_DATA.get(SHARED_INSTANCE_RPC_KEY)
+    )
     timeout_seconds = _resolve_timeout(_CONFIG_DATA)
     display_name = _resolve_display_name(_CONFIG_DATA)
 
@@ -189,6 +202,7 @@ def _create_client_from_config() -> LXMFClient:
         storage_path=storage_path_override,
         display_name=display_name,
         timeout=timeout_seconds,
+        shared_instance_rpc_key=rpc_key_override,
     )
     client.announce()
     return client

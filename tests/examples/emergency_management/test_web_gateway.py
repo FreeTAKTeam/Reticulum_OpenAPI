@@ -47,6 +47,8 @@ def gateway_app(monkeypatch):
         def __init__(self, *args, **kwargs) -> None:
             self.send_command: AsyncMock = AsyncMock()
             self.announce_called = False
+            self.kwargs = kwargs
+            self.shared_instance_rpc_key = kwargs.get("shared_instance_rpc_key")
             created_clients.append(self)
 
         def announce(self) -> None:
@@ -59,6 +61,9 @@ def gateway_app(monkeypatch):
             raise AssertionError("LXMF client was not created on startup")
         stub = created_clients[0]
         stub.send_command.reset_mock()
+        assert stub.shared_instance_rpc_key == module._CONFIG_DATA.get(
+            "shared_instance_rpc_key"
+        )
         yield module, client, stub
 
     module._CLIENT_INSTANCE = None
@@ -72,6 +77,7 @@ def test_default_identity_uses_json_config(monkeypatch) -> None:
             "server_identity_hash": SERVER_IDENTITY,
             "client_display_name": "JsonConfiguredClient",
             "request_timeout_seconds": 12,
+            "shared_instance_rpc_key": "C0FFEE",
         }
     )
     monkeypatch.setenv("NORTH_API_CONFIG_JSON", config_json)
@@ -84,6 +90,7 @@ def test_default_identity_uses_json_config(monkeypatch) -> None:
     assert module._DEFAULT_SERVER_IDENTITY == SERVER_IDENTITY
     assert module._CONFIG_DATA["client_display_name"] == "JsonConfiguredClient"
     assert module._CONFIG_DATA["request_timeout_seconds"] == 12
+    assert module._CONFIG_DATA["shared_instance_rpc_key"] == "C0FFEE"
 
     monkeypatch.delenv("NORTH_API_CONFIG_JSON", raising=False)
     importlib.reload(module)

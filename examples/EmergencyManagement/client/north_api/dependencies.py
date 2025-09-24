@@ -3,8 +3,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Annotated
-from typing import Optional
+from typing import Annotated, Optional
 
 from fastapi import Depends
 from fastapi import FastAPI
@@ -27,6 +26,7 @@ def _create_client(settings: NorthAPIClientSettings) -> LXMFClient:
         storage_path=settings.lxmf_storage_path,
         display_name=settings.client_display_name,
         timeout=settings.request_timeout_seconds,
+        shared_instance_rpc_key=settings.shared_instance_rpc_key,
     )
 
 
