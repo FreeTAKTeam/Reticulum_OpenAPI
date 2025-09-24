@@ -6,9 +6,9 @@ interface NavItem {
 }
 
 const NAV_LINKS: NavItem[] = [
-  { to: '/', label: 'Dashboard' },
   { to: '/messages', label: 'Emergency Action Messages' },
   { to: '/events', label: 'Events' },
+  { to: '/dashboard', label: 'Dashboard' },
 ];
 
 export function Sidebar(): JSX.Element {
@@ -22,7 +22,7 @@ export function Sidebar(): JSX.Element {
           <NavLink
             key={link.to}
             to={link.to}
-            end={link.to === '/'}
+            end={link.to === '/messages'}
             className={({ isActive }) =>
               `sidebar-link${isActive ? ' sidebar-link-active' : ''}`
             }
