@@ -13,7 +13,6 @@
     - `model.py` - manipulate data 
     - `service.py` - exposes the functionalities
 - **Use clear, consistent imports** (prefer relative imports within packages).
-- **Use clear, consistent imports** (prefer relative imports within packages).
 - **Use python_dotenv and load_env()** for environment variables.
 
 ### 🧪 Testing & Reliability
@@ -35,6 +34,8 @@
 - **Use Python** as the primary language.
 - do not use multiple imports on one line
 - **Follow PEP8**, use type hints, and format with `black`.
+- use flake8 s as a linter before submitting new code
+
 - **Use `pydantic` for data validation**.
 - Use `FastAPI` for APIs and `SQLAlchemy` or `SQLModel` for ORM if applicable.
 - Write **docstrings for every function** using the Google style:
