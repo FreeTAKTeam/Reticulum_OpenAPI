@@ -1,6 +1,6 @@
 {
-  "server_identity_hash": "",
-  "client_display_name": "EmergencyClient",
+  "server_identity_hash": "ab930a8d1c600650710c1a503d5880dc",
+  "client_display_name": "Emergency Management Client",
   "request_timeout_seconds": 30,
   "lxmf_config_path": null,
   "lxmf_storage_path": null
