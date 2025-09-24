@@ -7,8 +7,11 @@ from datetime import datetime, timezone
 from typing import Any, Awaitable, Callable, Dict, List, Optional, Type, TypeVar, Union, get_args, get_origin
 
 from importlib import metadata
+import os
 
+from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, status
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from examples.EmergencyManagement.Server.models_emergency import (
@@ -50,8 +53,38 @@ COMMAND_RETRIEVE_EVENT = "RetrieveEvent"
 ConfigDict = Dict[str, Any]
 T = TypeVar("T")
 
+load_dotenv()
+
 app = FastAPI(title="Emergency Management Gateway")
 app.include_router(notifications_router)
+
+
+def _parse_allowed_origins(raw_value: Optional[str]) -> List[str]:
+    """Return a list of allowed origins parsed from an environment variable."""
+
+    if not raw_value:
+        return []
+    origins = []
+    for candidate in raw_value.split(","):
+        cleaned = candidate.strip()
+        if cleaned:
+            origins.append(cleaned)
+    return origins
+
+
+_ALLOWED_ORIGINS: List[str] = _parse_allowed_origins(
+    os.getenv("EMERGENCY_GATEWAY_ALLOWED_ORIGINS")
+)
+if not _ALLOWED_ORIGINS:
+    _ALLOWED_ORIGINS = ["*"]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=_ALLOWED_ORIGINS,
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 def _resolve_gateway_version() -> str:
