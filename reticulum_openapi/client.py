@@ -92,6 +92,71 @@ class LXMFClient:
             Callable[[str, bytes], Awaitable[None] | None]
         ] = set()
         self._listener_lock = asyncio.Lock()
+        self._link_locks: Dict[bytes, asyncio.Lock] = {}
+        self._link_events: Dict[bytes, asyncio.Event] = {}
+        self._links: Dict[bytes, RNS.Link] = {}
+
+    def _get_link_lock(self, dest_hash: bytes) -> asyncio.Lock:
+        """Return a lock guarding link creation for ``dest_hash``."""
+
+        if dest_hash not in self._link_locks:
+            self._link_locks[dest_hash] = asyncio.Lock()
+        return self._link_locks[dest_hash]
+
+    def _build_link_destination(self, dest_identity: RNS.Identity) -> RNS.Destination:
+        """Construct the destination used for link sessions."""
+
+        return RNS.Destination(
+            dest_identity,
+            RNS.Destination.OUT,
+            RNS.Destination.SINGLE,
+            "openapi",
+            "link",
+        )
+
+    async def _ensure_link(
+        self, dest_hex: str, dest_hash: bytes, timeout: float
+    ) -> RNS.Link:
+        """Return an established link to the remote destination."""
+
+        link_lock = self._get_link_lock(dest_hash)
+        async with link_lock:
+            link = self._links.get(dest_hash)
+            event = self._link_events.get(dest_hash)
+            if link is None or event is None:
+                dest_identity = RNS.Identity.recall(dest_hash) or RNS.Identity.recall(
+                    dest_hash, create=True
+                )
+                destination = self._build_link_destination(dest_identity)
+                event = asyncio.Event()
+
+                def _on_established(new_link: RNS.Link) -> None:
+                    event.set()
+
+                def _on_closed(closed_link: RNS.Link) -> None:
+                    self._links.pop(dest_hash, None)
+                    self._link_events.pop(dest_hash, None)
+                    self._link_locks.pop(dest_hash, None)
+
+                link = RNS.Link(
+                    destination,
+                    established_callback=_on_established,
+                    closed_callback=_on_closed,
+                )
+                self._links[dest_hash] = link
+                self._link_events[dest_hash] = event
+            elif not event.is_set():
+                # Existing link still establishing; reuse the same event.
+                pass
+
+        event = self._link_events[dest_hash]
+        try:
+            await asyncio.wait_for(event.wait(), timeout=timeout)
+        except asyncio.TimeoutError as exc:
+            raise TimeoutError(
+                f"Link to {dest_hex} not established after {timeout} seconds"
+            ) from exc
+        return self._links[dest_hash]
 
     def announce(self) -> None:
         """Announce this client's identity on the Reticulum network."""
@@ -234,21 +299,8 @@ class LXMFClient:
         if path_timeout is None:
             path_timeout = self.timeout
 
-        if not RNS.Transport.has_path(dest_hash):
-            RNS.Transport.request_path(dest_hash)
-            deadline = (
-                None if path_timeout is None else self._loop.time() + path_timeout
-            )
-            while not RNS.Transport.has_path(dest_hash):
-                if deadline is not None and self._loop.time() >= deadline:
-                    raise TimeoutError(
-                        f"Path to {dest_hex} not available after {path_timeout} seconds"
-                    )
-                await asyncio.sleep(0.1)
+        link = await self._ensure_link(dest_hex, dest_hash, path_timeout)
 
-        dest_identity = RNS.Identity.recall(dest_hash) or RNS.Identity.recall(
-            dest_hash, create=True
-        )
         if payload_obj is None:
             content_bytes = b""
         elif isinstance(payload_obj, bytes):
@@ -265,31 +317,34 @@ class LXMFClient:
                 json_bytes = dataclass_to_json_bytes(data_dict)
                 content_bytes = compress_json(json_bytes)
 
-        lxmsg = LXMF.LXMessage(
-            RNS.Destination(
-                dest_identity,
-                RNS.Destination.OUT,
-                RNS.Destination.SINGLE,
-                "lxmf",
-                "delivery",
-            ),
-            self.source_identity,
-            content_bytes,
-            command,
-        )
-        future = None
+        request_path = f"/commands/{command}"
         if await_response:
-            response_title = response_title or f"{command}_response"
-            future = self._loop.create_future()
-            self._futures[response_title] = future
-        self.router.handle_outbound(lxmsg)
-        if future:
+            response_future: asyncio.Future[bytes] = self._loop.create_future()
+
+            def _response_callback(receipt: Any) -> None:
+                payload = getattr(receipt, "response", None)
+                if payload is None:
+                    payload = receipt
+                if not response_future.done():
+                    response_future.set_result(payload)
+
+            def _failed_callback(_receipt: Any) -> None:
+                if not response_future.done():
+                    response_future.set_exception(TimeoutError("No response received"))
+
+            link.request(
+                request_path,
+                data=content_bytes,
+                response_callback=_response_callback,
+                failed_callback=_failed_callback,
+                timeout=self.timeout,
+            )
             try:
-                resp = await asyncio.wait_for(future, timeout=self.timeout)
-                return resp
-            except asyncio.TimeoutError:
-                self._futures.pop(response_title, None)
-                raise TimeoutError("No response received")
+                return await asyncio.wait_for(response_future, timeout=self.timeout)
+            except asyncio.TimeoutError as exc:
+                raise TimeoutError("No response received") from exc
+
+        link.request(request_path, data=content_bytes, timeout=self.timeout)
         return None
 
     def listen_for_announces(

@@ -20,24 +20,12 @@ async def test_send_command_receives_response(monkeypatch):
     cli.router = SimpleNamespace(handle_outbound=lambda msg: None)
     cli.source_identity = object()
     cli._futures = {}
+    cli._link_locks = {}
+    cli._link_events = {}
+    cli._links = {}
     cli.auth_token = None
     cli.timeout = 0.2
 
-    path_state = {"ready": False}
-    path_requests = {"count": 0}
-
-    def fake_has_path(dest):
-        return path_state["ready"]
-
-    def fake_request_path(dest):
-        path_requests["count"] += 1
-
-    async def enable_path():
-        await asyncio.sleep(0.01)
-        path_state["ready"] = True
-
-    monkeypatch.setattr(client_module.RNS.Transport, "has_path", fake_has_path)
-    monkeypatch.setattr(client_module.RNS.Transport, "request_path", fake_request_path)
     monkeypatch.setattr(
         client_module.RNS.Identity, "recall", lambda h, create=False: object()
     )
@@ -51,27 +39,38 @@ async def test_send_command_receives_response(monkeypatch):
 
     monkeypatch.setattr(client_module.RNS, "Destination", FakeDestination)
 
-    class FakeLXMessage:
+    created_links = []
 
-        def __init__(self, dest, src, content, title):
-            self.dest = dest
-            self.src = src
-            self.content = content
-            self.title = title
+    class FakeLink:
+        def __init__(self, _dest, established_callback=None, closed_callback=None):
+            self.requests: list[tuple[str, bytes]] = []
+            self._response_callback = None
+            self._failed_callback = None
+            self.closed_callback = closed_callback
+            created_links.append(self)
+            if established_callback:
+                loop.call_soon(established_callback, self)
 
-    monkeypatch.setattr(client_module.LXMF, "LXMessage", FakeLXMessage)
+        def request(
+            self,
+            path,
+            data=None,
+            response_callback=None,
+            failed_callback=None,
+            timeout=None,
+        ):
+            self.requests.append((path, data))
+            if response_callback:
+                loop.call_soon(response_callback, SimpleNamespace(response=b"ok"))
 
-    async def run_cmd():
-        return await cli.send_command("aa", "CMD", Sample(text="hi"))
+    monkeypatch.setattr(client_module.RNS, "Link", FakeLink)
 
-    path_task = asyncio.create_task(enable_path())
-    task = asyncio.create_task(run_cmd())
-    await asyncio.sleep(0.2)
-    cli._callback(SimpleNamespace(title="CMD_response", content=b"ok"))
-    result = await task
-    await path_task
+    result = await cli.send_command("aa", "CMD", Sample(text="hi"))
     assert result == b"ok"
-    assert path_requests["count"] == 1
+    assert created_links
+    path, payload = created_links[0].requests[0]
+    assert path == "/commands/CMD"
+    assert isinstance(payload, bytes)
 
 
 @pytest.mark.asyncio
@@ -82,10 +81,12 @@ async def test_send_command_timeout(monkeypatch):
     cli.router = SimpleNamespace(handle_outbound=lambda msg: None)
     cli.source_identity = object()
     cli._futures = {}
+    cli._link_locks = {}
+    cli._link_events = {}
+    cli._links = {}
     cli.auth_token = None
     cli.timeout = 0.01
 
-    monkeypatch.setattr(client_module.RNS.Transport, "has_path", lambda dest: True)
     monkeypatch.setattr(
         client_module.RNS.Identity, "recall", lambda h, create=False: object()
     )
@@ -98,7 +99,24 @@ async def test_send_command_timeout(monkeypatch):
             pass
 
     monkeypatch.setattr(client_module.RNS, "Destination", FakeDestination)
-    monkeypatch.setattr(client_module.LXMF, "LXMessage", lambda *a, **k: None)
+
+    class FakeLink:
+        def __init__(self, _dest, established_callback=None, closed_callback=None):
+            if established_callback:
+                loop.call_soon(established_callback, self)
+
+        def request(
+            self,
+            path,
+            data=None,
+            response_callback=None,
+            failed_callback=None,
+            timeout=None,
+        ):
+            # Intentionally never invoke callbacks to trigger timeout
+            return None
+
+    monkeypatch.setattr(client_module.RNS, "Link", FakeLink)
 
     with pytest.raises(TimeoutError):
         await cli.send_command("aa", "CMD")
@@ -112,22 +130,46 @@ async def test_send_command_path_discovery_timeout(monkeypatch):
     cli.router = SimpleNamespace(handle_outbound=lambda msg: None)
     cli.source_identity = object()
     cli._futures = {}
+    cli._link_locks = {}
+    cli._link_events = {}
+    cli._links = {}
     cli.auth_token = None
     cli.timeout = 0.05
 
-    monkeypatch.setattr(client_module.RNS.Transport, "has_path", lambda dest: False)
-    request_calls = {"count": 0}
+    monkeypatch.setattr(
+        client_module.RNS.Identity, "recall", lambda h, create=False: object()
+    )
 
-    def fake_request_path(dest):
-        request_calls["count"] += 1
+    class FakeDestination:
+        OUT = object()
+        SINGLE = object()
 
-    monkeypatch.setattr(client_module.RNS.Transport, "request_path", fake_request_path)
+        def __init__(self, *a, **k):
+            pass
+
+    monkeypatch.setattr(client_module.RNS, "Destination", FakeDestination)
+
+    class FakeLink:
+        def __init__(self, _dest, established_callback=None, closed_callback=None):
+            # Never signal establishment to trigger timeout
+            self._closed_callback = closed_callback
+
+        def request(
+            self,
+            path,
+            data=None,
+            response_callback=None,
+            failed_callback=None,
+            timeout=None,
+        ):
+            return None
+
+    monkeypatch.setattr(client_module.RNS, "Link", FakeLink)
 
     with pytest.raises(TimeoutError) as exc:
         await cli.send_command("aa", "CMD", await_response=False)
 
-    assert "Path to aa" in str(exc.value)
-    assert request_calls["count"] == 1
+    assert "Link to aa" in str(exc.value)
 
 
 @pytest.mark.asyncio
@@ -138,10 +180,12 @@ async def test_send_command_includes_token(monkeypatch):
     cli.router = SimpleNamespace(handle_outbound=lambda msg: None)
     cli.source_identity = object()
     cli._futures = {}
+    cli._link_locks = {}
+    cli._link_events = {}
+    cli._links = {}
     cli.auth_token = "secret"
     cli.timeout = 0.2
 
-    monkeypatch.setattr(client_module.RNS.Transport, "has_path", lambda dest: True)
     monkeypatch.setattr(
         client_module.RNS.Identity, "recall", lambda h, create=False: object()
     )
@@ -157,15 +201,23 @@ async def test_send_command_includes_token(monkeypatch):
 
     captured = {}
 
-    class FakeLXMessage:
-        def __init__(self, dest, src, content, title):
-            captured["content"] = content
-            self.dest = dest
-            self.src = src
-            self.content = content
-            self.title = title
+    class FakeLink:
+        def __init__(self, _dest, established_callback=None, closed_callback=None):
+            captured["requests"] = []
+            if established_callback:
+                loop.call_soon(established_callback, self)
 
-    monkeypatch.setattr(client_module.LXMF, "LXMessage", FakeLXMessage)
+        def request(
+            self,
+            path,
+            data=None,
+            response_callback=None,
+            failed_callback=None,
+            timeout=None,
+        ):
+            captured["requests"].append((path, data))
+
+    monkeypatch.setattr(client_module.RNS, "Link", FakeLink)
 
     call_counter = {"count": 0}
 
@@ -182,10 +234,11 @@ async def test_send_command_includes_token(monkeypatch):
 
     await cli.send_command("aa", "CMD", Sample(text="hello"), await_response=False)
 
-    payload = msgpack_from_bytes(captured["content"])
-
-    assert payload.get("auth_token") == "secret"
-    assert payload.get("text") == "hello"
+    assert captured["requests"]
+    _, payload = captured["requests"][0]
+    decoded = msgpack_from_bytes(payload)
+    assert decoded.get("auth_token") == "secret"
+    assert decoded.get("text") == "hello"
     assert call_counter["count"] == 1
     assert captured["pre"]["auth_token"] == "secret"
 
