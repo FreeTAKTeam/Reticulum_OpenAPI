@@ -80,3 +80,6 @@
 ## 2025-09-26
 - [x] Document how to start the Emergency Management FastAPI gateway on http://localhost:8000 in the project README.
 
+## 2025-09-27
+- [x] Add random event seeding helper for the EmergencyManagement client CLI.
+
