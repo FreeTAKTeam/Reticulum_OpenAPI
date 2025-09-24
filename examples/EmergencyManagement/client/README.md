@@ -60,7 +60,7 @@ update stream:
 | Variable | Description |
 | --- | --- |
 | `VITE_API_BASE_URL` | Base URL of the FastAPI gateway. |
-| `VITE_UPDATES_URL` | Optional SSE endpoint. Defaults to `<base>/stream`. |
+| `VITE_UPDATES_URL` | Optional SSE endpoint. Defaults to `<base>/notifications/stream`. |
 | `VITE_SERVER_IDENTITY` | Optional identity hash forwarded with each request. |
 
 These settings are read when the bundle initializes the Axios client and when it
@@ -69,7 +69,7 @@ creates an `EventSource` for real-time updates.【F:examples/EmergencyManagement
 ## Real-time updates
 
 The SPA maintains a singleton `EventSource` that subscribes to the gateway's
-stream endpoint (default `/stream`). Incoming messages are normalised into
+stream endpoint (default `/notifications/stream`). Incoming messages are normalised into
 resource/action pairs before they trigger React Query cache invalidation. The
 utility tolerates reconnection and mixed-content failures to keep the page in
 sync even when the SSE channel drops.【F:examples/EmergencyManagement/webui/src/lib/liveUpdates.ts†L19-L109】
