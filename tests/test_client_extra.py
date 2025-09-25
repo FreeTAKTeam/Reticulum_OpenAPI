@@ -1,7 +1,7 @@
 import asyncio
 import contextlib
 from types import SimpleNamespace
-from unittest.mock import Mock
+from unittest.mock import AsyncMock, Mock
 
 import pytest
 
@@ -49,8 +49,12 @@ async def test_client_init(monkeypatch):
     monkeypatch.setattr(client_module.RNS, "Reticulum", DummyReticulum)
     monkeypatch.setattr(client_module.RNS, "Identity", DummyIdentity)
     monkeypatch.setattr(client_module.RNS, "Destination", DummyDestination)
-    monkeypatch.setattr(client_module.RNS.Transport, "register_announce_handler", fake_register)
-    monkeypatch.setattr(client_module.RNS, "prettyhexrep", lambda data: f"<{data.hex()}>")
+    monkeypatch.setattr(
+        client_module.RNS.Transport, "register_announce_handler", fake_register
+    )
+    monkeypatch.setattr(
+        client_module.RNS, "prettyhexrep", lambda data: f"<{data.hex()}>"
+    )
     monkeypatch.setattr(client_module.LXMF, "LXMRouter", DummyRouter)
     monkeypatch.setattr(client_module.LXMF, "LXMessage", object)
     monkeypatch.setattr(
@@ -195,6 +199,26 @@ def test_client_announce(monkeypatch):
     cli.router.announce.assert_called_once_with(cli.source_identity.hash)
 
 
+@pytest.mark.asyncio
+async def test_ensure_link_invokes_private_helper():
+    cli = client_module.LXMFClient.__new__(client_module.LXMFClient)
+    cli.timeout = 4.5
+    called = {}
+
+    async def fake_ensure(dest_hex: str, dest_hash: bytes, timeout: float):
+        called["args"] = (dest_hex, dest_hash, timeout)
+        return "link"
+
+    cli._ensure_link = AsyncMock(side_effect=fake_ensure)
+    result = await cli.ensure_link("A1B2", timeout=2.5)
+
+    assert result == "link"
+    dest_hex, dest_hash, timeout = called["args"]
+    assert dest_hex == "a1b2"
+    assert dest_hash == bytes.fromhex("a1b2")
+    assert timeout == 2.5
+
+
 def _patch_dependencies(monkeypatch):
     class DummyReticulum:
         storagepath = "/tmp"
@@ -231,8 +255,12 @@ def _patch_dependencies(monkeypatch):
     monkeypatch.setattr(client_module.RNS, "Reticulum", DummyReticulum)
     monkeypatch.setattr(client_module.RNS, "Identity", DummyIdentity)
     monkeypatch.setattr(client_module.RNS, "Destination", DummyDestination)
-    monkeypatch.setattr(client_module.RNS.Transport, "register_announce_handler", fake_register)
-    monkeypatch.setattr(client_module.RNS, "prettyhexrep", lambda data: f"<{data.hex()}>")
+    monkeypatch.setattr(
+        client_module.RNS.Transport, "register_announce_handler", fake_register
+    )
+    monkeypatch.setattr(
+        client_module.RNS, "prettyhexrep", lambda data: f"<{data.hex()}>"
+    )
     monkeypatch.setattr(client_module.LXMF, "LXMRouter", DummyRouter)
     monkeypatch.setattr(
         client_module,

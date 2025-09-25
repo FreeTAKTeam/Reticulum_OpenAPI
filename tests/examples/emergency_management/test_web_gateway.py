@@ -30,9 +30,7 @@ def gateway_app(monkeypatch):
     monkeypatch.delenv("NORTH_API_CONFIG_JSON", raising=False)
     monkeypatch.delenv("NORTH_API_CONFIG_PATH", raising=False)
 
-    module = importlib.import_module(
-        "examples.EmergencyManagement.web_gateway.app"
-    )
+    module = importlib.import_module("examples.EmergencyManagement.web_gateway.app")
     module = importlib.reload(module)
 
     created_clients: List["StubClient"] = []
@@ -46,6 +44,7 @@ def gateway_app(monkeypatch):
 
         def __init__(self, *args, **kwargs) -> None:
             self.send_command: AsyncMock = AsyncMock()
+            self.ensure_link: AsyncMock = AsyncMock()
             self.announce_called = False
             self.kwargs = kwargs
             self.shared_instance_rpc_key = kwargs.get("shared_instance_rpc_key")
@@ -60,10 +59,18 @@ def gateway_app(monkeypatch):
         if not created_clients:
             raise AssertionError("LXMF client was not created on startup")
         stub = created_clients[0]
-        stub.send_command.reset_mock()
         assert stub.shared_instance_rpc_key == module._CONFIG_DATA.get(
             "shared_instance_rpc_key"
         )
+        if module._DEFAULT_SERVER_IDENTITY:
+            stub.ensure_link.assert_awaited_once_with(module._DEFAULT_SERVER_IDENTITY)
+            assert module._LINK_STATUS.state == "connected"
+            assert (
+                module._LINK_STATUS.server_identity == module._DEFAULT_SERVER_IDENTITY
+            )
+            assert module._LINK_STATUS.message.startswith("Connected to LXMF")
+        stub.send_command.reset_mock()
+        stub.ensure_link.reset_mock()
         yield module, client, stub
 
     module._CLIENT_INSTANCE = None
@@ -82,9 +89,7 @@ def test_default_identity_uses_json_config(monkeypatch) -> None:
     )
     monkeypatch.setenv("NORTH_API_CONFIG_JSON", config_json)
 
-    module = importlib.import_module(
-        "examples.EmergencyManagement.web_gateway.app"
-    )
+    module = importlib.import_module("examples.EmergencyManagement.web_gateway.app")
     module = importlib.reload(module)
 
     assert module._DEFAULT_SERVER_IDENTITY == SERVER_IDENTITY
@@ -196,9 +201,7 @@ def test_update_event_uses_path_identifier(gateway_app) -> None:
     """Updating events should merge the path UID into the dataclass payload."""
 
     module, client, stub = gateway_app
-    stub.send_command.return_value = to_canonical_bytes(
-        {"uid": 21, "type": "Updated"}
-    )
+    stub.send_command.return_value = to_canonical_bytes({"uid": 21, "type": "Updated"})
 
     response = client.put(
         "/events/21",
@@ -326,3 +329,41 @@ def test_gateway_status_returns_version_and_uptime(gateway_app) -> None:
     assert payload["lxmfConfigPath"] == str(module.CONFIG_PATH)
     assert payload["lxmfStoragePath"] is None
     assert payload["allowedOrigins"] == module._ALLOWED_ORIGINS
+    assert payload["linkStatus"]["state"] in {"connected", "unconfigured"}
+    if payload["linkStatus"]["state"] == "connected":
+        assert payload["linkStatus"]["message"].startswith("Connected to LXMF")
+
+
+def test_link_failure_reported_in_status(monkeypatch) -> None:
+    """Link failures during startup should be captured for the dashboard."""
+
+    config_json = json.dumps({"server_identity_hash": SERVER_IDENTITY})
+    monkeypatch.setenv("NORTH_API_CONFIG_JSON", config_json)
+
+    module = importlib.import_module("examples.EmergencyManagement.web_gateway.app")
+    module = importlib.reload(module)
+
+    class FailingClient:
+        _normalise_destination_hex = staticmethod(
+            RealLXMFClient._normalise_destination_hex
+        )
+
+        def __init__(self, *args, **kwargs) -> None:
+            self.ensure_link = AsyncMock(side_effect=TimeoutError("no link"))
+            self.send_command = AsyncMock()
+
+        def announce(self) -> None:
+            return None
+
+    monkeypatch.setattr(module, "LXMFClient", FailingClient)
+
+    with TestClient(module.app):
+        pass
+
+    assert module._LINK_STATUS.state == "error"
+    assert module._LINK_STATUS.last_error == "no link"
+    assert "no link" in (module._LINK_STATUS.message or "")
+
+    monkeypatch.delenv("NORTH_API_CONFIG_JSON", raising=False)
+    module._CLIENT_INSTANCE = None
+    module._LINK_STATUS = module._LinkStatus()

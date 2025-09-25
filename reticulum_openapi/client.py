@@ -66,9 +66,7 @@ class LXMFClient:
         self.reticulum = RNS.Reticulum(config_path)
         self._shared_instance_rpc_key: Optional[bytes] = None
         if shared_instance_rpc_key is not None:
-            key_bytes = self._decode_shared_instance_rpc_key(
-                shared_instance_rpc_key
-            )
+            key_bytes = self._decode_shared_instance_rpc_key(shared_instance_rpc_key)
             self.reticulum.rpc_key = key_bytes
             self._shared_instance_rpc_key = key_bytes
         storage_path = storage_path or (RNS.Reticulum.storagepath + "/lxmf_client")
@@ -157,6 +155,29 @@ class LXMFClient:
                 f"Link to {dest_hex} not established after {timeout} seconds"
             ) from exc
         return self._links[dest_hash]
+
+    async def ensure_link(
+        self, dest_hex: str, timeout: Optional[float] = None
+    ) -> RNS.Link:
+        """Ensure an ``RNS.Link`` is established for ``dest_hex``.
+
+        Args:
+            dest_hex (str): Destination identity hash of the LXMF server.
+            timeout (float, optional): Maximum seconds to wait for link
+                establishment. Defaults to :attr:`timeout` when ``None``.
+
+        Returns:
+            RNS.Link: Active link associated with ``dest_hex``.
+
+        Raises:
+            TimeoutError: If the link cannot be established before the timeout
+                expires.
+        """
+
+        normalised_hex = self._normalise_destination_hex(dest_hex)
+        dest_hash = bytes.fromhex(normalised_hex)
+        timeout_value = self.timeout if timeout is None else float(timeout)
+        return await self._ensure_link(normalised_hex, dest_hash, timeout_value)
 
     def announce(self) -> None:
         """Announce this client's identity on the Reticulum network."""
@@ -347,9 +368,7 @@ class LXMFClient:
         link.request(request_path, data=content_bytes, timeout=self.timeout)
         return None
 
-    def listen_for_announces(
-        self, print_func: Callable[[str], None] = print
-    ) -> None:
+    def listen_for_announces(self, print_func: Callable[[str], None] = print) -> None:
         """Start logging Reticulum announces to the console in real time.
 
         Args:

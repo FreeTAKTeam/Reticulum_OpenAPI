@@ -3,10 +3,23 @@
 from __future__ import annotations
 
 import json
-from dataclasses import fields, is_dataclass
+import logging
+from dataclasses import dataclass, fields, is_dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Awaitable, Callable, Dict, List, Optional, Type, TypeVar, Union, get_args, get_origin
+from typing import (
+    Any,
+    Awaitable,
+    Callable,
+    Dict,
+    List,
+    Optional,
+    Type,
+    TypeVar,
+    Union,
+    get_args,
+    get_origin,
+)
 
 from importlib import metadata
 import os
@@ -56,6 +69,8 @@ COMMAND_RETRIEVE_EVENT = "RetrieveEvent"
 
 ConfigDict = Dict[str, Any]
 T = TypeVar("T")
+
+logger = logging.getLogger(__name__)
 
 load_dotenv()
 
@@ -146,6 +161,41 @@ _START_TIME: datetime = datetime.now(timezone.utc)
 _NOTIFICATION_UNSUBSCRIBER: Optional[Callable[[], Awaitable[None]]] = None
 
 
+def _format_timestamp(value: Optional[datetime]) -> Optional[str]:
+    """Return an ISO formatted timestamp in UTC when available."""
+
+    if value is None:
+        return None
+    return value.astimezone(timezone.utc).isoformat()
+
+
+@dataclass
+class _LinkStatus:
+    """Track the gateway's most recent LXMF link attempt."""
+
+    state: str = "pending"
+    message: Optional[str] = None
+    server_identity: Optional[str] = None
+    last_attempt: Optional[datetime] = None
+    last_success: Optional[datetime] = None
+    last_error: Optional[str] = None
+
+    def to_dict(self) -> Dict[str, Optional[str]]:
+        """Return a serialisable mapping describing the link state."""
+
+        return {
+            "state": self.state,
+            "message": self.message,
+            "serverIdentity": self.server_identity,
+            "lastAttempt": _format_timestamp(self.last_attempt),
+            "lastSuccess": _format_timestamp(self.last_success),
+            "lastError": self.last_error,
+        }
+
+
+_LINK_STATUS = _LinkStatus()
+
+
 def _normalise_optional_path(value: Optional[str]) -> Optional[str]:
     """Return a stripped path string or ``None`` when empty."""
 
@@ -231,6 +281,40 @@ async def _startup() -> None:
     """Ensure the LXMF client is ready before serving requests."""
 
     client = get_shared_client()
+    global _LINK_STATUS
+    server_identity = _DEFAULT_SERVER_IDENTITY
+    if server_identity:
+        attempt_time = datetime.now(timezone.utc)
+        _LINK_STATUS.server_identity = server_identity
+        _LINK_STATUS.last_attempt = attempt_time
+        try:
+            await client.ensure_link(server_identity)
+        except TimeoutError as exc:
+            _LINK_STATUS.state = "error"
+            _LINK_STATUS.last_error = str(exc)
+            _LINK_STATUS.message = (
+                f"Link to LXMF server {server_identity} failed: {exc}"
+            )
+            logger.warning("LXMF link to server %s failed: %s", server_identity, exc)
+        except Exception as exc:  # pragma: no cover - defensive path
+            _LINK_STATUS.state = "error"
+            _LINK_STATUS.last_error = str(exc)
+            _LINK_STATUS.message = (
+                f"Link to LXMF server {server_identity} failed: {exc}"
+            )
+            logger.exception(
+                "Unexpected error establishing LXMF link to %s", server_identity
+            )
+        else:
+            _LINK_STATUS.state = "connected"
+            _LINK_STATUS.last_success = attempt_time
+            _LINK_STATUS.last_error = None
+            _LINK_STATUS.message = f"Connected to LXMF server {server_identity}"
+            logger.info("Established LXMF link with server %s", server_identity)
+    else:
+        _LINK_STATUS.state = "unconfigured"
+        _LINK_STATUS.message = "Server identity hash not configured."
+
     global _NOTIFICATION_UNSUBSCRIBER
     if _NOTIFICATION_UNSUBSCRIBER is None and hasattr(
         client, "add_notification_listener"
@@ -354,6 +438,7 @@ async def get_gateway_status() -> Dict[str, Any]:
         "lxmfConfigPath": config_path_override or str(CONFIG_PATH),
         "lxmfStoragePath": storage_path_override,
         "allowedOrigins": _ALLOWED_ORIGINS,
+        "linkStatus": _LINK_STATUS.to_dict(),
     }
 
 
@@ -364,9 +449,7 @@ async def _resolve_server_identity(
     """Determine the destination server identity hash for a request."""
 
     candidate = (
-        server_identity_query
-        or server_identity_header
-        or _DEFAULT_SERVER_IDENTITY
+        server_identity_query or server_identity_header or _DEFAULT_SERVER_IDENTITY
     )
     if candidate is None:
         raise HTTPException(
