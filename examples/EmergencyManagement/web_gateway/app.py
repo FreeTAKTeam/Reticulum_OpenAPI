@@ -330,7 +330,6 @@ async def _startup() -> None:
     """Ensure the LXMF client is ready before serving requests."""
 
     client = get_shared_client()
-    global _LINK_STATUS
     global _LINK_TASK
     server_identity = _DEFAULT_SERVER_IDENTITY
     if server_identity:
