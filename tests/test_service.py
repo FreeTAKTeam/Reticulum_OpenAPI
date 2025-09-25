@@ -273,6 +273,50 @@ async def test_link_established_runs_handler_and_keepalive(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_link_request_dispatches_routes() -> None:
+    """Link request handlers should execute command routes and return responses."""
+
+    loop = asyncio.get_running_loop()
+    service = LXMFService.__new__(LXMFService)
+    service._loop = loop
+    service.auth_token = None
+    service.max_payload_size = 32000
+    service._routes = {}
+    service._link_handler = None
+    service._link_keepalive_interval = 0
+    service._active_links = {}
+    service._link_keepalive_tasks = {}
+
+    async def handler() -> dict:
+        return {"status": "ok"}
+
+    service._routes["PING"] = (handler, None, None)
+
+    class DummyLink:
+        def __init__(self) -> None:
+            self.link_id = b"lk"
+            self.closed_callback = None
+
+        def set_link_closed_callback(self, callback):
+            self.closed_callback = callback
+
+    link = DummyLink()
+    service._link_established(link)
+    request_handler = getattr(link, "request_handler", None)
+    assert callable(request_handler)
+
+    response_future = loop.create_future()
+
+    def respond(payload: bytes) -> None:
+        if not response_future.done():
+            response_future.set_result(payload)
+
+    request_handler("/commands/PING", b"", respond)
+    payload = await asyncio.wait_for(response_future, 1)
+    assert msgpack_from_bytes(payload) == {"status": "ok"}
+
+
+@pytest.mark.asyncio
 async def test_lxmf_callback_dispatches_response():
     """Handler return values are sent back via _send_lxmf."""
     loop = asyncio.get_running_loop()
