@@ -1,5 +1,6 @@
 # reticulum_openapi/service.py
 import asyncio
+import inspect
 import json
 import logging
 import zlib
@@ -10,6 +11,7 @@ from typing import Awaitable
 from typing import Callable
 from typing import Dict
 from typing import Optional
+from typing import Tuple
 from typing import Type
 
 import LXMF
@@ -31,6 +33,9 @@ from .model import dataclass_to_msgpack
 
 configure_logging()
 logger = logging.getLogger(__name__)
+
+
+_COMMAND_PATH_PREFIX = "/commands/"
 
 
 def _normalise_for_msgpack(value: Any) -> Any:
@@ -203,6 +208,8 @@ class LXMFService:
         if hasattr(link, "set_link_closed_callback"):
             link.set_link_closed_callback(self._link_closed)
 
+        self._configure_link_request_handler(link)
+
         if self._link_handler is not None:
             def _schedule_handler() -> None:
                 asyncio.create_task(self._link_handler(link))
@@ -240,6 +247,102 @@ class LXMFService:
         except asyncio.CancelledError:
             return
 
+    def _configure_link_request_handler(self, link: RNS.Link) -> None:
+        """Assign the default request handler for established links."""
+
+        def _handler(
+            path: Any,
+            data: Any = None,
+            respond: Optional[Callable[[bytes], Any]] = None,
+        ) -> None:
+            def _dispatch() -> None:
+                self._loop.create_task(
+                    self._handle_link_request(link, path, data, respond)
+                )
+
+            self._loop.call_soon_threadsafe(_dispatch)
+
+        setter = getattr(link, "set_request_handler", None)
+        if callable(setter):
+            try:
+                setter(_handler)
+                return
+            except Exception:
+                logger.debug("set_request_handler unavailable on link", exc_info=True)
+        try:
+            setattr(link, "request_handler", _handler)
+        except Exception:
+            logger.debug(
+                "Unable to assign default link request handler", exc_info=True
+            )
+
+    @staticmethod
+    def _extract_command_from_path(path: Any) -> Optional[str]:
+        """Return the command name encoded within a link request path."""
+
+        if isinstance(path, bytes):
+            try:
+                path = path.decode("utf-8")
+            except UnicodeDecodeError:
+                return None
+        if not isinstance(path, str):
+            return None
+        cleaned = path.strip()
+        if not cleaned:
+            return None
+        if cleaned.startswith(_COMMAND_PATH_PREFIX):
+            command = cleaned[len(_COMMAND_PATH_PREFIX) :]
+        else:
+            command = cleaned.rsplit("/", 1)[-1]
+        return command or None
+
+    async def _handle_link_request(
+        self,
+        link: RNS.Link,
+        path: Any,
+        data: Any,
+        respond: Optional[Callable[[bytes], Any]],
+    ) -> None:
+        """Decode and dispatch commands received over an ``RNS.Link``."""
+
+        command_candidate = self._extract_command_from_path(path)
+        if command_candidate is None:
+            logger.warning("Received link request with invalid path: %r", path)
+            return
+
+        command_key = command_candidate
+        normalised = self._normalise_command_title(command_candidate)
+        if normalised is not None:
+            command_key = normalised
+
+        route = self._routes.get(command_key)
+        if route is None:
+            logger.warning("No route found for link command: %s", command_candidate)
+            return
+
+        handler, payload_type, payload_schema = route
+        payload_obj, valid = self._decode_command_payload(
+            command_candidate,
+            data,
+            payload_type,
+            payload_schema,
+        )
+        if not valid:
+            return
+
+        def _responder(response_bytes: bytes) -> Optional[Any]:
+            if respond is None:
+                return None
+            logger.info("Sent response for %s over link", command_candidate)
+            return respond(response_bytes)
+
+        await self._dispatch_handler_response(
+            command_candidate,
+            handler,
+            payload_obj,
+            _responder,
+        )
+
     def add_route(
         self,
         command: str,
@@ -262,6 +365,155 @@ class LXMFService:
             raise ValueError("Command names must be UTF-8 decodable")
         self._routes[normalised_command] = (handler, payload_type, payload_schema)
         RNS.log(f"Route registered: '{normalised_command}' -> {handler}")
+
+    def _decode_command_payload(
+        self,
+        command: str,
+        raw_payload: Any,
+        payload_type: Optional[Type],
+        payload_schema: Optional[dict],
+    ) -> Tuple[Optional[Any], bool]:
+        """Return the decoded payload for a command or ``False`` on failure."""
+
+        if raw_payload is None:
+            payload_bytes: Optional[bytes] = None
+        elif isinstance(raw_payload, memoryview):
+            payload_bytes = raw_payload.tobytes()
+        elif isinstance(raw_payload, (bytes, bytearray)):
+            payload_bytes = bytes(raw_payload)
+        else:
+            logger.error(
+                "Unsupported payload type for %s: %s",
+                command,
+                type(raw_payload).__name__,
+            )
+            return None, False
+
+        if not payload_bytes:
+            return None, True
+
+        if len(payload_bytes) > self.max_payload_size:
+            logger.warning("Payload for %s exceeds maximum size", command)
+            return None, False
+
+        if payload_type:
+            try:
+                payload_obj = dataclass_from_msgpack(payload_type, payload_bytes)
+            except Exception:
+                try:
+                    payload_obj = dataclass_from_json(payload_type, payload_bytes)
+                except Exception as exc:
+                    logger.error("Failed to parse payload for %s: %s", command, exc)
+                    return None, False
+        else:
+            try:
+                payload_obj = msgpack_from_bytes(payload_bytes)
+            except Exception as exc:
+                logger.error("Invalid MessagePack payload for %s: %s", command, exc)
+                try:
+                    json_bytes = zlib.decompress(payload_bytes)
+                except zlib.error:
+                    json_bytes = payload_bytes
+                try:
+                    payload_obj = json.loads(json_bytes.decode("utf-8"))
+                except Exception as json_exc:
+                    logger.error(
+                        "Invalid JSON payload for %s: %s", command, json_exc
+                    )
+                    return None, False
+
+        if payload_schema is not None:
+            try:
+                obj = asdict(payload_obj) if is_dataclass(payload_obj) else payload_obj
+                validate(obj, payload_schema)
+            except ValidationError as exc:
+                logger.warning(
+                    "Schema validation failed for %s: %s",
+                    command,
+                    exc.message,
+                )
+                return None, False
+
+        if self.auth_token:
+            payload_dict = None
+            if is_dataclass(payload_obj):
+                payload_dict = asdict(payload_obj)
+            elif isinstance(payload_obj, dict):
+                payload_dict = payload_obj
+            if payload_dict is not None:
+                if payload_dict.get("auth_token") != self.auth_token:
+                    logger.warning("Authentication failed for message: %s", command)
+                    return None, False
+
+        return payload_obj, True
+
+    def _serialise_handler_result(
+        self, command: str, result: Any
+    ) -> Optional[bytes]:
+        """Encode handler results into LXMF response bytes."""
+
+        serialisable_result = _convert_dataclasses_to_primitives(result)
+        if isinstance(serialisable_result, bytes):
+            return serialisable_result
+        try:
+            safe_result = _normalise_for_msgpack(serialisable_result)
+        except Exception:
+            logger.exception("Failed to normalise handler result for %s", command)
+            safe_result = serialisable_result
+        try:
+            return dataclass_to_msgpack(safe_result)
+        except Exception:
+            try:
+                json_bytes = dataclass_to_json_bytes(safe_result)
+                return compress_json(json_bytes)
+            except Exception as exc:
+                logger.exception(
+                    "Failed to serialize result dataclass for %s: %s",
+                    command,
+                    exc,
+                )
+                try:
+                    fallback_json = json.dumps(safe_result).encode("utf-8")
+                except Exception:
+                    logger.exception(
+                        "Failed to encode fallback JSON for %s", command
+                    )
+                    return None
+                return compress_json(fallback_json)
+
+    async def _dispatch_handler_response(
+        self,
+        command: str,
+        handler: Callable[..., Awaitable[Any]],
+        payload_obj: Optional[Any],
+        responder: Callable[[bytes], Optional[Any]],
+    ) -> None:
+        """Execute a handler and forward the serialised response."""
+
+        try:
+            if payload_obj is not None:
+                result = await handler(payload_obj)
+            else:
+                result = await handler()
+        except Exception as exc:
+            logger.exception("Exception in handler for %s: %s", command, exc)
+            return
+
+        if result is None:
+            return
+
+        response_bytes = self._serialise_handler_result(command, result)
+        if response_bytes is None:
+            return
+
+        try:
+            outcome = responder(response_bytes)
+            if inspect.isawaitable(outcome):
+                await outcome
+        except Exception as exc:
+            logger.exception(
+                "Failed to dispatch response for %s: %s", command, exc
+            )
 
     def get_api_specification(self) -> dict:
         """Return a minimal JSON specification of available commands."""
@@ -322,124 +574,33 @@ class LXMFService:
             logger.warning("No route found for command: %s", cmd)
             return
         handler, payload_type, payload_schema = self._routes[cmd]
-        # Decode payload
-        if payload_bytes:
-            if len(payload_bytes) > self.max_payload_size:
-                logger.warning("Payload for %s exceeds maximum size", cmd)
-                return
-            if payload_type:
-                try:
-                    payload_obj = dataclass_from_msgpack(payload_type, payload_bytes)
-                except Exception:
-                    try:
-                        payload_obj = dataclass_from_json(payload_type, payload_bytes)
-                    except Exception as exc:
-                        logger.error("Failed to parse payload for %s: %s", cmd, exc)
-                        return
-            else:
-                try:
-                    payload_obj = msgpack_from_bytes(payload_bytes)
-                except Exception as exc:
-                    logger.error("Invalid MessagePack payload for %s: %s", cmd, exc)
-                    try:
-                        json_bytes = zlib.decompress(payload_bytes)
-                        payload_obj = json.loads(json_bytes.decode("utf-8"))
-                    except (zlib.error, json.JSONDecodeError):
-                        try:
-                            payload_obj = json.loads(payload_bytes.decode("utf-8"))
-                        except Exception as json_exc:
-                            logger.error(
-                                "Invalid JSON payload for %s: %s", cmd, json_exc
-                            )
-                            return
-            if payload_schema is not None:
-                try:
-                    obj = (
-                        asdict(payload_obj)
-                        if is_dataclass(payload_obj)
-                        else payload_obj
-                    )
-                    validate(obj, payload_schema)
-                except ValidationError as exc:
-                    logger.warning(
-                        "Schema validation failed for %s: %s",
-                        cmd,
-                        exc.message,
-                    )
-                    return
-            if self.auth_token:
-                payload_dict = None
-                if is_dataclass(payload_obj):
-                    payload_dict = asdict(payload_obj)
-                elif isinstance(payload_obj, dict):
-                    payload_dict = payload_obj
+        payload_obj, valid = self._decode_command_payload(
+            cmd, payload_bytes, payload_type, payload_schema
+        )
+        if not valid:
+            return
 
-                if payload_dict is not None:
-                    if payload_dict.get("auth_token") != self.auth_token:
-                        logger.warning("Authentication failed for message: %s", cmd)
-                        return
-        else:
-            payload_obj = None  # No payload content
-
-        # Dispatch to handler asynchronously
-        async def handle_and_reply():
-            result = None
+        def _responder(response_bytes: bytes) -> Optional[Any]:
+            dest_identity = message.source
+            if not dest_identity:
+                logger.warning(
+                    "No source identity to respond to for message: %s", cmd
+                )
+                return None
+            resp_title = f"{cmd}_response"
             try:
-                # Call the handler with the parsed payload.
-                # If payload is None, some handlers may not accept a parameter.
-                if payload_obj is not None:
-                    result = await handler(payload_obj)
-                else:
-                    # Handler might accept no arguments or an explicit None
-                    result = await handler()
+                self._send_lxmf(dest_identity, resp_title, response_bytes)
+                logger.info("Sent response for %s back to sender.", cmd)
             except Exception as exc:
-                logger.exception("Exception in handler for %s: %s", cmd, exc)
-            # If handler returned a result, attempt to send a response back to sender
-            if result is not None:
-                serialisable_result = _convert_dataclasses_to_primitives(result)
-                if isinstance(serialisable_result, bytes):
-                    resp_bytes = serialisable_result
-                else:
-                    try:
-                        safe_result = _normalise_for_msgpack(serialisable_result)
-                    except Exception:
-                        logger.exception(
-                            "Failed to normalise handler result for %s", cmd
-                        )
-                        safe_result = serialisable_result
-                    try:
-                        resp_bytes = dataclass_to_msgpack(safe_result)
-                    except Exception:
-                        try:
-                            json_bytes = dataclass_to_json_bytes(safe_result)
-                            resp_bytes = compress_json(json_bytes)
+                logger.exception("Failed to send response for %s: %s", cmd, exc)
+            return None
 
-                        except Exception as exc:
-                            logger.exception(
-                                "Failed to serialize result dataclass for %s: %s",
-                                cmd,
-                                exc,
-                            )
+        def _schedule_dispatch() -> None:
+            self._loop.create_task(
+                self._dispatch_handler_response(cmd, handler, payload_obj, _responder)
+            )
 
-                            fallback_json = json.dumps(safe_result).encode("utf-8")
-                            resp_bytes = compress_json(fallback_json)
-
-                # Determine response command name (could be something like "<command>_response" or a generic)
-                resp_title = f"{cmd}_response"
-                dest_identity = message.source
-                if dest_identity:
-                    try:
-                        self._send_lxmf(dest_identity, resp_title, resp_bytes)
-                        logger.info("Sent response for %s back to sender.", cmd)
-                    except Exception as exc:
-                        logger.exception("Failed to send response for %s: %s", cmd, exc)
-                else:
-                    logger.warning(
-                        "No source identity to respond to for message: %s", cmd
-                    )
-
-        # Schedule the handler execution on the asyncio event loop
-        self._loop.call_soon_threadsafe(lambda: asyncio.create_task(handle_and_reply()))
+        self._loop.call_soon_threadsafe(_schedule_dispatch)
 
     @staticmethod
     def _normalise_response_identity(
