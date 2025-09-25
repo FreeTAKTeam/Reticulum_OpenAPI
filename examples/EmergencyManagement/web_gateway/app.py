@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
+from contextlib import suppress
 from dataclasses import dataclass, fields, is_dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -159,6 +161,8 @@ _CLIENT_INSTANCE: Optional[LXMFClient] = None
 _GATEWAY_VERSION: str = _resolve_gateway_version()
 _START_TIME: datetime = datetime.now(timezone.utc)
 _NOTIFICATION_UNSUBSCRIBER: Optional[Callable[[], Awaitable[None]]] = None
+_LINK_RETRY_DELAY_SECONDS: float = 5.0
+_LINK_TASK: Optional[asyncio.Task[None]] = None
 
 
 def _format_timestamp(value: Optional[datetime]) -> Optional[str]:
@@ -267,6 +271,51 @@ def get_shared_client() -> LXMFClient:
     return _CLIENT_INSTANCE
 
 
+def _record_link_failure(server_identity: str, error: Exception) -> None:
+    """Update the link status after a failed connection attempt."""
+
+    _LINK_STATUS.state = "connecting"
+    _LINK_STATUS.last_error = str(error)
+    _LINK_STATUS.message = (
+        "Link to LXMF server "
+        f"{server_identity} failed: {error}. "
+        f"Retrying in {_LINK_RETRY_DELAY_SECONDS:.1f} seconds."
+    )
+    logger.warning("LXMF link to server %s failed: %s", server_identity, error)
+
+
+def _record_link_success(server_identity: str, attempt_time: datetime) -> None:
+    """Update link status and log a successful connection."""
+
+    _LINK_STATUS.state = "connected"
+    _LINK_STATUS.last_success = attempt_time
+    _LINK_STATUS.last_error = None
+    message = f"Connected to LXMF server {server_identity}"
+    _LINK_STATUS.message = message
+    print(f"[Emergency Gateway] {message}")
+    logger.info("Established LXMF link with server %s", server_identity)
+
+
+async def _ensure_link_with_retry(
+    client: LXMFClient, server_identity: str
+) -> None:
+    """Continuously attempt to connect the LXMF client to the server."""
+
+    while True:
+        attempt_time = datetime.now(timezone.utc)
+        _LINK_STATUS.last_attempt = attempt_time
+        try:
+            await client.ensure_link(server_identity)
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            _record_link_failure(server_identity, exc)
+            await asyncio.sleep(_LINK_RETRY_DELAY_SECONDS)
+        else:
+            _record_link_success(server_identity, attempt_time)
+            break
+
+
 def _format_uptime(uptime_seconds: float) -> str:
     """Format seconds since startup as an ``HH:MM:SS`` string."""
 
@@ -282,35 +331,19 @@ async def _startup() -> None:
 
     client = get_shared_client()
     global _LINK_STATUS
+    global _LINK_TASK
     server_identity = _DEFAULT_SERVER_IDENTITY
     if server_identity:
-        attempt_time = datetime.now(timezone.utc)
         _LINK_STATUS.server_identity = server_identity
-        _LINK_STATUS.last_attempt = attempt_time
-        try:
-            await client.ensure_link(server_identity)
-        except TimeoutError as exc:
-            _LINK_STATUS.state = "error"
-            _LINK_STATUS.last_error = str(exc)
-            _LINK_STATUS.message = (
-                f"Link to LXMF server {server_identity} failed: {exc}"
+        _LINK_STATUS.state = "connecting"
+        _LINK_STATUS.last_error = None
+        _LINK_STATUS.message = (
+            f"Attempting to connect to LXMF server {server_identity}"
+        )
+        if _LINK_TASK is None or _LINK_TASK.done():
+            _LINK_TASK = asyncio.create_task(
+                _ensure_link_with_retry(client, server_identity)
             )
-            logger.warning("LXMF link to server %s failed: %s", server_identity, exc)
-        except Exception as exc:  # pragma: no cover - defensive path
-            _LINK_STATUS.state = "error"
-            _LINK_STATUS.last_error = str(exc)
-            _LINK_STATUS.message = (
-                f"Link to LXMF server {server_identity} failed: {exc}"
-            )
-            logger.exception(
-                "Unexpected error establishing LXMF link to %s", server_identity
-            )
-        else:
-            _LINK_STATUS.state = "connected"
-            _LINK_STATUS.last_success = attempt_time
-            _LINK_STATUS.last_error = None
-            _LINK_STATUS.message = f"Connected to LXMF server {server_identity}"
-            logger.info("Established LXMF link with server %s", server_identity)
     else:
         _LINK_STATUS.state = "unconfigured"
         _LINK_STATUS.message = "Server identity hash not configured."
@@ -325,6 +358,13 @@ async def _startup() -> None:
 @app.on_event("shutdown")
 async def _shutdown() -> None:
     """Tear down the notification bridge on application shutdown."""
+
+    global _LINK_TASK
+    if _LINK_TASK is not None:
+        _LINK_TASK.cancel()
+        with suppress(asyncio.CancelledError):
+            await _LINK_TASK
+        _LINK_TASK = None
 
     global _NOTIFICATION_UNSUBSCRIBER
     if _NOTIFICATION_UNSUBSCRIBER is None:
