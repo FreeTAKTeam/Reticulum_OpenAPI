@@ -96,3 +96,6 @@
 
 - [x] Add HTTP integration tests for the EmergencyManagement web UI message and event flows.
 
+## 2025-10-01
+- [x] Upgrade esbuild dependency to version 0.25.0 or later to address the development server request vulnerability.
+
