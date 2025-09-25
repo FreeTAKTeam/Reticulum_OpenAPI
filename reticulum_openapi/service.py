@@ -294,11 +294,30 @@ class LXMFService:
         path: Any,
         request_data: Any,
         request_id: Any,
-        *extra: Any,
+        link_or_identity: Any,
+        remote_identity_or_requested_at: Any,
+        requested_at: Any = None,
     ) -> Optional[bytes]:
         """Handle link requests dispatched via ``RNS.Destination`` hooks."""
 
+        if requested_at is None:
+            remote_identity = link_or_identity
+            link_id = None
+            requested_timestamp = remote_identity_or_requested_at
+        else:
+            link_id = link_or_identity
+            remote_identity = remote_identity_or_requested_at
+            requested_timestamp = requested_at
+
         command_candidate = self._extract_command_from_path(path)
+
+        logger.debug(
+            "Handling link command %s (link=%r remote=%r requested_at=%r)",  # Reason: aid diagnostics
+            command_candidate or path,
+            link_id,
+            getattr(remote_identity, "hash", remote_identity),
+            requested_timestamp,
+        )
         if command_candidate is None:
             logger.warning("Received link request with invalid path: %r", path)
             return None

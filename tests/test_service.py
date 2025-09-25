@@ -335,7 +335,14 @@ async def test_link_request_dispatches_routes() -> None:
     assert callable(request_handler)
 
     def _invoke_handler() -> Optional[bytes]:
-        return request_handler("/commands/PING", b"", object())
+        return request_handler(
+            "/commands/PING",
+            b"",
+            object(),
+            b"lk",
+            object(),
+            123.0,
+        )
 
     payload = await loop.run_in_executor(None, _invoke_handler)
     assert msgpack_from_bytes(payload) == {"status": "ok"}
