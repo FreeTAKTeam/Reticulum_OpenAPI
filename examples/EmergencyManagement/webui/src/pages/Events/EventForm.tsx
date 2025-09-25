@@ -166,6 +166,7 @@ export function EventForm({
   }, [initialValue]);
 
   const isEditing = useMemo(() => Boolean(initialValue), [initialValue]);
+  const dismissLabel = isEditing ? 'Cancel edit' : 'Close';
   const accessOptions = useMemo(() => {
     const unique = new Set<string>(DEFAULT_ACCESS_OPTIONS);
     if (initialValue?.access) {
@@ -283,14 +284,14 @@ export function EventForm({
           <h3>{isEditing ? `Update event ${state.uid}` : 'Log new event'}</h3>
           <p>Track incident reports, dispatches, and situational notes.</p>
         </div>
-        {isEditing && (
+        {onCancelEdit && (
           <button
             type="button"
             className="button button--secondary"
             onClick={onCancelEdit}
             disabled={isSubmitting}
           >
-            Cancel edit
+            {dismissLabel}
           </button>
         )}
       </header>

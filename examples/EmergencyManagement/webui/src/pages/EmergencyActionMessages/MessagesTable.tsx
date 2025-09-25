@@ -7,6 +7,7 @@ export interface MessagesTableProps {
   isLoading: boolean;
   onEdit: (message: EmergencyActionMessage) => void;
   onDelete: (message: EmergencyActionMessage) => void;
+  onCreateNew: () => void;
 }
 
 export function MessagesTable({
@@ -14,6 +15,7 @@ export function MessagesTable({
   isLoading,
   onEdit,
   onDelete,
+  onCreateNew,
 }: MessagesTableProps): JSX.Element {
   return (
     <div className="table-card">
@@ -99,6 +101,11 @@ export function MessagesTable({
           </table>
         )}
       </div>
+      <footer className="table-card__footer">
+        <button type="button" className="button" onClick={onCreateNew}>
+          New
+        </button>
+      </footer>
     </div>
   );
 }

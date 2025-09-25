@@ -5,6 +5,7 @@ export interface EventsTableProps {
   isLoading: boolean;
   onEdit: (event: EventRecord) => void;
   onDelete: (event: EventRecord) => void;
+  onCreateNew: () => void;
 }
 
 interface StatusEntry {
@@ -55,7 +56,13 @@ function renderDetail(detail: EventRecord['detail']): JSX.Element {
   );
 }
 
-export function EventsTable({ events, isLoading, onEdit, onDelete }: EventsTableProps): JSX.Element {
+export function EventsTable({
+  events,
+  isLoading,
+  onEdit,
+  onDelete,
+  onCreateNew,
+}: EventsTableProps): JSX.Element {
   return (
     <div className="table-card">
       <header className="table-card__header">
@@ -112,6 +119,11 @@ export function EventsTable({ events, isLoading, onEdit, onDelete }: EventsTable
           </table>
         )}
       </div>
+      <footer className="table-card__footer">
+        <button type="button" className="button" onClick={onCreateNew}>
+          New
+        </button>
+      </footer>
     </div>
   );
 }

@@ -21,6 +21,12 @@ export function EventsPage(): JSX.Element {
   const queryClient = useQueryClient();
   const { pushToast } = useToast();
   const [editingEvent, setEditingEvent] = useState<EventRecord | null>(null);
+  const [isFormVisible, setFormVisible] = useState(false);
+
+  const handleCloseForm = useCallback(() => {
+    setEditingEvent(null);
+    setFormVisible(false);
+  }, []);
 
   const eventsQuery = useQuery({
     queryKey: QUERY_KEY,
@@ -46,7 +52,7 @@ export function EventsPage(): JSX.Element {
         return [...filtered, created].sort((a, b) => a.uid - b.uid);
       });
       pushToast({ type: 'success', message: `Created event ${created.uid}.` });
-      setEditingEvent(null);
+      handleCloseForm();
     },
     onError: (error, variables) => {
       pushToast({
@@ -74,7 +80,7 @@ export function EventsPage(): JSX.Element {
           .sort((a, b) => a.uid - b.uid);
       });
       pushToast({ type: 'success', message: `Updated event ${updated.uid}.` });
-      setEditingEvent(null);
+      handleCloseForm();
     },
     onError: (error, variables) => {
       pushToast({
@@ -92,7 +98,7 @@ export function EventsPage(): JSX.Element {
       );
       pushToast({ type: 'success', message: `Deleted event ${uid}.` });
       if (editingEvent?.uid === Number(uid)) {
-        setEditingEvent(null);
+        handleCloseForm();
       }
     },
     onError: (error, uid) => {
@@ -116,6 +122,7 @@ export function EventsPage(): JSX.Element {
 
   const handleEdit = useCallback((event: EventRecord) => {
     setEditingEvent(event);
+    setFormVisible(true);
   }, []);
 
   const handleDelete = useCallback(
@@ -127,6 +134,11 @@ export function EventsPage(): JSX.Element {
     },
     [deleteMutation],
   );
+
+  const handleCreateNew = useCallback(() => {
+    setEditingEvent(null);
+    setFormVisible(true);
+  }, []);
 
   return (
     <section className="page-section">
@@ -141,14 +153,27 @@ export function EventsPage(): JSX.Element {
           isLoading={eventsQuery.isFetching && !eventsQuery.isFetched}
           onEdit={handleEdit}
           onDelete={handleDelete}
-        />
-        <EventForm
-          initialValue={editingEvent}
-          onSubmit={handleSubmit}
-          onCancelEdit={() => setEditingEvent(null)}
-          isSubmitting={createMutation.isPending || updateMutation.isPending}
+          onCreateNew={handleCreateNew}
         />
       </div>
+      {isFormVisible && (
+        <div className="form-drawer" role="dialog" aria-modal="true" aria-label="Event form">
+          <button
+            type="button"
+            className="form-drawer__backdrop"
+            aria-label="Close"
+            onClick={handleCloseForm}
+          />
+          <div className="form-drawer__panel">
+            <EventForm
+              initialValue={editingEvent}
+              onSubmit={handleSubmit}
+              onCancelEdit={handleCloseForm}
+              isSubmitting={createMutation.isPending || updateMutation.isPending}
+            />
+          </div>
+        </div>
+      )}
     </section>
   );
 }

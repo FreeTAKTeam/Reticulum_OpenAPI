@@ -89,6 +89,7 @@ describe('EmergencyActionMessagesPage', () => {
     });
 
     const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'New' }));
 
     await user.type(screen.getByLabelText('Callsign'), 'Charlie-3');
     await user.type(screen.getByLabelText('Group name'), 'Charlie');
@@ -124,6 +125,7 @@ describe('EmergencyActionMessagesPage', () => {
     renderPage();
 
     const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'New' }));
     await user.click(await screen.findByRole('button', { name: 'Create message' }));
 
     expect(await screen.findByText('Callsign is required.')).toBeInTheDocument();
