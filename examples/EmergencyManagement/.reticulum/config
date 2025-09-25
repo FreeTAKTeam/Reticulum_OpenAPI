@@ -16,7 +16,10 @@
 [interfaces]
   [[Auto Interface]]
     type = AutoInterface
-    enabled = Yes
+    enabled = true
+    name = Default Interface
+    selected_interface_mode = 1
+    configured_bitrate = None
  [[RNS Testnet Amsterdam]]
     type = TCPClientInterface
     interface_enabled = true
@@ -25,11 +28,6 @@
     name = RNS Testnet Amsterdam
     selected_interface_mode = 1
     configured_bitrate = None
-  [[RNS Testnet BetweenTheBorders]]
-    type = TCPClientInterface
-    interface_enabled = false
-    target_host = betweentheborders.com
-    target_port = 4242
   [[Sideband test network]]
     type = TCPClientInterface
     interface_enabled = true
