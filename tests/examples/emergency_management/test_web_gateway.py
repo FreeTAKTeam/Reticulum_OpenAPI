@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import importlib
 import json
+import time
 import zlib
 from typing import List
 from unittest.mock import AsyncMock
@@ -62,6 +63,10 @@ def gateway_app(monkeypatch):
         assert stub.shared_instance_rpc_key == module._CONFIG_DATA.get(
             "shared_instance_rpc_key"
         )
+        for _ in range(20):
+            if module._LINK_STATUS.state == "connected":
+                break
+            time.sleep(0.05)
         if module._DEFAULT_SERVER_IDENTITY:
             stub.ensure_link.assert_awaited_once_with(module._DEFAULT_SERVER_IDENTITY)
             assert module._LINK_STATUS.state == "connected"
@@ -74,6 +79,8 @@ def gateway_app(monkeypatch):
         yield module, client, stub
 
     module._CLIENT_INSTANCE = None
+    module._LINK_TASK = None
+    module._LINK_STATUS = module._LinkStatus()
 
 
 def test_default_identity_uses_json_config(monkeypatch) -> None:
@@ -356,14 +363,60 @@ def test_link_failure_reported_in_status(monkeypatch) -> None:
             return None
 
     monkeypatch.setattr(module, "LXMFClient", FailingClient)
+    monkeypatch.setattr(module, "_LINK_RETRY_DELAY_SECONDS", 0.01)
 
     with TestClient(module.app):
-        pass
+        time.sleep(0.05)
 
-    assert module._LINK_STATUS.state == "error"
+    assert module._LINK_STATUS.state == "connecting"
     assert module._LINK_STATUS.last_error == "no link"
-    assert "no link" in (module._LINK_STATUS.message or "")
+    assert "Retrying" in (module._LINK_STATUS.message or "")
+    assert module._LINK_STATUS.last_attempt is not None
 
     monkeypatch.delenv("NORTH_API_CONFIG_JSON", raising=False)
     module._CLIENT_INSTANCE = None
     module._LINK_STATUS = module._LinkStatus()
+    module._LINK_TASK = None
+
+
+def test_successful_link_prints_console_message(monkeypatch) -> None:
+    """A successful link attempt should emit a console message."""
+
+    config_json = json.dumps({"server_identity_hash": SERVER_IDENTITY})
+    monkeypatch.setenv("NORTH_API_CONFIG_JSON", config_json)
+
+    module = importlib.import_module("examples.EmergencyManagement.web_gateway.app")
+    module = importlib.reload(module)
+
+    printed: List[str] = []
+
+    def _capture_print(*args, **kwargs) -> None:
+        message = " ".join(str(arg) for arg in args)
+        printed.append(message)
+
+    monkeypatch.setattr("builtins.print", _capture_print)
+
+    class SuccessfulClient:
+        _normalise_destination_hex = staticmethod(
+            RealLXMFClient._normalise_destination_hex
+        )
+
+        def __init__(self, *args, **kwargs) -> None:
+            self.ensure_link = AsyncMock()
+            self.send_command = AsyncMock()
+
+        def announce(self) -> None:
+            return None
+
+    monkeypatch.setattr(module, "LXMFClient", SuccessfulClient)
+
+    with TestClient(module.app):
+        time.sleep(0.05)
+
+    assert any("Connected to LXMF server" in message for message in printed)
+    assert module._LINK_STATUS.state == "connected"
+
+    monkeypatch.delenv("NORTH_API_CONFIG_JSON", raising=False)
+    module._CLIENT_INSTANCE = None
+    module._LINK_STATUS = module._LinkStatus()
+    module._LINK_TASK = None
