@@ -4,6 +4,8 @@ from dataclasses import dataclass
 from types import SimpleNamespace
 from unittest.mock import Mock
 
+from typing import Callable
+
 import pytest
 
 from reticulum_openapi import service as service_module
@@ -162,11 +164,13 @@ async def test_init_and_add_route(monkeypatch):
             IN = "in"
             SINGLE = "single"
             OUT = "out"
+            ALLOW_ALL = "allow_all"
 
             def __init__(self, *args, **kwargs):
                 self.hash = b"h"
                 self.accepts_links_called = []
                 self.link_callback = None
+                self.request_handlers: dict[str, Callable[..., bytes]] = {}
                 destinations.append(self)
 
             def announce(self):
@@ -177,6 +181,19 @@ async def test_init_and_add_route(monkeypatch):
 
             def set_link_established_callback(self, callback):
                 self.link_callback = callback
+
+            def register_request_handler(
+                self,
+                path,
+                response_generator,
+                allow=None,
+                allowed_list=None,
+                auto_compress=True,
+            ):
+                self.request_handlers[path] = response_generator
+
+            def deregister_request_handler(self, path):
+                self.request_handlers.pop(path, None)
 
         class Link:
             KEEPALIVE = 0.1
@@ -214,8 +231,10 @@ async def test_init_and_add_route(monkeypatch):
     )
     svc = service_module.LXMFService()
     assert isinstance(svc.router, FakeLXMRouter)
+    assert "/commands/GetSchema" in destinations[-1].request_handlers
     svc.add_route("PING", lambda: None)
     assert "PING" in svc._routes
+    assert "/commands/PING" in destinations[-1].request_handlers
     assert svc.link_destination is destinations[-1]
     assert destinations[-1].accepts_links_called == [True]
 
@@ -319,3 +338,31 @@ async def test_lxmf_delivery_handler_exception(monkeypatch):
     svc._lxmf_delivery_callback(message)
     await asyncio.sleep(0)
     svc._send_lxmf.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_handle_registered_link_request_dispatches():
+    async def handler(payload):
+        return {"ok": True, "echo": payload}
+
+    svc = service_module.LXMFService.__new__(service_module.LXMFService)
+    svc._routes = {"CMD": (handler, None, None)}
+    svc.max_payload_size = 1024
+    svc._loop = asyncio.get_running_loop()
+    svc.auth_token = None
+
+    payload = dataclass_to_msgpack({"value": 1})
+    loop = asyncio.get_running_loop()
+    response = await loop.run_in_executor(
+        None,
+        lambda: svc._handle_registered_link_request(
+            "/commands/CMD",
+            payload,
+            request_id=object(),
+        ),
+    )
+
+    assert response is not None
+    decoded = service_module.msgpack_from_bytes(response)
+    assert decoded["ok"] is True
+    assert decoded["echo"]["value"] == 1

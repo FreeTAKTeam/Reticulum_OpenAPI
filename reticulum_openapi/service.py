@@ -208,8 +208,6 @@ class LXMFService:
         if hasattr(link, "set_link_closed_callback"):
             link.set_link_closed_callback(self._link_closed)
 
-        self._configure_link_request_handler(link)
-
         if self._link_handler is not None:
             def _schedule_handler() -> None:
                 asyncio.create_task(self._link_handler(link))
@@ -247,35 +245,6 @@ class LXMFService:
         except asyncio.CancelledError:
             return
 
-    def _configure_link_request_handler(self, link: RNS.Link) -> None:
-        """Assign the default request handler for established links."""
-
-        def _handler(
-            path: Any,
-            data: Any = None,
-            respond: Optional[Callable[[bytes], Any]] = None,
-        ) -> None:
-            def _dispatch() -> None:
-                self._loop.create_task(
-                    self._handle_link_request(link, path, data, respond)
-                )
-
-            self._loop.call_soon_threadsafe(_dispatch)
-
-        setter = getattr(link, "set_request_handler", None)
-        if callable(setter):
-            try:
-                setter(_handler)
-                return
-            except Exception:
-                logger.debug("set_request_handler unavailable on link", exc_info=True)
-        try:
-            setattr(link, "request_handler", _handler)
-        except Exception:
-            logger.debug(
-                "Unable to assign default link request handler", exc_info=True
-            )
-
     @staticmethod
     def _extract_command_from_path(path: Any) -> Optional[str]:
         """Return the command name encoded within a link request path."""
@@ -296,19 +265,53 @@ class LXMFService:
             command = cleaned.rsplit("/", 1)[-1]
         return command or None
 
-    async def _handle_link_request(
+    def _register_link_route(self, command: Optional[str]) -> None:
+        """Register the request handler for ``command`` on the link destination."""
+
+        if self.link_destination is None:
+            return
+        if not command:
+            return
+
+        path = f"/commands/{command}"
+        try:
+            self.link_destination.deregister_request_handler(path)
+        except Exception:
+            logger.debug(
+                "Failed to deregister existing link handler for %s", path, exc_info=True
+            )
+        try:
+            self.link_destination.register_request_handler(
+                path,
+                self._handle_registered_link_request,
+                allow=RNS.Destination.ALLOW_ALL,
+            )
+        except Exception:
+            logger.exception("Unable to register link handler for %s", command)
+
+    def _handle_registered_link_request(
         self,
-        link: RNS.Link,
         path: Any,
-        data: Any,
-        respond: Optional[Callable[[bytes], Any]],
-    ) -> None:
-        """Decode and dispatch commands received over an ``RNS.Link``."""
+        request_data: Any,
+        request_id: Any,
+        *extra: Any,
+    ) -> Optional[bytes]:
+        """Handle link requests dispatched via ``RNS.Destination`` hooks."""
 
         command_candidate = self._extract_command_from_path(path)
         if command_candidate is None:
             logger.warning("Received link request with invalid path: %r", path)
-            return
+            return None
+
+        response = self._generate_link_response(command_candidate, request_data)
+        if response is not None:
+            logger.info("Sent response for %s over link", command_candidate)
+        return response
+
+    def _generate_link_response(
+        self, command_candidate: str, raw_payload: Any
+    ) -> Optional[bytes]:
+        """Return response bytes for a link-delivered command."""
 
         command_key = command_candidate
         normalised = self._normalise_command_title(command_candidate)
@@ -318,30 +321,29 @@ class LXMFService:
         route = self._routes.get(command_key)
         if route is None:
             logger.warning("No route found for link command: %s", command_candidate)
-            return
+            return None
 
         handler, payload_type, payload_schema = route
         payload_obj, valid = self._decode_command_payload(
             command_candidate,
-            data,
+            raw_payload,
             payload_type,
             payload_schema,
         )
         if not valid:
-            return
+            return None
 
-        def _responder(response_bytes: bytes) -> Optional[Any]:
-            if respond is None:
-                return None
-            logger.info("Sent response for %s over link", command_candidate)
-            return respond(response_bytes)
-
-        await self._dispatch_handler_response(
-            command_candidate,
-            handler,
-            payload_obj,
-            _responder,
+        future = asyncio.run_coroutine_threadsafe(
+            self._execute_command_handler(command_candidate, handler, payload_obj),
+            self._loop,
         )
+        try:
+            return future.result()
+        except Exception:
+            logger.exception(
+                "Failed to handle link command %s", command_candidate, exc_info=True
+            )
+            return None
 
     def add_route(
         self,
@@ -365,6 +367,8 @@ class LXMFService:
             raise ValueError("Command names must be UTF-8 decodable")
         self._routes[normalised_command] = (handler, payload_type, payload_schema)
         RNS.log(f"Route registered: '{normalised_command}' -> {handler}")
+        if self.link_destination is not None:
+            self._register_link_route(normalised_command)
 
     def _decode_command_payload(
         self,
@@ -481,6 +485,28 @@ class LXMFService:
                     return None
                 return compress_json(fallback_json)
 
+    async def _execute_command_handler(
+        self,
+        command: str,
+        handler: Callable[..., Awaitable[Any]],
+        payload_obj: Optional[Any],
+    ) -> Optional[bytes]:
+        """Execute a handler and return serialised response bytes."""
+
+        try:
+            if payload_obj is not None:
+                result = await handler(payload_obj)
+            else:
+                result = await handler()
+        except Exception as exc:
+            logger.exception("Exception in handler for %s: %s", command, exc)
+            return None
+
+        if result is None:
+            return None
+
+        return self._serialise_handler_result(command, result)
+
     async def _dispatch_handler_response(
         self,
         command: str,
@@ -490,19 +516,9 @@ class LXMFService:
     ) -> None:
         """Execute a handler and forward the serialised response."""
 
-        try:
-            if payload_obj is not None:
-                result = await handler(payload_obj)
-            else:
-                result = await handler()
-        except Exception as exc:
-            logger.exception("Exception in handler for %s: %s", command, exc)
-            return
-
-        if result is None:
-            return
-
-        response_bytes = self._serialise_handler_result(command, result)
+        response_bytes = await self._execute_command_handler(
+            command, handler, payload_obj
+        )
         if response_bytes is None:
             return
 
