@@ -63,17 +63,24 @@ class LXMFClient:
         timeout: float = 10.0,
         shared_instance_rpc_key: Optional[str] = None,
     ):
-        self.reticulum = RNS.Reticulum(config_path)
+        config_directory = self._normalise_config_directory(config_path)
+        if config_directory is not None:
+            try:
+                Path(config_directory).expanduser().mkdir(parents=True, exist_ok=True)
+            except OSError:
+                pass
+
+        self.reticulum = RNS.Reticulum(config_directory)
         self._shared_instance_rpc_key: Optional[bytes] = None
         if shared_instance_rpc_key is not None:
             key_bytes = self._decode_shared_instance_rpc_key(shared_instance_rpc_key)
             self.reticulum.rpc_key = key_bytes
             self._shared_instance_rpc_key = key_bytes
-        storage_path = storage_path or (RNS.Reticulum.storagepath + "/lxmf_client")
-        self.router = LXMF.LXMRouter(storagepath=storage_path)
+        resolved_storage_path = self._normalise_storage_path(storage_path)
+        self.router = LXMF.LXMRouter(storagepath=resolved_storage_path)
         self.router.register_delivery_callback(self._callback)
         if identity is None:
-            identity = load_or_create_identity(config_path)
+            identity = load_or_create_identity(config_directory or config_path)
         self.identity = identity
         self.source_identity = self.router.register_delivery_identity(
             identity, display_name=display_name, stamp_cost=0
@@ -93,6 +100,36 @@ class LXMFClient:
         self._link_locks: Dict[bytes, asyncio.Lock] = {}
         self._link_events: Dict[bytes, asyncio.Event] = {}
         self._links: Dict[bytes, RNS.Link] = {}
+
+    @staticmethod
+    def _normalise_config_directory(
+        config_path: Optional[str],
+    ) -> Optional[str]:
+        """Return a configuration directory compatible with Reticulum."""
+
+        if not config_path:
+            return None
+
+        candidate = Path(config_path).expanduser()
+        if candidate.is_file():
+            return str(candidate.parent)
+        if candidate.name == "config":
+            return str(candidate.parent)
+        return str(candidate)
+
+    @staticmethod
+    def _normalise_storage_path(storage_path: Optional[str]) -> str:
+        """Return a filesystem path for LXMF client storage."""
+
+        if storage_path:
+            resolved = Path(storage_path).expanduser()
+        else:
+            resolved = Path(RNS.Reticulum.storagepath).expanduser() / "lxmf_client"
+        try:
+            resolved.mkdir(parents=True, exist_ok=True)
+        except OSError:
+            pass
+        return str(resolved)
 
     def _get_link_lock(self, dest_hash: bytes) -> asyncio.Lock:
         """Return a lock guarding link creation for ``dest_hash``."""

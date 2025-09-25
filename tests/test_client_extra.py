@@ -1,5 +1,6 @@
 import asyncio
 import contextlib
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock
 
@@ -68,6 +69,56 @@ async def test_client_init(monkeypatch):
     assert cli._futures == {}
     assert isinstance(cli._announce_queue, asyncio.Queue)
     assert register_calls["handler"].aspect_filter == "lxmf"
+
+
+def test_client_normalises_config_directory(tmp_path, monkeypatch):
+    called = {}
+
+    storage_root = tmp_path / "storage_root"
+
+    class DummyReticulum:
+        storagepath = str(storage_root)
+
+        def __init__(self, config_path=None):
+            called["config_path"] = config_path
+
+    class DummyIdentity:
+        def __init__(self):
+            self.hash = b"h"
+
+    class DummyRouter:
+        def __init__(self, storagepath=None):
+            self.storagepath = storagepath
+
+        def register_delivery_callback(self, cb):
+            self.cb = cb
+
+        def register_delivery_identity(self, ident, display_name=None, stamp_cost=0):
+            return ident
+
+        def handle_outbound(self, msg):
+            pass
+
+    monkeypatch.setattr(client_module.RNS, "Reticulum", DummyReticulum)
+    monkeypatch.setattr(client_module.RNS, "Identity", DummyIdentity)
+    monkeypatch.setattr(client_module.LXMF, "LXMRouter", DummyRouter)
+    monkeypatch.setattr(client_module.LXMF, "LXMessage", object)
+    monkeypatch.setattr(
+        client_module,
+        "load_or_create_identity",
+        lambda *a, **k: DummyIdentity(),
+    )
+
+    config_dir = tmp_path / "config"
+    config_dir.mkdir()
+    config_file = config_dir / "config"
+    config_file.write_text("", encoding="utf-8")
+
+    client_module.LXMFClient(config_path=str(config_file))
+
+    assert called["config_path"] == str(config_dir)
+    expected_storage = Path(storage_root) / "lxmf_client"
+    assert expected_storage.is_dir()
 
 
 @pytest.mark.asyncio
