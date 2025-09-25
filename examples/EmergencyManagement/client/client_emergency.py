@@ -63,6 +63,9 @@ TEST_EVENT_COUNT_KEY = "test_event_count"
 EXAMPLE_IDENTITY_HASH = "761dfb354cfe5a3c9d8f5c4465b6c7f5"
 DEFAULT_CONFIG_DIRECTORY = Path(__file__).resolve().parent / ".reticulum_client"
 DEFAULT_STORAGE_DIRECTORY = DEFAULT_CONFIG_DIRECTORY / "storage"
+DEFAULT_RETICULUM_CONFIG_PATH = (
+    Path(__file__).resolve().parents[1] / ".reticulum" / "config"
+)
 PROMPT_MESSAGE = (
     "Server Identity Hash (32 hexadecimal characters, e.g. "
     f"{EXAMPLE_IDENTITY_HASH}): "
@@ -242,6 +245,13 @@ async def main():
     else:
         config_path_override = None
         identity_config_path = str(DEFAULT_CONFIG_DIRECTORY)
+
+    if config_path_override is None and DEFAULT_RETICULUM_CONFIG_PATH.exists():
+        config_path_override = str(DEFAULT_RETICULUM_CONFIG_PATH)
+        print(
+            "Using bundled Reticulum config at",
+            DEFAULT_RETICULUM_CONFIG_PATH,
+        )
 
     storage_path_value = config_data.get(LXMF_STORAGE_PATH_KEY)
     if isinstance(storage_path_value, str):
