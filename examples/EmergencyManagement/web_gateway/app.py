@@ -2,11 +2,26 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
-from dataclasses import fields, is_dataclass
+import logging
+from contextlib import suppress
+from dataclasses import dataclass, fields, is_dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Awaitable, Callable, Dict, List, Optional, Type, TypeVar, Union, get_args, get_origin
+from typing import (
+    Any,
+    Awaitable,
+    Callable,
+    Dict,
+    List,
+    Optional,
+    Type,
+    TypeVar,
+    Union,
+    get_args,
+    get_origin,
+)
 
 from importlib import metadata
 import os
@@ -56,6 +71,8 @@ COMMAND_RETRIEVE_EVENT = "RetrieveEvent"
 
 ConfigDict = Dict[str, Any]
 T = TypeVar("T")
+
+logger = logging.getLogger(__name__)
 
 load_dotenv()
 
@@ -144,6 +161,43 @@ _CLIENT_INSTANCE: Optional[LXMFClient] = None
 _GATEWAY_VERSION: str = _resolve_gateway_version()
 _START_TIME: datetime = datetime.now(timezone.utc)
 _NOTIFICATION_UNSUBSCRIBER: Optional[Callable[[], Awaitable[None]]] = None
+_LINK_RETRY_DELAY_SECONDS: float = 5.0
+_LINK_TASK: Optional[asyncio.Task[None]] = None
+
+
+def _format_timestamp(value: Optional[datetime]) -> Optional[str]:
+    """Return an ISO formatted timestamp in UTC when available."""
+
+    if value is None:
+        return None
+    return value.astimezone(timezone.utc).isoformat()
+
+
+@dataclass
+class _LinkStatus:
+    """Track the gateway's most recent LXMF link attempt."""
+
+    state: str = "pending"
+    message: Optional[str] = None
+    server_identity: Optional[str] = None
+    last_attempt: Optional[datetime] = None
+    last_success: Optional[datetime] = None
+    last_error: Optional[str] = None
+
+    def to_dict(self) -> Dict[str, Optional[str]]:
+        """Return a serialisable mapping describing the link state."""
+
+        return {
+            "state": self.state,
+            "message": self.message,
+            "serverIdentity": self.server_identity,
+            "lastAttempt": _format_timestamp(self.last_attempt),
+            "lastSuccess": _format_timestamp(self.last_success),
+            "lastError": self.last_error,
+        }
+
+
+_LINK_STATUS = _LinkStatus()
 
 
 def _normalise_optional_path(value: Optional[str]) -> Optional[str]:
@@ -217,6 +271,51 @@ def get_shared_client() -> LXMFClient:
     return _CLIENT_INSTANCE
 
 
+def _record_link_failure(server_identity: str, error: Exception) -> None:
+    """Update the link status after a failed connection attempt."""
+
+    _LINK_STATUS.state = "connecting"
+    _LINK_STATUS.last_error = str(error)
+    _LINK_STATUS.message = (
+        "Link to LXMF server "
+        f"{server_identity} failed: {error}. "
+        f"Retrying in {_LINK_RETRY_DELAY_SECONDS:.1f} seconds."
+    )
+    logger.warning("LXMF link to server %s failed: %s", server_identity, error)
+
+
+def _record_link_success(server_identity: str, attempt_time: datetime) -> None:
+    """Update link status and log a successful connection."""
+
+    _LINK_STATUS.state = "connected"
+    _LINK_STATUS.last_success = attempt_time
+    _LINK_STATUS.last_error = None
+    message = f"Connected to LXMF server {server_identity}"
+    _LINK_STATUS.message = message
+    print(f"[Emergency Gateway] {message}")
+    logger.info("Established LXMF link with server %s", server_identity)
+
+
+async def _ensure_link_with_retry(
+    client: LXMFClient, server_identity: str
+) -> None:
+    """Continuously attempt to connect the LXMF client to the server."""
+
+    while True:
+        attempt_time = datetime.now(timezone.utc)
+        _LINK_STATUS.last_attempt = attempt_time
+        try:
+            await client.ensure_link(server_identity)
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            _record_link_failure(server_identity, exc)
+            await asyncio.sleep(_LINK_RETRY_DELAY_SECONDS)
+        else:
+            _record_link_success(server_identity, attempt_time)
+            break
+
+
 def _format_uptime(uptime_seconds: float) -> str:
     """Format seconds since startup as an ``HH:MM:SS`` string."""
 
@@ -231,6 +330,23 @@ async def _startup() -> None:
     """Ensure the LXMF client is ready before serving requests."""
 
     client = get_shared_client()
+    global _LINK_TASK
+    server_identity = _DEFAULT_SERVER_IDENTITY
+    if server_identity:
+        _LINK_STATUS.server_identity = server_identity
+        _LINK_STATUS.state = "connecting"
+        _LINK_STATUS.last_error = None
+        _LINK_STATUS.message = (
+            f"Attempting to connect to LXMF server {server_identity}"
+        )
+        if _LINK_TASK is None or _LINK_TASK.done():
+            _LINK_TASK = asyncio.create_task(
+                _ensure_link_with_retry(client, server_identity)
+            )
+    else:
+        _LINK_STATUS.state = "unconfigured"
+        _LINK_STATUS.message = "Server identity hash not configured."
+
     global _NOTIFICATION_UNSUBSCRIBER
     if _NOTIFICATION_UNSUBSCRIBER is None and hasattr(
         client, "add_notification_listener"
@@ -241,6 +357,13 @@ async def _startup() -> None:
 @app.on_event("shutdown")
 async def _shutdown() -> None:
     """Tear down the notification bridge on application shutdown."""
+
+    global _LINK_TASK
+    if _LINK_TASK is not None:
+        _LINK_TASK.cancel()
+        with suppress(asyncio.CancelledError):
+            await _LINK_TASK
+        _LINK_TASK = None
 
     global _NOTIFICATION_UNSUBSCRIBER
     if _NOTIFICATION_UNSUBSCRIBER is None:
@@ -306,6 +429,12 @@ async def _send_command(
             await_response=True,
         )
     except TimeoutError as exc:
+        logger.error(
+            "LXMF gateway command '%s' to server %s timed out: %s",
+            command,
+            server_identity,
+            exc,
+        )
         raise HTTPException(
             status_code=status.HTTP_504_GATEWAY_TIMEOUT,
             detail=str(exc),
@@ -354,6 +483,7 @@ async def get_gateway_status() -> Dict[str, Any]:
         "lxmfConfigPath": config_path_override or str(CONFIG_PATH),
         "lxmfStoragePath": storage_path_override,
         "allowedOrigins": _ALLOWED_ORIGINS,
+        "linkStatus": _LINK_STATUS.to_dict(),
     }
 
 
@@ -364,9 +494,7 @@ async def _resolve_server_identity(
     """Determine the destination server identity hash for a request."""
 
     candidate = (
-        server_identity_query
-        or server_identity_header
-        or _DEFAULT_SERVER_IDENTITY
+        server_identity_query or server_identity_header or _DEFAULT_SERVER_IDENTITY
     )
     if candidate is None:
         raise HTTPException(

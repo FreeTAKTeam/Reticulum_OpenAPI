@@ -152,6 +152,8 @@ async def test_init_and_add_route(monkeypatch):
 
             self.hash = b"h"
 
+    destinations = []
+
     class FakeRNS:
         Reticulum = FakeReticulum
         Identity = FakeIdentity
@@ -159,12 +161,25 @@ async def test_init_and_add_route(monkeypatch):
         class Destination:
             IN = "in"
             SINGLE = "single"
+            OUT = "out"
 
             def __init__(self, *args, **kwargs):
                 self.hash = b"h"
+                self.accepts_links_called = []
+                self.link_callback = None
+                destinations.append(self)
 
             def announce(self):
                 pass
+
+            def accepts_links(self, flag):
+                self.accepts_links_called.append(flag)
+
+            def set_link_established_callback(self, callback):
+                self.link_callback = callback
+
+        class Link:
+            KEEPALIVE = 0.1
 
         @staticmethod
         def log(*a, **k):
@@ -201,6 +216,8 @@ async def test_init_and_add_route(monkeypatch):
     assert isinstance(svc.router, FakeLXMRouter)
     svc.add_route("PING", lambda: None)
     assert "PING" in svc._routes
+    assert svc.link_destination is destinations[-1]
+    assert destinations[-1].accepts_links_called == [True]
 
 
 @pytest.mark.asyncio

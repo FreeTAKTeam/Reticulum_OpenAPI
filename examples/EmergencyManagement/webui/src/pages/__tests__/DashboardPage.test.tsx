@@ -35,6 +35,13 @@ describe('DashboardPage', () => {
         lxmfConfigPath: '/tmp/config.json',
         lxmfStoragePath: '/tmp/storage',
         allowedOrigins: ['https://example.com'],
+        linkStatus: {
+          state: 'connected' as const,
+          message: 'Connected to LXMF server abc123',
+          lastSuccess: '2025-09-23T12:34:56Z',
+          lastAttempt: '2025-09-23T12:34:56Z',
+          lastError: null,
+        },
       },
     } as AxiosResponse<{
       version: string;
@@ -45,6 +52,13 @@ describe('DashboardPage', () => {
       lxmfConfigPath: string | null;
       lxmfStoragePath: string | null;
       allowedOrigins: string[];
+      linkStatus: {
+        state: 'pending' | 'connected' | 'error' | 'unconfigured' | 'unknown';
+        message?: string | null;
+        lastSuccess?: string | null;
+        lastAttempt?: string | null;
+        lastError?: string | null;
+      };
     }>;
     vi.spyOn(apiClientModule.apiClient, 'get').mockResolvedValueOnce(gatewayInfoResponse);
 
@@ -57,6 +71,10 @@ describe('DashboardPage', () => {
     expect(screen.getByText('/tmp/config.json')).toBeInTheDocument();
     expect(screen.getByText('/tmp/storage')).toBeInTheDocument();
     expect(screen.getByText('https://example.com')).toBeInTheDocument();
+    expect(screen.getByText('connected')).toBeInTheDocument();
+    expect(screen.getByText('Connected to LXMF server abc123')).toBeInTheDocument();
+    const timestampMatches = screen.getAllByText('2025-09-23T12:34:56Z');
+    expect(timestampMatches).toHaveLength(2);
     expect(screen.getByText('http://localhost:8000')).toBeInTheDocument();
     expect(screen.getByText('http://localhost:8000/notifications/stream')).toBeInTheDocument();
     expect(
