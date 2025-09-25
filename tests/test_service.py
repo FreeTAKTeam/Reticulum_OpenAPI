@@ -1,6 +1,9 @@
 import asyncio
 from dataclasses import dataclass
 from types import SimpleNamespace
+from typing import Any
+from typing import Callable
+from typing import Optional
 from unittest.mock import Mock
 
 import pytest
@@ -277,6 +280,29 @@ async def test_link_request_dispatches_routes() -> None:
     """Link request handlers should execute command routes and return responses."""
 
     loop = asyncio.get_running_loop()
+    handlers: dict[str, Callable[..., Optional[bytes]]] = {}
+
+    class DummyDestination:
+        def __init__(self) -> None:
+            self.register_calls: list[str] = []
+
+        def deregister_request_handler(self, path: str) -> None:
+            handlers.pop(path, None)
+
+        def register_request_handler(
+            self,
+            path: str,
+            response_generator: Callable[..., Optional[bytes]],
+            allow: Optional[int] = None,
+            allowed_list: Optional[list[bytes]] = None,
+            auto_compress: bool | int = True,
+        ) -> None:
+            self.register_calls.append(path)
+            handlers[path] = response_generator
+
+        def set_link_established_callback(self, callback: Callable[[Any], None]) -> None:
+            self.link_callback = callback
+
     service = LXMFService.__new__(LXMFService)
     service._loop = loop
     service.auth_token = None
@@ -286,11 +312,12 @@ async def test_link_request_dispatches_routes() -> None:
     service._link_keepalive_interval = 0
     service._active_links = {}
     service._link_keepalive_tasks = {}
+    service.link_destination = DummyDestination()
 
     async def handler() -> dict:
         return {"status": "ok"}
 
-    service._routes["PING"] = (handler, None, None)
+    service.add_route("PING", handler)
 
     class DummyLink:
         def __init__(self) -> None:
@@ -302,17 +329,15 @@ async def test_link_request_dispatches_routes() -> None:
 
     link = DummyLink()
     service._link_established(link)
-    request_handler = getattr(link, "request_handler", None)
+    assert link.link_id in service._active_links
+
+    request_handler = handlers.get("/commands/PING")
     assert callable(request_handler)
 
-    response_future = loop.create_future()
+    def _invoke_handler() -> Optional[bytes]:
+        return request_handler("/commands/PING", b"", object())
 
-    def respond(payload: bytes) -> None:
-        if not response_future.done():
-            response_future.set_result(payload)
-
-    request_handler("/commands/PING", b"", respond)
-    payload = await asyncio.wait_for(response_future, 1)
+    payload = await loop.run_in_executor(None, _invoke_handler)
     assert msgpack_from_bytes(payload) == {"status": "ok"}
 
 
