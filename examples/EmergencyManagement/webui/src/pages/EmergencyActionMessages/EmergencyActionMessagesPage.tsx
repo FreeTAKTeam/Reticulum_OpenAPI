@@ -25,6 +25,12 @@ export function EmergencyActionMessagesPage(): JSX.Element {
   const queryClient = useQueryClient();
   const { pushToast } = useToast();
   const [editingMessage, setEditingMessage] = useState<EmergencyActionMessage | null>(null);
+  const [isFormVisible, setFormVisible] = useState(false);
+
+  const handleCloseForm = useCallback(() => {
+    setEditingMessage(null);
+    setFormVisible(false);
+  }, []);
 
   const messagesQuery = useQuery({
     queryKey: QUERY_KEY,
@@ -48,7 +54,7 @@ export function EmergencyActionMessagesPage(): JSX.Element {
         return sortMessages([...filtered, created]);
       });
       pushToast({ type: 'success', message: `Created ${created.callsign}.` });
-      setEditingMessage(null);
+      handleCloseForm();
     },
     onError: (error, variables) => {
       pushToast({
@@ -76,7 +82,7 @@ export function EmergencyActionMessagesPage(): JSX.Element {
         );
       });
       pushToast({ type: 'success', message: `Updated ${updated.callsign}.` });
-      setEditingMessage(null);
+      handleCloseForm();
     },
     onError: (error, variables) => {
       pushToast({
@@ -94,7 +100,7 @@ export function EmergencyActionMessagesPage(): JSX.Element {
       );
       pushToast({ type: 'success', message: `Deleted ${callsign}.` });
       if (editingMessage?.callsign === callsign) {
-        setEditingMessage(null);
+        handleCloseForm();
       }
     },
     onError: (error, callsign) => {
@@ -118,6 +124,7 @@ export function EmergencyActionMessagesPage(): JSX.Element {
 
   const handleEdit = useCallback((message: EmergencyActionMessage) => {
     setEditingMessage(message);
+    setFormVisible(true);
   }, []);
 
   const handleDelete = useCallback(
@@ -132,6 +139,11 @@ export function EmergencyActionMessagesPage(): JSX.Element {
     [deleteMutation],
   );
 
+  const handleCreateNew = useCallback(() => {
+    setEditingMessage(null);
+    setFormVisible(true);
+  }, []);
+
   return (
     <section className="page-section">
       <header className="page-header">
@@ -145,14 +157,27 @@ export function EmergencyActionMessagesPage(): JSX.Element {
           isLoading={messagesQuery.isFetching && !messagesQuery.isFetched}
           onEdit={handleEdit}
           onDelete={handleDelete}
-        />
-        <MessageForm
-          initialValue={editingMessage}
-          onSubmit={handleSubmit}
-          onCancelEdit={() => setEditingMessage(null)}
-          isSubmitting={createMutation.isPending || updateMutation.isPending}
+          onCreateNew={handleCreateNew}
         />
       </div>
+      {isFormVisible && (
+        <div className="form-drawer" role="dialog" aria-modal="true" aria-label="Emergency action message form">
+          <button
+            type="button"
+            className="form-drawer__backdrop"
+            aria-label="Close"
+            onClick={handleCloseForm}
+          />
+          <div className="form-drawer__panel">
+            <MessageForm
+              initialValue={editingMessage}
+              onSubmit={handleSubmit}
+              onCancelEdit={handleCloseForm}
+              isSubmitting={createMutation.isPending || updateMutation.isPending}
+            />
+          </div>
+        </div>
+      )}
     </section>
   );
 }

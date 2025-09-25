@@ -461,6 +461,13 @@ a {
   overflow-x: auto;
 }
 
+.table-card__footer {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: auto;
+  padding-top: 0.5rem;
+}
+
 .table-card table {
   width: 100%;
   border-collapse: collapse;
@@ -505,6 +512,42 @@ a {
 .callsign-subtitle {
   font-size: 0.85rem;
   color: var(--text-muted);
+}
+
+.form-drawer {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  justify-content: flex-end;
+  align-items: stretch;
+  z-index: 30;
+}
+
+.form-drawer__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(2, 6, 23, 0.6);
+  border: none;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+}
+
+.form-drawer__panel {
+  position: relative;
+  width: min(480px, 100%);
+  background: linear-gradient(165deg, rgba(12, 24, 45, 0.98) 0%, rgba(11, 22, 39, 0.92) 100%);
+  border-left: 1px solid rgba(148, 163, 184, 0.18);
+  box-shadow: -24px 0 60px rgba(8, 15, 35, 0.65);
+  padding: 2rem 1.75rem;
+  overflow-y: auto;
+  z-index: 1;
+}
+
+.form-drawer__panel .form-card {
+  height: 100%;
+  max-height: 100%;
+  margin: 0;
 }
 
 .button {

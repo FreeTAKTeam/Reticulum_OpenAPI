@@ -80,4 +80,5 @@
 - [x] Add HTTP integration tests for the EmergencyManagement web UI message and event flows.
 - [x] Surface active Reticulum interfaces in the EmergencyManagement gateway startup logs and dashboard.
 - [x] Upgrade esbuild dependency to version 0.25.0 or later to address the development server request vulnerability.
+- [x] Simplify EmergencyManagement web UI tables with a drawer form triggered by a New button. (2025-09-25)
 

@@ -71,6 +71,7 @@ export function MessageForm({
   }, [initialValue]);
 
   const isEditing = useMemo(() => Boolean(initialValue?.callsign), [initialValue]);
+  const dismissLabel = isEditing ? 'Cancel edit' : 'Close';
 
   const statusFields: Array<keyof EmergencyActionMessage> = useMemo(
     () => [
@@ -130,14 +131,14 @@ export function MessageForm({
           <h3>{isEditing ? `Update ${state.values.callsign}` : 'Create new message'}</h3>
           <p>Capture an updated readiness snapshot for each callsign.</p>
         </div>
-        {isEditing && (
+        {onCancelEdit && (
           <button
             type="button"
             className="button button--secondary"
             onClick={onCancelEdit}
             disabled={isSubmitting}
           >
-            Cancel edit
+            {dismissLabel}
           </button>
         )}
       </header>

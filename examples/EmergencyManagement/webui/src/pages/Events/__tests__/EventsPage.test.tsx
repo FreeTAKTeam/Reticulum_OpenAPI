@@ -109,6 +109,7 @@ describe('EventsPage', () => {
     });
 
     const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'New' }));
     await user.type(screen.getByLabelText('UID'), '2');
     await user.type(screen.getByLabelText('Type'), 'New');
     await user.type(screen.getByLabelText('Start'), '2025-09-19T10:30');
@@ -182,6 +183,7 @@ describe('EventsPage', () => {
     renderPage();
 
     const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'New' }));
     await user.click(await screen.findByRole('button', { name: 'Create event' }));
 
     expect(await screen.findByText('UID must be a valid number.')).toBeInTheDocument();
