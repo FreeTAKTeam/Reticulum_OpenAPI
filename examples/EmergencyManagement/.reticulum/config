@@ -4,12 +4,63 @@
 # the same shared instance while running on a single workstation.
 
 [reticulum]
-  enable_transport = False
+  enable_transport = true
   share_instance = Yes
   instance_name = emergency-default
   rpc_key = F1E2D3C4B5A697887766554433221100
+  panic_on_interface_error = No
+
+[logging]
+  loglevel = 5
 
 [interfaces]
   [[Auto Interface]]
     type = AutoInterface
     enabled = Yes
+ [[RNS Testnet Amsterdam]]
+    type = TCPClientInterface
+    interface_enabled = true
+    target_host = amsterdam.connect.reticulum.network
+    target_port = 4965
+    name = RNS Testnet Amsterdam
+    selected_interface_mode = 1
+    configured_bitrate = None
+  [[RNS Testnet BetweenTheBorders]]
+    type = TCPClientInterface
+    interface_enabled = false
+    target_host = betweentheborders.com
+    target_port = 4242
+  [[Sideband test network]]
+    type = TCPClientInterface
+    interface_enabled = true
+    target_host = sideband.connect.reticulum.network
+    target_port = 7822
+    name = Sideband test network
+    selected_interface_mode = 1
+    configured_bitrate = None
+  [[FTSRET]]
+    type = TCPClientInterface
+    interface_enabled = true
+    target_host = 137.184.101.250
+    target_port = 4242
+    name = FTSRET
+    selected_interface_mode = 1
+    configured_bitrate = None
+  [[The Outpost]]
+    type = TCPClientInterface
+    interface_enabled = true
+    target_host = theoutpost.life
+    target_port = 4242
+    name = The Outpost
+    selected_interface_mode = 1
+    configured_bitrate = None
+  [[UDP test]]
+    type = UDPInterface
+    interface_enabled = true
+    listen_ip = 0.0.0.0
+    listen_port = 4242
+    forward_ip = 255.255.255.255
+    forward_port = 4242
+    name = UDP test
+    selected_interface_mode = 1
+    configured_bitrate = None
