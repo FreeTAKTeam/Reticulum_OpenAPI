@@ -8,7 +8,7 @@ version = "0.1.0"
 description = "Reticulum LXMF-based OpenAPI framework"
 readme = "README.md"
 requires-python = ">=3.8"
-license = {text = "MIT"}
+license = "MIT"
 dependencies = [
     "RNS",
     "LXMF",
@@ -23,6 +23,23 @@ dev = [
     "pytest",
     "pytest-asyncio",
     "flake8"
+]
+
+[tool.setuptools.packages.find]
+include = [
+    "reticulum_openapi",
+    "reticulum_openapi.*"
+]
+exclude = [
+    "tests",
+    "tests.*",
+    "examples",
+    "examples.*",
+    "templates",
+    "templates.*",
+    "scripts",
+    "scripts.*",
+    "venv_*"
 ]
 
 [tool.pytest.ini_options]
