@@ -8,6 +8,15 @@ import {
   getLiveUpdatesUrl,
 } from '../lib/apiClient';
 
+interface LinkStatus {
+  state: 'pending' | 'connected' | 'error' | 'unconfigured' | 'unknown';
+  message?: string | null;
+  serverIdentity?: string | null;
+  lastAttempt?: string | null;
+  lastSuccess?: string | null;
+  lastError?: string | null;
+}
+
 interface GatewayInfo {
   version: string;
   uptime: string;
@@ -17,6 +26,7 @@ interface GatewayInfo {
   lxmfConfigPath?: string | null;
   lxmfStoragePath?: string | null;
   allowedOrigins?: string[];
+  linkStatus?: LinkStatus | null;
 }
 
 export function DashboardPage(): JSX.Element {
@@ -37,6 +47,12 @@ export function DashboardPage(): JSX.Element {
         : [],
     [gatewayInfo],
   );
+  const linkStatus = gatewayInfo?.linkStatus ?? null;
+  const resolvedLinkMessage = linkStatus?.message ?? 'No link status reported yet.';
+  const resolvedLinkState = linkStatus?.state ?? 'unknown';
+  const resolvedLastSuccess = linkStatus?.lastSuccess ?? 'Never';
+  const resolvedLastAttempt = linkStatus?.lastAttempt ?? 'Never';
+  const resolvedLastError = linkStatus?.lastError ?? null;
 
   useEffect(() => {
     let isMounted = true;
@@ -88,6 +104,28 @@ export function DashboardPage(): JSX.Element {
               <dt>Uptime</dt>
               <dd>{gatewayInfo.uptime}</dd>
             </div>
+            <div>
+              <dt>Link State</dt>
+              <dd>{resolvedLinkState}</dd>
+            </div>
+            <div>
+              <dt>Link Status</dt>
+              <dd>{resolvedLinkMessage}</dd>
+            </div>
+            <div>
+              <dt>Last Successful Link</dt>
+              <dd>{resolvedLastSuccess}</dd>
+            </div>
+            <div>
+              <dt>Last Link Attempt</dt>
+              <dd>{resolvedLastAttempt}</dd>
+            </div>
+            {resolvedLastError && (
+              <div>
+                <dt>Last Link Error</dt>
+                <dd>{resolvedLastError}</dd>
+              </div>
+            )}
           </dl>
         )}
       </div>
