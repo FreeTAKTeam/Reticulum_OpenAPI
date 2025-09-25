@@ -94,3 +94,5 @@
 - [x] Enable LXMF service link support and extend automated coverage.
 - [x] Ensure EmergencyManagement gateway retries LXMF link until connection established. (2025-09-30)
 
+- [x] Add HTTP integration tests for the EmergencyManagement web UI message and event flows.
+
