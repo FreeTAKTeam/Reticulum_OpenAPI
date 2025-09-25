@@ -71,6 +71,72 @@ async def test_client_init(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_client_normalises_config_file_path(monkeypatch, tmp_path):
+    config_dir = tmp_path / "reticulum"
+    config_dir.mkdir()
+    config_file = config_dir / "config"
+    config_file.write_text("interfaces {}\n")
+
+    captured = {}
+
+    class DummyReticulum:
+        storagepath = str(tmp_path / "existing_storage")
+
+        def __init__(self, config_path=None):
+            captured["config_path"] = config_path
+
+    class DummyIdentity:
+        def __init__(self):
+            self.hash = b"h"
+            self.announce = Mock()
+
+    class DummyRouter:
+        def __init__(self, storagepath=None):
+            captured["storage_path"] = storagepath
+
+        def register_delivery_callback(self, cb):
+            self.cb = cb
+
+        def register_delivery_identity(self, ident, display_name=None, stamp_cost=0):
+            return ident
+
+    class DummyDestination:
+        OUT = object()
+        SINGLE = object()
+
+        def __init__(self, *a, **k):
+            pass
+
+    def fake_register(handler):
+        captured["handler"] = handler
+
+    monkeypatch.setattr(client_module.RNS, "Reticulum", DummyReticulum)
+    monkeypatch.setattr(client_module.RNS, "Identity", DummyIdentity)
+    monkeypatch.setattr(client_module.RNS, "Destination", DummyDestination)
+    monkeypatch.setattr(
+        client_module.RNS.Transport, "register_announce_handler", fake_register
+    )
+    monkeypatch.setattr(client_module.LXMF, "LXMRouter", DummyRouter)
+
+    def fake_load(path, *args, **kwargs):
+        captured["identity_path"] = path
+        return DummyIdentity()
+
+    monkeypatch.setattr(client_module, "load_or_create_identity", fake_load)
+
+    storage_dir = tmp_path / "custom_storage"
+    client_module.LXMFClient(
+        config_path=str(config_file),
+        storage_path=str(storage_dir),
+    )
+
+    assert captured["config_path"] == str(config_dir)
+    assert captured["identity_path"] == str(config_dir)
+    assert captured["storage_path"] == str(storage_dir)
+    assert storage_dir.is_dir()
+
+
+@pytest.mark.asyncio
 async def test_send_command_bytes_payload(monkeypatch):
     loop = asyncio.get_running_loop()
     cli = client_module.LXMFClient.__new__(client_module.LXMFClient)
