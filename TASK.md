@@ -4,20 +4,16 @@
 - [x] Fix flake8 errors across the codebase.
 - [x] Add Filmology example service and client with auth tokens and schema validation.
 - [x] Replace JSON serialization with MessagePack across service and tests.
-
 - [x] Decode command responses into dataclasses in EmergencyManagement client.
 - [x] Implement MessagePack decoding in EmergencyManagement client.
 - [x] Add loopback link tests for client requests and resource transfer.
 - [x] Update generator docs to use Python tooling and note post-generation tweaks.
 - [x] Add integer range checks for MessagePack encoding.
-
 - [x] Extend MessagePack codec tests for misordered maps, boundary vectors, digests, and negative NaN/ext cases.
-
 - [x] Update codec Msgpack test to import from reticulum_openapi.
 - [x] Introduce MessagePack utilities and refactor service/client to use them by default.
 - [x] Evaluate separating compression from JSON serialization helpers.
 - [x] Introduce centralised logging configuration for services and clients.
-
 - [x] Use MessagePack for dataclass serialization and drop zlib compression.
 - [x] Rename serialization helpers to dataclass_to_msgpack/from_msgpack for clarity.
 - [x] Resolve merge artifacts in service tests.
@@ -26,19 +22,15 @@
 ## 2025-08-12
 - [x] Resolve flake8 errors in services, models, and tests.
 
-
 ## 2025-09-16
 - [x] Align LXMF client path discovery with configurable timeouts and cover success/timeout cases in tests.
 - [x] Normalise LXMF command titles to handle byte-encoded message routes.
 - [x] Evaluate EmergencyManagement example to resolve import issues and extend automated coverage.
 
-
-
 ## 2025-09-17
 - [x] Persist and reuse Reticulum identities for services and clients when available in configuration.
 - [x] Handle dataclass auth tokens in LXMF service delivery callback and extend tests.
 - [x] Convert LXMF handler responses with nested dataclasses before encoding.
-
 
 ## 2025-09-18
 - [x] Refresh EmergencyManagement README with current client/service/controller flow terminology.
@@ -78,27 +70,14 @@
 - [x] Surface dashboard gateway errors using extractApiErrorMessage and recover view state after successful loads.
 - [x] Surface gateway server identity and API configuration details on the dashboard page.
 
-## 2025-09-26
+## 2025-09-25
 - [x] Document how to start the Emergency Management FastAPI gateway on http://localhost:8000 in the project README.
-
-## 2025-09-27
 - [x] Add random event seeding helper for the EmergencyManagement client CLI.
-
-## 2025-09-28
 - [x] Ensure EmergencyManagement FastAPI gateway decodes compressed responses when relaying server commands.
-
-## 2025-09-29
 - [x] Refresh EmergencyManagement web UI with dark styling and navigation/status icons inspired by mission dashboard designs.
-
-## 2025-09-30
 - [x] Enable LXMF service link support and extend automated coverage.
 - [x] Ensure EmergencyManagement gateway retries LXMF link until connection established. (2025-09-30)
-
 - [x] Add HTTP integration tests for the EmergencyManagement web UI message and event flows.
-
-## 2025-09-25
 - [x] Surface active Reticulum interfaces in the EmergencyManagement gateway startup logs and dashboard.
-
-## 2025-10-01
 - [x] Upgrade esbuild dependency to version 0.25.0 or later to address the development server request vulnerability.
 
