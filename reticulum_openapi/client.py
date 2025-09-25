@@ -27,6 +27,51 @@ configure_logging()
 logger = logging.getLogger(__name__)
 
 
+def _prepare_config_directory(config_path: Optional[str]) -> Optional[str]:
+    """Normalise a Reticulum configuration path to an existing directory.
+
+    Args:
+        config_path (Optional[str]): User supplied configuration path. Can
+            reference either the configuration directory or the ``config``
+            file inside that directory.
+
+    Returns:
+        Optional[str]: Directory path suitable for ``RNS.Reticulum``. When
+            ``config_path`` is falsy, ``None`` is returned to preserve the
+            default Reticulum discovery behaviour.
+    """
+
+    if not config_path:
+        return None
+
+    candidate = Path(config_path).expanduser()
+
+    if candidate.exists():
+        if candidate.is_file():
+            directory = candidate.parent
+        elif candidate.is_dir():
+            directory = candidate
+        else:
+            directory = candidate.parent
+    else:
+        if candidate.suffix:
+            directory = candidate.parent
+        elif candidate.name == "config":
+            directory = candidate.parent
+        else:
+            directory = candidate
+
+    if directory is None or str(directory) == "":
+        return None
+
+    try:
+        directory.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        pass
+
+    return str(directory)
+
+
 class _AnnounceHandler:
     """Adapter that forwards Reticulum announces into an asyncio queue."""
 
@@ -63,17 +108,26 @@ class LXMFClient:
         timeout: float = 10.0,
         shared_instance_rpc_key: Optional[str] = None,
     ):
-        self.reticulum = RNS.Reticulum(config_path)
+        config_directory = _prepare_config_directory(config_path)
+        self.reticulum = RNS.Reticulum(config_directory)
         self._shared_instance_rpc_key: Optional[bytes] = None
         if shared_instance_rpc_key is not None:
             key_bytes = self._decode_shared_instance_rpc_key(shared_instance_rpc_key)
             self.reticulum.rpc_key = key_bytes
             self._shared_instance_rpc_key = key_bytes
-        storage_path = storage_path or (RNS.Reticulum.storagepath + "/lxmf_client")
-        self.router = LXMF.LXMRouter(storagepath=storage_path)
+        if storage_path:
+            resolved_storage = Path(storage_path).expanduser()
+        else:
+            resolved_storage = Path(RNS.Reticulum.storagepath) / "lxmf_client"
+        try:
+            resolved_storage.mkdir(parents=True, exist_ok=True)
+        except OSError:
+            pass
+        self.router = LXMF.LXMRouter(storagepath=str(resolved_storage))
         self.router.register_delivery_callback(self._callback)
         if identity is None:
-            identity = load_or_create_identity(config_path)
+            identity_base = config_directory or config_path
+            identity = load_or_create_identity(identity_base)
         self.identity = identity
         self.source_identity = self.router.register_delivery_identity(
             identity, display_name=display_name, stamp_cost=0
