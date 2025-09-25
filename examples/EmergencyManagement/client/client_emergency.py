@@ -63,9 +63,8 @@ TEST_EVENT_COUNT_KEY = "test_event_count"
 EXAMPLE_IDENTITY_HASH = "761dfb354cfe5a3c9d8f5c4465b6c7f5"
 DEFAULT_CONFIG_DIRECTORY = Path(__file__).resolve().parent / ".reticulum_client"
 DEFAULT_STORAGE_DIRECTORY = DEFAULT_CONFIG_DIRECTORY / "storage"
-DEFAULT_RETICULUM_CONFIG_PATH = (
-    Path(__file__).resolve().parents[1] / ".reticulum" / "config"
-)
+DEFAULT_RETICULUM_CONFIG_DIR = Path(__file__).resolve().parents[1] / ".reticulum"
+DEFAULT_RETICULUM_CONFIG_PATH = DEFAULT_RETICULUM_CONFIG_DIR / "config"
 PROMPT_MESSAGE = (
     "Server Identity Hash (32 hexadecimal characters, e.g. "
     f"{EXAMPLE_IDENTITY_HASH}): "
@@ -204,6 +203,20 @@ def _coerce_positive_int(value, default: int) -> int:
     return default
 
 
+def _normalise_config_directory(path_value: Optional[str]) -> Optional[str]:
+    """Return a directory path suitable for Reticulum configuration."""
+
+    if not path_value:
+        return None
+
+    candidate = Path(path_value).expanduser()
+    if candidate.is_file():
+        return str(candidate.parent)
+    if candidate.name == "config":
+        return str(candidate.parent)
+    return str(candidate)
+
+
 async def main():
     """Send and retrieve an emergency action message.
 
@@ -239,15 +252,15 @@ async def main():
         config_path_value = config_path_value.strip()
     else:
         config_path_value = ""
-    if config_path_value:
-        config_path_override = config_path_value
-        identity_config_path = config_path_value
+
+    config_path_override = _normalise_config_directory(config_path_value)
+    if config_path_override is not None:
+        identity_config_path = config_path_override
     else:
-        config_path_override = None
         identity_config_path = str(DEFAULT_CONFIG_DIRECTORY)
 
     if config_path_override is None and DEFAULT_RETICULUM_CONFIG_PATH.exists():
-        config_path_override = str(DEFAULT_RETICULUM_CONFIG_PATH)
+        config_path_override = str(DEFAULT_RETICULUM_CONFIG_DIR)
         print(
             "Using bundled Reticulum config at",
             DEFAULT_RETICULUM_CONFIG_PATH,
