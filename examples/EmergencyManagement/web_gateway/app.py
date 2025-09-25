@@ -430,6 +430,12 @@ async def _send_command(
             await_response=True,
         )
     except TimeoutError as exc:
+        logger.error(
+            "LXMF gateway command '%s' to server %s timed out: %s",
+            command,
+            server_identity,
+            exc,
+        )
         raise HTTPException(
             status_code=status.HTTP_504_GATEWAY_TIMEOUT,
             detail=str(exc),

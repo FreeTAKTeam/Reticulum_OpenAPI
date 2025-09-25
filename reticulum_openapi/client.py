@@ -320,7 +320,16 @@ class LXMFClient:
         if path_timeout is None:
             path_timeout = self.timeout
 
-        link = await self._ensure_link(dest_hex, dest_hash, path_timeout)
+        try:
+            link = await self._ensure_link(dest_hex, dest_hash, path_timeout)
+        except TimeoutError as exc:
+            logger.error(
+                "LXMF link setup for command '%s' to %s failed: %s",
+                command,
+                dest_hex,
+                exc,
+            )
+            raise
 
         if payload_obj is None:
             content_bytes = b""
@@ -341,6 +350,7 @@ class LXMFClient:
         request_path = f"/commands/{command}"
         if await_response:
             response_future: asyncio.Future[bytes] = self._loop.create_future()
+            failure_message: Optional[str] = None
 
             def _response_callback(receipt: Any) -> None:
                 payload = getattr(receipt, "response", None)
@@ -349,9 +359,18 @@ class LXMFClient:
                 if not response_future.done():
                     response_future.set_result(payload)
 
-            def _failed_callback(_receipt: Any) -> None:
+            def _failed_callback(receipt: Any) -> None:
+                nonlocal failure_message
+                description = self._format_transport_failure(receipt)
+                failure_message = f"Transport failed to deliver '{command}' to {dest_hex}: {description}"
+                logger.warning(
+                    "LXMF transport flagged the request '%s' to %s as failed: %s",
+                    command,
+                    dest_hex,
+                    description,
+                )
                 if not response_future.done():
-                    response_future.set_exception(TimeoutError("No response received"))
+                    response_future.set_exception(TimeoutError(failure_message))
 
             link.request(
                 request_path,
@@ -362,11 +381,52 @@ class LXMFClient:
             )
             try:
                 return await asyncio.wait_for(response_future, timeout=self.timeout)
+            except TimeoutError as exc:
+                logger.error(
+                    "LXMF command '%s' to %s failed before a response was received: %s",
+                    command,
+                    dest_hex,
+                    exc,
+                )
+                raise
             except asyncio.TimeoutError as exc:
-                raise TimeoutError("No response received") from exc
+                timeout_message = (
+                    f"LXMF command '{command}' to {dest_hex} timed out after "
+                    f"{self.timeout:.1f} seconds without receiving a "
+                    f"'{command}_response' message. Ensure the LXMF service is running "
+                    "and the route is reachable."
+                )
+                if failure_message:
+                    timeout_message = (
+                        f"{timeout_message} Last transport status: {failure_message}."
+                    )
+                logger.error(timeout_message)
+                raise TimeoutError(timeout_message) from exc
 
         link.request(request_path, data=content_bytes, timeout=self.timeout)
         return None
+
+    @staticmethod
+    def _format_transport_failure(receipt: Any) -> str:
+        """Return a human-readable description of a transport failure."""
+
+        if receipt is None:
+            return "no additional details"
+        if isinstance(receipt, Exception):
+            return str(receipt)
+        if isinstance(receipt, str):
+            cleaned = receipt.strip()
+            return cleaned or "no additional details"
+
+        attributes = []
+        for attribute in ("status", "state", "result", "error", "response", "progress"):
+            value = getattr(receipt, attribute, None)
+            if value in (None, ""):
+                continue
+            attributes.append(f"{attribute}={value!r}")
+        if attributes:
+            return ", ".join(attributes)
+        return repr(receipt)
 
     def listen_for_announces(self, print_func: Callable[[str], None] = print) -> None:
         """Start logging Reticulum announces to the console in real time.
