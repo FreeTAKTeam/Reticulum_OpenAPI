@@ -42,6 +42,24 @@ describe('DashboardPage', () => {
           lastAttempt: '2025-09-23T12:34:56Z',
           lastError: null,
         },
+        reticulumInterfaces: [
+          {
+            id: 'AutoInterface:0',
+            name: 'Mesh Neighbors',
+            type: 'AutoInterface',
+            online: true,
+            mode: 'full',
+            bitrate: 125000,
+          },
+          {
+            id: 'TCPClientInterface:1',
+            name: 'WAN Link',
+            type: 'TCPClientInterface',
+            online: false,
+            mode: 'access_point',
+            bitrate: null,
+          },
+        ],
       },
     } as AxiosResponse<{
       version: string;
@@ -59,6 +77,14 @@ describe('DashboardPage', () => {
         lastAttempt?: string | null;
         lastError?: string | null;
       };
+      reticulumInterfaces: {
+        id: string;
+        name: string;
+        type: string;
+        online: boolean;
+        mode?: string | null;
+        bitrate?: number | null;
+      }[];
     }>;
     vi.spyOn(apiClientModule.apiClient, 'get').mockResolvedValueOnce(gatewayInfoResponse);
 
@@ -75,6 +101,12 @@ describe('DashboardPage', () => {
     expect(screen.getByText('Connected to LXMF server abc123')).toBeInTheDocument();
     const timestampMatches = screen.getAllByText('2025-09-23T12:34:56Z');
     expect(timestampMatches).toHaveLength(2);
+    expect(screen.getByText('Mesh Neighbors • full • 125000 bps')).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'Mesh Neighbors • full • 125000 bps (online), WAN Link • access_point (offline)',
+      ),
+    ).toBeInTheDocument();
     expect(screen.getByText('http://localhost:8000')).toBeInTheDocument();
     expect(screen.getByText('http://localhost:8000/notifications/stream')).toBeInTheDocument();
     expect(

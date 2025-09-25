@@ -11,6 +11,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 from fastapi.testclient import TestClient
+import RNS
 
 from examples.EmergencyManagement.Server.models_emergency import (
     EAMStatus,
@@ -55,6 +56,29 @@ def gateway_app(monkeypatch):
             self.announce_called = True
 
     monkeypatch.setattr(module, "LXMFClient", StubClient)
+    mode_full = RNS.Interfaces.Interface.Interface.MODE_FULL
+    mode_roaming = RNS.Interfaces.Interface.Interface.MODE_ROAMING
+
+    class StubInterface:
+        """Simple stand-in for Reticulum interface status."""
+
+        def __init__(self, name: str, online: bool, mode: int, bitrate: int) -> None:
+            self.name = name
+            self.online = online
+            self.mode = mode
+            self.bitrate = bitrate
+
+    status_module = importlib.import_module(
+        "examples.EmergencyManagement.web_gateway.interface_status"
+    )
+    monkeypatch.setattr(
+        status_module.RNS.Transport,
+        "interfaces",
+        [
+            StubInterface("Local Gateway", True, mode_full, 1_000_000),
+            StubInterface("Long Range", False, mode_roaming, 62_500),
+        ],
+    )
 
     with TestClient(module.app) as client:
         if not created_clients:
@@ -74,6 +98,8 @@ def gateway_app(monkeypatch):
                 module._LINK_STATUS.server_identity == module._DEFAULT_SERVER_IDENTITY
             )
             assert module._LINK_STATUS.message.startswith("Connected to LXMF")
+        assert module._INTERFACE_STATUS
+        assert module._INTERFACE_STATUS[0]["name"] == "Local Gateway"
         stub.send_command.reset_mock()
         stub.ensure_link.reset_mock()
         yield module, client, stub
@@ -81,6 +107,7 @@ def gateway_app(monkeypatch):
     module._CLIENT_INSTANCE = None
     module._LINK_TASK = None
     module._LINK_STATUS = module._LinkStatus()
+    module._INTERFACE_STATUS = []
 
 
 def test_default_identity_uses_json_config(monkeypatch) -> None:
@@ -132,6 +159,22 @@ def test_create_emergency_action_message_routes_payload(gateway_app) -> None:
     assert isinstance(args[2], EmergencyActionMessage)
     assert args[2].callsign == "Alpha"
     assert kwargs["await_response"] is True
+
+
+def test_gateway_status_includes_interface_details(gateway_app) -> None:
+    """Gateway status endpoint should expose Reticulum interface metadata."""
+
+    module, client, _stub = gateway_app
+    response = client.get("/")
+
+    assert response.status_code == 200
+    payload = response.json()
+    interfaces = payload.get("reticulumInterfaces")
+    assert isinstance(interfaces, list)
+    assert interfaces
+    first = interfaces[0]
+    assert first["name"] == "Local Gateway"
+    assert first["online"] is True
 
 
 def test_list_emergency_action_messages_decodes_messagepack(gateway_app) -> None:

@@ -55,6 +55,10 @@ from reticulum_openapi.api.notifications import (
 from reticulum_openapi.codec_msgpack import CodecError
 from reticulum_openapi.codec_msgpack import decode_payload_bytes
 
+from examples.EmergencyManagement.web_gateway.interface_status import (
+    gather_interface_status,
+)
+
 
 COMMAND_CREATE_EAM = "CreateEmergencyActionMessage"
 COMMAND_DELETE_EAM = "DeleteEmergencyActionMessage"
@@ -163,6 +167,7 @@ _START_TIME: datetime = datetime.now(timezone.utc)
 _NOTIFICATION_UNSUBSCRIBER: Optional[Callable[[], Awaitable[None]]] = None
 _LINK_RETRY_DELAY_SECONDS: float = 5.0
 _LINK_TASK: Optional[asyncio.Task[None]] = None
+_INTERFACE_STATUS: List[Dict[str, Any]] = []
 
 
 def _format_timestamp(value: Optional[datetime]) -> Optional[str]:
@@ -198,6 +203,14 @@ class _LinkStatus:
 
 
 _LINK_STATUS = _LinkStatus()
+
+
+def _refresh_interface_status() -> List[Dict[str, Any]]:
+    """Refresh and cache the current Reticulum interface metadata."""
+
+    global _INTERFACE_STATUS
+    _INTERFACE_STATUS = gather_interface_status()
+    return _INTERFACE_STATUS
 
 
 def _normalise_optional_path(value: Optional[str]) -> Optional[str]:
@@ -296,9 +309,7 @@ def _record_link_success(server_identity: str, attempt_time: datetime) -> None:
     logger.info("Established LXMF link with server %s", server_identity)
 
 
-async def _ensure_link_with_retry(
-    client: LXMFClient, server_identity: str
-) -> None:
+async def _ensure_link_with_retry(client: LXMFClient, server_identity: str) -> None:
     """Continuously attempt to connect the LXMF client to the server."""
 
     while True:
@@ -330,15 +341,22 @@ async def _startup() -> None:
     """Ensure the LXMF client is ready before serving requests."""
 
     client = get_shared_client()
+    interface_status = _refresh_interface_status()
+    active_interfaces = [
+        status["name"] for status in interface_status if status.get("online")
+    ]
+    if active_interfaces:
+        joined = ", ".join(active_interfaces)
+        print("[Emergency Gateway] Active Reticulum interfaces: " f"{joined}")
+    else:
+        print("[Emergency Gateway] No active Reticulum interfaces reported.")
     global _LINK_TASK
     server_identity = _DEFAULT_SERVER_IDENTITY
     if server_identity:
         _LINK_STATUS.server_identity = server_identity
         _LINK_STATUS.state = "connecting"
         _LINK_STATUS.last_error = None
-        _LINK_STATUS.message = (
-            f"Attempting to connect to LXMF server {server_identity}"
-        )
+        _LINK_STATUS.message = f"Attempting to connect to LXMF server {server_identity}"
         if _LINK_TASK is None or _LINK_TASK.done():
             _LINK_TASK = asyncio.create_task(
                 _ensure_link_with_retry(client, server_identity)
@@ -473,6 +491,7 @@ async def get_gateway_status() -> Dict[str, Any]:
     storage_path_override = _normalise_optional_path(
         _CONFIG_DATA.get(LXMF_STORAGE_PATH_KEY)
     )
+    interface_status = _refresh_interface_status()
 
     return {
         "version": _GATEWAY_VERSION,
@@ -484,6 +503,7 @@ async def get_gateway_status() -> Dict[str, Any]:
         "lxmfStoragePath": storage_path_override,
         "allowedOrigins": _ALLOWED_ORIGINS,
         "linkStatus": _LINK_STATUS.to_dict(),
+        "reticulumInterfaces": interface_status,
     }
 
 
