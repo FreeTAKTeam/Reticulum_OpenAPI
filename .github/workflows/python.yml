@@ -4,11 +4,28 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: actions/setup-python@v4
         with:
-          python-version: '3.10'
-      - run: python -m pip install --upgrade pip
-      - run: pip install -r requirements.txt
-      - run: flake8 reticulum_openapi examples tests
-      - run: pytest
+          python-version: '3.11'
+      - name: Upgrade pip
+        run: python -m pip install --upgrade pip
+      - name: Install Python dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install -e '.[dev]'
+      - name: Lint with flake8
+        run: flake8 reticulum_openapi examples tests
+      - name: Run pytest suite
+        run: pytest
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: examples/EmergencyManagement/webui/package-lock.json
+      - name: Install web UI dependencies
+        working-directory: examples/EmergencyManagement/webui
+        run: npm ci
+      - name: Run Emergency webUI tests
+        working-directory: examples/EmergencyManagement/webui
+        run: npm run test -- --run --reporter=dot
