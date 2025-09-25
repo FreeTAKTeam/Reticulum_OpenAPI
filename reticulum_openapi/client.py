@@ -156,7 +156,6 @@ class LXMFClient:
             ) from exc
         return self._links[dest_hash]
 
-
     async def ensure_link(
         self, dest_hex: str, timeout: Optional[float] = None
     ) -> RNS.Link:
@@ -179,7 +178,6 @@ class LXMFClient:
         dest_hash = bytes.fromhex(normalised_hex)
         timeout_value = self.timeout if timeout is None else float(timeout)
         return await self._ensure_link(normalised_hex, dest_hash, timeout_value)
-
 
     def announce(self) -> None:
         """Announce this client's identity on the Reticulum network."""
@@ -322,7 +320,6 @@ class LXMFClient:
         if path_timeout is None:
             path_timeout = self.timeout
 
-
         try:
             link = await self._ensure_link(dest_hex, dest_hash, path_timeout)
         except TimeoutError as exc:
@@ -333,7 +330,6 @@ class LXMFClient:
                 exc,
             )
             raise
-
 
         if payload_obj is None:
             content_bytes = b""
@@ -356,14 +352,12 @@ class LXMFClient:
             response_future: asyncio.Future[bytes] = self._loop.create_future()
             failure_message: Optional[str] = None
 
-
             def _response_callback(receipt: Any) -> None:
                 payload = getattr(receipt, "response", None)
                 if payload is None:
                     payload = receipt
                 if not response_future.done():
                     response_future.set_result(payload)
-
 
             def _failed_callback(receipt: Any) -> None:
                 nonlocal failure_message
@@ -378,7 +372,6 @@ class LXMFClient:
                 if not response_future.done():
                     response_future.set_exception(TimeoutError(failure_message))
 
-
             link.request(
                 request_path,
                 data=content_bytes,
@@ -388,7 +381,6 @@ class LXMFClient:
             )
             try:
                 return await asyncio.wait_for(response_future, timeout=self.timeout)
-
             except TimeoutError as exc:
                 logger.error(
                     "LXMF command '%s' to %s failed before a response was received: %s",
@@ -410,8 +402,6 @@ class LXMFClient:
                     )
                 logger.error(timeout_message)
                 raise TimeoutError(timeout_message) from exc
-
-
         link.request(request_path, data=content_bytes, timeout=self.timeout)
         return None
 

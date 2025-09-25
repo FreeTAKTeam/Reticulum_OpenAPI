@@ -291,7 +291,7 @@ class LXMFService:
         if not cleaned:
             return None
         if cleaned.startswith(_COMMAND_PATH_PREFIX):
-            command = cleaned[len(_COMMAND_PATH_PREFIX) :]
+            command = cleaned[len(_COMMAND_PATH_PREFIX):]
         else:
             command = cleaned.rsplit("/", 1)[-1]
         return command or None
