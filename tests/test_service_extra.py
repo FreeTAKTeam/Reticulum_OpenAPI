@@ -359,6 +359,9 @@ async def test_handle_registered_link_request_dispatches():
             "/commands/CMD",
             payload,
             request_id=object(),
+            link_or_identity=b"lk",
+            remote_identity_or_requested_at=SimpleNamespace(hash=b"remote"),
+            requested_at=123.0,
         ),
     )
 
@@ -366,3 +369,18 @@ async def test_handle_registered_link_request_dispatches():
     decoded = service_module.msgpack_from_bytes(response)
     assert decoded["ok"] is True
     assert decoded["echo"]["value"] == 1
+
+    legacy_response = await loop.run_in_executor(
+        None,
+        lambda: svc._handle_registered_link_request(
+            "/commands/CMD",
+            payload,
+            object(),
+            SimpleNamespace(hash=b"legacy"),
+            321.0,
+        ),
+    )
+
+    assert legacy_response is not None
+    decoded_legacy = service_module.msgpack_from_bytes(legacy_response)
+    assert decoded_legacy["ok"] is True
