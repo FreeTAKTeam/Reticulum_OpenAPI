@@ -17,6 +17,15 @@ interface LinkStatus {
   lastError?: string | null;
 }
 
+interface ReticulumInterfaceStatus {
+  id: string;
+  name: string;
+  type: string;
+  online: boolean;
+  mode?: string | null;
+  bitrate?: number | null;
+}
+
 interface GatewayInfo {
   version: string;
   uptime: string;
@@ -27,6 +36,7 @@ interface GatewayInfo {
   lxmfStoragePath?: string | null;
   allowedOrigins?: string[];
   linkStatus?: LinkStatus | null;
+  reticulumInterfaces?: ReticulumInterfaceStatus[] | null;
 }
 
 export function DashboardPage(): JSX.Element {
@@ -47,12 +57,35 @@ export function DashboardPage(): JSX.Element {
         : [],
     [gatewayInfo],
   );
+  const reticulumInterfaces = useMemo(
+    () =>
+      gatewayInfo && Array.isArray(gatewayInfo.reticulumInterfaces)
+        ? gatewayInfo.reticulumInterfaces
+        : [],
+    [gatewayInfo],
+  );
   const linkStatus = gatewayInfo?.linkStatus ?? null;
   const resolvedLinkMessage = linkStatus?.message ?? 'No link status reported yet.';
   const resolvedLinkState = linkStatus?.state ?? 'unknown';
   const resolvedLastSuccess = linkStatus?.lastSuccess ?? 'Never';
   const resolvedLastAttempt = linkStatus?.lastAttempt ?? 'Never';
   const resolvedLastError = linkStatus?.lastError ?? null;
+  const activeInterfaces = useMemo(
+    () => reticulumInterfaces.filter((item) => item.online),
+    [reticulumInterfaces],
+  );
+  const formatInterface = (item: ReticulumInterfaceStatus): string => {
+    const parts: string[] = [];
+    const resolvedName = item.name?.trim() ? item.name.trim() : item.type;
+    parts.push(resolvedName);
+    if (item.mode?.trim()) {
+      parts.push(item.mode.trim());
+    }
+    if (typeof item.bitrate === 'number' && Number.isFinite(item.bitrate)) {
+      parts.push(`${item.bitrate} bps`);
+    }
+    return parts.join(' • ');
+  };
 
   useEffect(() => {
     let isMounted = true;
@@ -126,6 +159,26 @@ export function DashboardPage(): JSX.Element {
                 <dd>{resolvedLastError}</dd>
               </div>
             )}
+            <div>
+              <dt>Active Interfaces</dt>
+              <dd>
+                {activeInterfaces.length > 0
+                  ? activeInterfaces.map((item) => formatInterface(item)).join(', ')
+                  : 'No active interfaces reported'}
+              </dd>
+            </div>
+            <div>
+              <dt>Configured Interfaces</dt>
+              <dd>
+                {reticulumInterfaces.length > 0
+                  ? reticulumInterfaces
+                      .map((item) =>
+                        `${formatInterface(item)} (${item.online ? 'online' : 'offline'})`,
+                      )
+                      .join(', ')
+                  : 'No interfaces reported'}
+              </dd>
+            </div>
           </dl>
         )}
       </div>
