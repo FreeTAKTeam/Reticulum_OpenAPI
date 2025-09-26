@@ -82,3 +82,6 @@
 - [x] Upgrade esbuild dependency to version 0.25.0 or later to address the development server request vulnerability.
 - [x] Simplify EmergencyManagement web UI tables with a drawer form triggered by a New button. (2025-09-25)
 
+## 2025-09-26
+- [x] Add sortable tables to the EmergencyManagement web UI for messages and events.
+

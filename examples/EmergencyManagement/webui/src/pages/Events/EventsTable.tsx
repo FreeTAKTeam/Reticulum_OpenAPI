@@ -1,3 +1,5 @@
+import { useMemo, useState } from 'react';
+
 import type { EAMStatus, EventRecord } from '../../lib/apiClient';
 
 export interface EventsTableProps {
@@ -6,6 +8,148 @@ export interface EventsTableProps {
   onEdit: (event: EventRecord) => void;
   onDelete: (event: EventRecord) => void;
   onCreateNew: () => void;
+}
+
+type SortDirection = 'asc' | 'desc';
+
+type EventsSortColumn = 'uid' | 'type' | 'detail' | 'start' | 'how';
+
+interface SortState {
+  column: EventsSortColumn;
+  direction: SortDirection;
+}
+
+function compareNumber(
+  a: number | string | null | undefined,
+  b: number | string | null | undefined,
+  direction: SortDirection,
+): number {
+  const parsedA = typeof a === 'number' ? a : a ? Number(a) : Number.NaN;
+  const parsedB = typeof b === 'number' ? b : b ? Number(b) : Number.NaN;
+
+  const isValidA = Number.isFinite(parsedA);
+  const isValidB = Number.isFinite(parsedB);
+
+  if (!isValidA && !isValidB) {
+    return 0;
+  }
+  if (!isValidA) {
+    return direction === 'asc' ? 1 : -1;
+  }
+  if (!isValidB) {
+    return direction === 'asc' ? -1 : 1;
+  }
+
+  const result = parsedA - parsedB;
+  return direction === 'asc' ? result : -result;
+}
+
+function compareString(
+  a: string | null | undefined,
+  b: string | null | undefined,
+  direction: SortDirection,
+): number {
+  const normalizedA = a?.trim().toLowerCase();
+  const normalizedB = b?.trim().toLowerCase();
+
+  if (!normalizedA && !normalizedB) {
+    return 0;
+  }
+  if (!normalizedA) {
+    return direction === 'asc' ? 1 : -1;
+  }
+  if (!normalizedB) {
+    return direction === 'asc' ? -1 : 1;
+  }
+
+  const result = normalizedA.localeCompare(normalizedB, undefined, {
+    sensitivity: 'base',
+  });
+  return direction === 'asc' ? result : -result;
+}
+
+function compareDate(
+  a: string | null | undefined,
+  b: string | null | undefined,
+  direction: SortDirection,
+): number {
+  const parsedA = a ? Date.parse(a) : Number.NaN;
+  const parsedB = b ? Date.parse(b) : Number.NaN;
+
+  const isValidA = Number.isFinite(parsedA);
+  const isValidB = Number.isFinite(parsedB);
+
+  if (!isValidA && !isValidB) {
+    return 0;
+  }
+  if (!isValidA) {
+    return direction === 'asc' ? 1 : -1;
+  }
+  if (!isValidB) {
+    return direction === 'asc' ? -1 : 1;
+  }
+
+  const result = parsedA - parsedB;
+  return direction === 'asc' ? result : -result;
+}
+
+function getDetailSortValue(detail: EventRecord['detail']): string | undefined {
+  return detail?.emergencyActionMessage?.callsign ?? undefined;
+}
+
+function sortEvents(events: EventRecord[], sortState: SortState): EventRecord[] {
+  const sorted = events.slice();
+
+  sorted.sort((a, b) => {
+    switch (sortState.column) {
+      case 'uid':
+        return compareNumber(a.uid, b.uid, sortState.direction);
+      case 'type':
+        return compareString(a.type, b.type, sortState.direction);
+      case 'detail':
+        return compareString(
+          getDetailSortValue(a.detail),
+          getDetailSortValue(b.detail),
+          sortState.direction,
+        );
+      case 'start':
+        return compareDate(a.start, b.start, sortState.direction);
+      case 'how':
+        return compareString(a.how, b.how, sortState.direction);
+      default:
+        return 0;
+    }
+  });
+
+  return sorted;
+}
+
+function getAriaSort(sortState: SortState, column: EventsSortColumn): 'ascending' | 'descending' | 'none' {
+  if (sortState.column !== column) {
+    return 'none';
+  }
+  return sortState.direction === 'asc' ? 'ascending' : 'descending';
+}
+
+function getSortButtonLabel(sortState: SortState, column: EventsSortColumn, label: string): string {
+  if (sortState.column === column) {
+    const directionLabel = sortState.direction === 'asc' ? 'ascending' : 'descending';
+    return `Sort by ${label} (currently ${directionLabel})`;
+  }
+  return `Sort by ${label} (ascending)`;
+}
+
+function renderSortIndicator(sortState: SortState, column: EventsSortColumn): JSX.Element {
+  const isActive = sortState.column === column;
+  const icon = !isActive ? '↕' : sortState.direction === 'asc' ? '↑' : '↓';
+  return (
+    <span
+      className={`sortable-header__icon${isActive ? ' sortable-header__icon--active' : ''}`}
+      aria-hidden="true"
+    >
+      {icon}
+    </span>
+  );
 }
 
 interface StatusEntry {
@@ -63,6 +207,22 @@ export function EventsTable({
   onDelete,
   onCreateNew,
 }: EventsTableProps): JSX.Element {
+  const [sortState, setSortState] = useState<SortState>({ column: 'uid', direction: 'asc' });
+
+  const sortedEvents = useMemo(() => sortEvents(events, sortState), [events, sortState]);
+
+  function handleSort(column: EventsSortColumn): void {
+    setSortState((previous) => {
+      if (previous.column === column) {
+        return {
+          column,
+          direction: previous.direction === 'asc' ? 'desc' : 'asc',
+        };
+      }
+      return { column, direction: 'asc' };
+    });
+  }
+
   return (
     <div className="table-card">
       <header className="table-card__header">
@@ -79,16 +239,71 @@ export function EventsTable({
           <table>
             <thead>
               <tr>
-                <th>UID</th>
-                <th>Type</th>
-                <th>Detail</th>
-                <th>Start</th>
-                <th>How</th>
+                <th scope="col" aria-sort={getAriaSort(sortState, 'uid')}>
+                  <button
+                    type="button"
+                    className="sortable-header__button"
+                    onClick={() => handleSort('uid')}
+                    aria-label={getSortButtonLabel(sortState, 'uid', 'UID')}
+                    title="Sort by UID"
+                  >
+                    <span>UID</span>
+                    {renderSortIndicator(sortState, 'uid')}
+                  </button>
+                </th>
+                <th scope="col" aria-sort={getAriaSort(sortState, 'type')}>
+                  <button
+                    type="button"
+                    className="sortable-header__button"
+                    onClick={() => handleSort('type')}
+                    aria-label={getSortButtonLabel(sortState, 'type', 'Type')}
+                    title="Sort by Type"
+                  >
+                    <span>Type</span>
+                    {renderSortIndicator(sortState, 'type')}
+                  </button>
+                </th>
+                <th scope="col" aria-sort={getAriaSort(sortState, 'detail')}>
+                  <button
+                    type="button"
+                    className="sortable-header__button"
+                    onClick={() => handleSort('detail')}
+                    aria-label={getSortButtonLabel(sortState, 'detail', 'Detail')}
+                    title="Sort by Detail"
+                  >
+                    <span>Detail</span>
+                    {renderSortIndicator(sortState, 'detail')}
+                  </button>
+                </th>
+                <th scope="col" aria-sort={getAriaSort(sortState, 'start')}>
+                  <button
+                    type="button"
+                    className="sortable-header__button"
+                    onClick={() => handleSort('start')}
+                    aria-label={getSortButtonLabel(sortState, 'start', 'Start')}
+                    title="Sort by Start"
+                  >
+                    <span>Start</span>
+                    {renderSortIndicator(sortState, 'start')}
+                  </button>
+                </th>
+                <th scope="col" aria-sort={getAriaSort(sortState, 'how')}>
+                  <button
+                    type="button"
+                    className="sortable-header__button"
+                    onClick={() => handleSort('how')}
+                    aria-label={getSortButtonLabel(sortState, 'how', 'How')}
+                    title="Sort by How"
+                  >
+                    <span>How</span>
+                    {renderSortIndicator(sortState, 'how')}
+                  </button>
+                </th>
                 <th>Actions</th>
               </tr>
             </thead>
             <tbody>
-              {events.map((event) => (
+              {sortedEvents.map((event) => (
                 <tr key={event.uid}>
                   <td>{event.uid}</td>
                   <td>{event.type ?? '—'}</td>
