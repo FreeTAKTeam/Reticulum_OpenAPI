@@ -6,7 +6,7 @@ import signal
 import sys
 from contextlib import suppress
 from pathlib import Path
-from typing import Optional, Sequence
+from typing import Any, Dict, Optional, Sequence
 
 
 def _ensure_standard_library_on_path() -> None:
@@ -147,26 +147,146 @@ except Exception:  # pragma: no cover - best effort for optional imports
     EmergencyService = None
 
 
-def _resolve_database_override(argv: Optional[Sequence[str]]) -> Optional[str]:
-    """Parse ``argv`` for optional database overrides."""
+def _build_arg_parser() -> argparse.ArgumentParser:
+    """Construct the command-line parser for the server module."""
 
-    if argv is None:
-        return None
+    parser = argparse.ArgumentParser(
+        description="Run the Emergency Management LXMF service.",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    parser.add_argument(
+        "--config-path",
+        dest="config_path",
+        help="Path to the Reticulum configuration directory.",
+    )
+    parser.add_argument(
+        "--storage-path",
+        dest="storage_path",
+        help="Directory used for LXMF storage and message persistence.",
+    )
+    parser.add_argument(
+        "--display-name",
+        dest="display_name",
+        help="Display name announced for the LXMF identity.",
+    )
+    parser.add_argument(
+        "--auth-token",
+        dest="auth_token",
+        help="Auth token required from clients when sending commands.",
+    )
+    parser.add_argument(
+        "--link-keepalive-interval",
+        dest="link_keepalive_interval",
+        type=float,
+        help="Seconds between LXMF link keepalive packets.",
+    )
+    parser.add_argument(
+        "--database-url",
+        dest="database_url",
+        help="SQLAlchemy database URL override.",
+    )
+    parser.add_argument(
+        "--database-path",
+        dest="database_path",
+        help="Filesystem path to a SQLite database file.",
+    )
+    parser.add_argument(
+        "--database",
+        dest="database",
+        help="Backward compatible alias for --database-path.",
+    )
+    return parser
 
-    parser = argparse.ArgumentParser(add_help=False)
-    parser.add_argument("--database")
-    parser.add_argument("--database-path")
-    parser.add_argument("--database-url")
-    parsed, _ = parser.parse_known_args(list(argv))
 
-    for candidate in (parsed.database_url, parsed.database_path, parsed.database):
-        if candidate:
-            return candidate
+def _parse_args(argv: Optional[Sequence[str]]) -> argparse.Namespace:
+    """Parse ``argv`` into configuration options for the service."""
+
+    parser = _build_arg_parser()
+    return parser.parse_args(argv)
+
+
+def _select_database_override(args: argparse.Namespace) -> Optional[str]:
+    """Determine the preferred database override from parsed arguments."""
+
+    for attr in ("database_url", "database_path", "database"):
+        value = getattr(args, attr, None)
+        if value:
+            return value
 
     return None
 
 
-async def main(argv: Optional[Sequence[str]] = None) -> None:
+def _prepare_service_kwargs(args: argparse.Namespace) -> Dict[str, Any]:
+    """Extract keyword arguments for ``EmergencyService`` from ``args``."""
+
+    candidate_kwargs: Dict[str, Any] = {
+        "config_path": getattr(args, "config_path", None),
+        "storage_path": getattr(args, "storage_path", None),
+        "display_name": getattr(args, "display_name", None),
+        "auth_token": getattr(args, "auth_token", None),
+        "link_keepalive_interval": getattr(args, "link_keepalive_interval", None),
+    }
+    return {
+        key: value
+        for key, value in candidate_kwargs.items()
+        if value is not None
+    }
+
+
+def _format_hash(value: Optional[bytes]) -> str:
+    """Convert a destination or identity hash into a human readable string."""
+
+    if not value:
+        return "n/a"
+
+    return value.hex().upper()
+
+
+def _emit_startup_summary(
+    service: Any,
+    database_url: str,
+    args: argparse.Namespace,
+) -> None:
+    """Print a summary of the active runtime configuration to stdout."""
+
+    identity_hash = _format_hash(
+        getattr(getattr(service, "source_identity", None), "hash", None)
+    )
+    destination_hash = _format_hash(
+        getattr(getattr(service, "destination", None), "hash", None)
+    )
+    link_destination = getattr(service, "link_destination", None)
+    if link_destination is None:
+        link_hash = "disabled"
+    else:
+        link_hash = _format_hash(getattr(link_destination, "hash", None))
+
+    display_name = getattr(args, "display_name", None) or "ReticulumOpenAPI"
+    storage_path = getattr(args, "storage_path", None) or "default"
+    config_path = getattr(args, "config_path", None) or "default"
+    auth_token = "set" if getattr(args, "auth_token", None) else "not set"
+    keepalive = getattr(args, "link_keepalive_interval", None)
+    keepalive_display = keepalive if keepalive is not None else "default"
+
+    summary_lines = [
+        "Emergency Management service is running.",
+        f"  Identity hash: {identity_hash}",
+        f"  Command destination: {destination_hash}",
+        f"  Link destination: {link_hash}",
+        f"  Reticulum config: {config_path}",
+        f"  LXMF storage: {storage_path}",
+        f"  Display name: {display_name}",
+        f"  Auth token: {auth_token}",
+        f"  Link keepalive interval: {keepalive_display}",
+        f"  Database URL: {database_url}",
+    ]
+    print("\n".join(summary_lines))
+
+
+async def main(
+    options: Optional[argparse.Namespace] = None,
+    argv: Optional[Sequence[str]] = None,
+) -> None:
     """Run the emergency management service until interrupted.
 
     Returns:
@@ -183,19 +303,24 @@ async def main(argv: Optional[Sequence[str]] = None) -> None:
     ):
         raise RuntimeError("Emergency service dependencies failed to load")
 
-    if argv is None:
-        argv = sys.argv[1:]
+    if options is None:
+        if argv is None:
+            argv = sys.argv[1:]
+        options = _parse_args(list(argv))
 
     _configure_environment()
-    override = _resolve_database_override(argv)
+    override = _select_database_override(options)
     configured_url = configure_database(override)
     await init_db(configured_url)
-    async with EmergencyService() as svc:
+    service_kwargs = _prepare_service_kwargs(options)
+    async with EmergencyService(**service_kwargs) as svc:
         svc.announce()
+        _emit_startup_summary(svc, configured_url, options)
         stop_event = asyncio.Event()
         _register_shutdown_signals(stop_event)
         await stop_event.wait()
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    parsed_args = _parse_args(sys.argv[1:])
+    asyncio.run(main(parsed_args))

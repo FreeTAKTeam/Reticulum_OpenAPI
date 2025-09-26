@@ -7,6 +7,17 @@ associated event reports. The upcoming FastAPI gateway will reuse the existing
 LXMF service stack while presenting a northbound REST API for web and mobile
 clients.
 
+### Runtime configuration
+
+The LXMF service located at
+`examples/EmergencyManagement/Server/server_emergency.py` accepts command-line
+flags so operators can point the process at different Reticulum configurations,
+LXMF storage directories, database locations, and authentication tokens without
+editing the source code. The same CLI also controls the announced display name
+and link keepalive interval. When the service starts it prints a summary of the
+effective settings alongside the identity and destination hashes used by LXMF
+clients and gateways.
+
 ## Emergency Action Message Operations
 
 | Operation | LXMF Command | Controller Method | Input Dataclass | Output |
