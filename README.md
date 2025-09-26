@@ -53,8 +53,19 @@ The Emergency Management example exposes both a Reticulum‑backed service and a
 gateway implemented with FastAPI. Start the Reticulum service first:
 
 ```bash
-python examples/EmergencyManagement/Server/server_emergency.py
+python examples/EmergencyManagement/Server/server_emergency.py \
+  --config-path ~/.reticulum \
+  --storage-path ~/.reticulum/lxmf \
+  --display-name "Emergency Ops" \
+  --auth-token YOUR_TOKEN \
+  --link-keepalive-interval 30 \
+  --database-path ./emergency.db
 ```
+
+All flags are optional; omit them to fall back to the defaults embedded in the
+example. At startup the server prints the announced identity hash, command
+destination hash, and the active configuration so that clients can copy the
+values without digging through the code.
 
 ### Starting the HTTP gateway
 
