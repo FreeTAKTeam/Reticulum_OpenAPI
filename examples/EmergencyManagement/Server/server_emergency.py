@@ -1,11 +1,12 @@
 """Run the emergency management server example."""
 
-
+import argparse
 import asyncio
 import signal
 import sys
 from contextlib import suppress
 from pathlib import Path
+from typing import Optional, Sequence
 
 
 def _ensure_standard_library_on_path() -> None:
@@ -69,6 +70,7 @@ def _configure_environment() -> None:
 
 
 EmergencyService = object()
+configure_database = None
 init_db = None
 
 
@@ -76,19 +78,28 @@ def _ensure_dependencies_loaded() -> None:
     """Load modules that require adjusted import paths."""
 
     global EmergencyService
+    global configure_database
     global init_db
 
-    if isinstance(EmergencyService, type) and init_db is not None:
+    if (
+        isinstance(EmergencyService, type)
+        and init_db is not None
+        and callable(configure_database)
+    ):
         return
 
     _configure_environment()
 
-    from examples.EmergencyManagement.Server.database import init_db as database_init_db
+    from examples.EmergencyManagement.Server.database import (
+        configure_database as database_configure_database,
+        init_db as database_init_db,
+    )
     from examples.EmergencyManagement.Server.service_emergency import (
         EmergencyService as service_emergency_service,
     )
 
     init_db = database_init_db
+    configure_database = database_configure_database
     EmergencyService = service_emergency_service
 
 
@@ -123,16 +134,39 @@ def _register_shutdown_signals(stop_event: asyncio.Event) -> None:
 
 
 try:
-    from examples.EmergencyManagement.Server.database import init_db
+    from examples.EmergencyManagement.Server.database import (  # type: ignore
+        configure_database,
+        init_db,
+    )
     from examples.EmergencyManagement.Server.service_emergency import (
         EmergencyService,
     )
 except Exception:  # pragma: no cover - best effort for optional imports
+    configure_database = None
     init_db = None
     EmergencyService = None
 
 
-async def main() -> None:
+def _resolve_database_override(argv: Optional[Sequence[str]]) -> Optional[str]:
+    """Parse ``argv`` for optional database overrides."""
+
+    if argv is None:
+        return None
+
+    parser = argparse.ArgumentParser(add_help=False)
+    parser.add_argument("--database")
+    parser.add_argument("--database-path")
+    parser.add_argument("--database-url")
+    parsed, _ = parser.parse_known_args(list(argv))
+
+    for candidate in (parsed.database_url, parsed.database_path, parsed.database):
+        if candidate:
+            return candidate
+
+    return None
+
+
+async def main(argv: Optional[Sequence[str]] = None) -> None:
     """Run the emergency management service until interrupted.
 
     Returns:
@@ -142,10 +176,20 @@ async def main() -> None:
 
     _ensure_dependencies_loaded()
 
-    if init_db is None or not isinstance(EmergencyService, type):
+    if (
+        init_db is None
+        or not isinstance(EmergencyService, type)
+        or not callable(configure_database)
+    ):
         raise RuntimeError("Emergency service dependencies failed to load")
+
+    if argv is None:
+        argv = sys.argv[1:]
+
     _configure_environment()
-    await init_db()
+    override = _resolve_database_override(argv)
+    configured_url = configure_database(override)
+    await init_db(configured_url)
     async with EmergencyService() as svc:
         svc.announce()
         stop_event = asyncio.Event()
