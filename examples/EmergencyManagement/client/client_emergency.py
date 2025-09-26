@@ -5,44 +5,16 @@ from contextlib import suppress
 from pathlib import Path
 from typing import Optional
 
+if __package__ in (None, ""):
+    project_root = Path(__file__).resolve().parents[3]
+    project_root_str = str(project_root)
+    if project_root_str not in sys.path:
+        sys.path.insert(0, project_root_str)
 
-def _ensure_standard_library_on_path() -> None:
-    """Ensure CPython standard library directories are available."""
-
-    version = f"python{sys.version_info.major}.{sys.version_info.minor}"
-    zipped = f"python{sys.version_info.major}{sys.version_info.minor}.zip"
-    base_dirs = {sys.base_prefix, sys.exec_prefix, sys.prefix}
-    lib_dir_names = ["lib", "Lib"]
-
-    for base_dir in base_dirs:
-        if not base_dir:
-            continue
-
-        for lib_dir_name in lib_dir_names:
-            lib_dir = f"{base_dir}/{lib_dir_name}"
-            candidates = [
-                f"{lib_dir}/{zipped}",
-                f"{lib_dir}/{version}",
-                f"{lib_dir}/{version}/lib-dynload",
-                f"{lib_dir}/{version}/site-packages",
-                f"{lib_dir}/{version}/dist-packages",
-                f"{lib_dir}/site-packages",
-                f"{lib_dir}/dist-packages",
-            ]
-
-            for candidate in candidates:
-                if candidate and candidate not in sys.path:
-                    sys.path.append(candidate)
-
-
-def _ensure_project_root_on_path() -> None:
-    """Allow running the example as a script from the client directory."""
-
-    if __package__ in (None, ""):
-        project_root = Path(__file__).resolve().parents[3]
-        project_root_str = str(project_root)
-        if project_root_str not in sys.path:
-            sys.path.insert(0, project_root_str)
+from examples.EmergencyManagement.utils.bootstrap import (
+    ensure_project_root,
+    ensure_standard_library,
+)
 
 
 CONFIG_FILENAME = "client_config.json"
@@ -72,8 +44,8 @@ PROMPT_MESSAGE = (
 CONFIG_PATH = Path(__file__).with_name(CONFIG_FILENAME)
 
 
-_ensure_standard_library_on_path()
-_ensure_project_root_on_path()
+ensure_standard_library()
+ensure_project_root(package_name=__package__, file_path=__file__)
 
 
 try:
@@ -226,7 +198,7 @@ async def main():
     before printing.
     """
 
-    _ensure_project_root_on_path()
+    ensure_project_root(package_name=__package__, file_path=__file__)
 
     from examples.EmergencyManagement.client.client import (
         LXMFClient,
