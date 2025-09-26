@@ -123,120 +123,122 @@ export function DashboardPage(): JSX.Element {
         <h2>Dashboard</h2>
         <p>High-level overview of the Emergency Management gateway.</p>
       </header>
-      <div className="page-card">
-        <h3>Gateway Status</h3>
-        {error && <p className="page-error">{error}</p>}
-        {!error && !gatewayInfo && <p>Loading gateway information…</p>}
-        {gatewayInfo && (
-          <dl className="page-definition-list">
-            <div>
-              <dt>Version</dt>
-              <dd>{gatewayInfo.version}</dd>
-            </div>
-            <div>
-              <dt>Uptime</dt>
-              <dd>{gatewayInfo.uptime}</dd>
-            </div>
-            <div>
-              <dt>Link State</dt>
-              <dd>{resolvedLinkState}</dd>
-            </div>
-            <div>
-              <dt>Link Status</dt>
-              <dd>{resolvedLinkMessage}</dd>
-            </div>
-            <div>
-              <dt>Last Successful Link</dt>
-              <dd>{resolvedLastSuccess}</dd>
-            </div>
-            <div>
-              <dt>Last Link Attempt</dt>
-              <dd>{resolvedLastAttempt}</dd>
-            </div>
-            {resolvedLastError && (
-              <div>
-                <dt>Last Link Error</dt>
-                <dd>{resolvedLastError}</dd>
-              </div>
-            )}
-            <div>
-              <dt>Active Interfaces</dt>
-              <dd>
-                {activeInterfaces.length > 0
-                  ? activeInterfaces.map((item) => formatInterface(item)).join(', ')
-                  : 'No active interfaces reported'}
-              </dd>
-            </div>
-            <div>
-              <dt>Configured Interfaces</dt>
-              <dd>
-                {reticulumInterfaces.length > 0
-                  ? reticulumInterfaces
-                      .map((item) =>
-                        `${formatInterface(item)} (${item.online ? 'online' : 'offline'})`,
-                      )
-                      .join(', ')
-                  : 'No interfaces reported'}
-              </dd>
-            </div>
-          </dl>
-        )}
-      </div>
-      {gatewayInfo && (
+      <div className="page-grid page-grid--dashboard">
         <div className="page-card">
-          <h3>Gateway Configuration</h3>
+          <h3>Gateway Status</h3>
+          {error && <p className="page-error">{error}</p>}
+          {!error && !gatewayInfo && <p>Loading gateway information…</p>}
+          {gatewayInfo && (
+            <dl className="page-definition-list">
+              <div>
+                <dt>Version</dt>
+                <dd>{gatewayInfo.version}</dd>
+              </div>
+              <div>
+                <dt>Uptime</dt>
+                <dd>{gatewayInfo.uptime}</dd>
+              </div>
+              <div>
+                <dt>Link State</dt>
+                <dd>{resolvedLinkState}</dd>
+              </div>
+              <div>
+                <dt>Link Status</dt>
+                <dd>{resolvedLinkMessage}</dd>
+              </div>
+              <div>
+                <dt>Last Successful Link</dt>
+                <dd>{resolvedLastSuccess}</dd>
+              </div>
+              <div>
+                <dt>Last Link Attempt</dt>
+                <dd>{resolvedLastAttempt}</dd>
+              </div>
+              {resolvedLastError && (
+                <div>
+                  <dt>Last Link Error</dt>
+                  <dd>{resolvedLastError}</dd>
+                </div>
+              )}
+              <div>
+                <dt>Active Interfaces</dt>
+                <dd>
+                  {activeInterfaces.length > 0
+                    ? activeInterfaces.map((item) => formatInterface(item)).join(', ')
+                    : 'No active interfaces reported'}
+                </dd>
+              </div>
+              <div>
+                <dt>Configured Interfaces</dt>
+                <dd>
+                  {reticulumInterfaces.length > 0
+                    ? reticulumInterfaces
+                        .map((item) =>
+                          `${formatInterface(item)} (${item.online ? 'online' : 'offline'})`,
+                        )
+                        .join(', ')
+                    : 'No interfaces reported'}
+                </dd>
+              </div>
+            </dl>
+          )}
+        </div>
+        {gatewayInfo && (
+          <div className="page-card">
+            <h3>Gateway Configuration</h3>
+            <dl className="page-definition-list">
+              <div>
+                <dt>Server Identity</dt>
+                <dd>{gatewayInfo.serverIdentity ?? 'Not configured'}</dd>
+              </div>
+              <div>
+                <dt>Client Display Name</dt>
+                <dd>{gatewayInfo.clientDisplayName}</dd>
+              </div>
+              <div>
+                <dt>Request Timeout</dt>
+                <dd>
+                  {Number.isInteger(gatewayInfo.requestTimeoutSeconds)
+                    ? `${gatewayInfo.requestTimeoutSeconds} seconds`
+                    : `${gatewayInfo.requestTimeoutSeconds.toFixed(1)} seconds`}
+                </dd>
+              </div>
+              <div>
+                <dt>LXMF Config Path</dt>
+                <dd>{gatewayInfo.lxmfConfigPath ?? 'Not configured'}</dd>
+              </div>
+              <div>
+                <dt>LXMF Storage Path</dt>
+                <dd>{gatewayInfo.lxmfStoragePath ?? 'Not configured'}</dd>
+              </div>
+              <div>
+                <dt>Allowed Origins</dt>
+                <dd>
+                  {allowedOrigins.length > 0
+                    ? allowedOrigins.join(', ')
+                    : 'Not configured'}
+                </dd>
+              </div>
+            </dl>
+          </div>
+        )}
+        <div className="page-card">
+          <h3>Web UI API Configuration</h3>
           <dl className="page-definition-list">
             <div>
-              <dt>Server Identity</dt>
-              <dd>{gatewayInfo.serverIdentity ?? 'Not configured'}</dd>
+              <dt>API Base URL</dt>
+              <dd>{webUiConfig.apiBaseUrl}</dd>
             </div>
             <div>
-              <dt>Client Display Name</dt>
-              <dd>{gatewayInfo.clientDisplayName}</dd>
+              <dt>Live Updates URL</dt>
+              <dd>{webUiConfig.liveUpdatesUrl}</dd>
             </div>
             <div>
-              <dt>Request Timeout</dt>
-              <dd>
-                {Number.isInteger(gatewayInfo.requestTimeoutSeconds)
-                  ? `${gatewayInfo.requestTimeoutSeconds} seconds`
-                  : `${gatewayInfo.requestTimeoutSeconds.toFixed(1)} seconds`}
-              </dd>
-            </div>
-            <div>
-              <dt>LXMF Config Path</dt>
-              <dd>{gatewayInfo.lxmfConfigPath ?? 'Not configured'}</dd>
-            </div>
-            <div>
-              <dt>LXMF Storage Path</dt>
-              <dd>{gatewayInfo.lxmfStoragePath ?? 'Not configured'}</dd>
-            </div>
-            <div>
-              <dt>Allowed Origins</dt>
-              <dd>
-                {allowedOrigins.length > 0
-                  ? allowedOrigins.join(', ')
-                  : 'Not configured'}
-              </dd>
+              <dt>Server Identity Header</dt>
+              <dd>{webUiConfig.serverIdentityHeader ?? 'Not configured'}</dd>
             </div>
           </dl>
         </div>
-      )}
-      <div className="page-card">
-        <h3>Web UI API Configuration</h3>
-        <dl className="page-definition-list">
-          <div>
-            <dt>API Base URL</dt>
-            <dd>{webUiConfig.apiBaseUrl}</dd>
-          </div>
-          <div>
-            <dt>Live Updates URL</dt>
-            <dd>{webUiConfig.liveUpdatesUrl}</dd>
-          </div>
-          <div>
-            <dt>Server Identity Header</dt>
-            <dd>{webUiConfig.serverIdentityHeader ?? 'Not configured'}</dd>
-          </div>
-        </dl>
       </div>
     </section>
   );
