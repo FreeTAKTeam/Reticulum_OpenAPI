@@ -408,6 +408,7 @@ async def test_main_uses_configured_identity(monkeypatch, tmp_path) -> None:
         fake_retrieve,
         raising=False,
     )
+
     async def immediate_wait(*args, **kwargs):
         return None
 
@@ -498,6 +499,7 @@ async def test_main_prompts_when_config_missing(monkeypatch, tmp_path) -> None:
         fake_retrieve,
         raising=False,
     )
+
     async def immediate_wait(*args, **kwargs):
         return None
 
@@ -596,6 +598,7 @@ async def test_main_prompts_when_config_invalid(monkeypatch, tmp_path) -> None:
         fake_retrieve,
         raising=False,
     )
+
     async def immediate_wait(*args, **kwargs):
         return None
 
