@@ -349,6 +349,98 @@ async def test_link_request_dispatches_routes() -> None:
 
 
 @pytest.mark.asyncio
+async def test_parallel_link_requests_use_isolated_state() -> None:
+    """Concurrent link requests should receive independent responses."""
+
+    loop = asyncio.get_running_loop()
+    service = LXMFService.__new__(LXMFService)
+    service._loop = loop
+    service.auth_token = None
+    service.max_payload_size = 32000
+    service._active_links = {}
+    service._link_keepalive_tasks = {}
+    service._link_keepalive_interval = 0.01
+    service._link_handler = None
+
+    handled_values: list[int] = []
+
+    async def handler(payload: dict[str, Any]) -> dict[str, Any]:
+        await asyncio.sleep(0.01)
+        value = payload["value"]
+        handled_values.append(value)
+        return {"value": value, "handled": True}
+
+    service._routes = {"Echo": (handler, None, None)}
+
+    class FakeLink:
+        def __init__(self, link_id: bytes) -> None:
+            self.link_id = link_id
+            self.closed_callback: Optional[Callable[[Any], None]] = None
+            self.keepalives = 0
+
+        def set_link_closed_callback(self, callback: Callable[[Any], None]) -> None:
+            self.closed_callback = callback
+
+        def send_keepalive(self) -> None:
+            self.keepalives += 1
+
+        def close(self) -> None:
+            if self.closed_callback is not None:
+                self.closed_callback(self)
+
+    links = [FakeLink(bytes([idx])) for idx in range(1, 4)]
+
+    for link in links:
+        service._link_established(link)
+
+    await asyncio.sleep(0.05)
+
+    link_ids = {link.link_id for link in links}
+    assert set(service._active_links) == link_ids
+    assert set(service._link_keepalive_tasks) == link_ids
+
+    keepalive_tasks = list(service._link_keepalive_tasks.values())
+    assert len(keepalive_tasks) == len(links)
+    assert len({id(task) for task in keepalive_tasks}) == len(links)
+
+    payloads = [{"value": idx} for idx in range(1, 4)]
+
+    async def issue_request(link: FakeLink, payload: dict[str, Any]) -> dict[str, Any]:
+        response_bytes = await asyncio.to_thread(
+            service._handle_registered_link_request,
+            "/commands/Echo",
+            dataclass_to_msgpack(payload),
+            None,
+            link.link_id,
+            SimpleNamespace(hash=b"remote" + link.link_id),
+            123.0,
+        )
+        assert response_bytes is not None
+        return msgpack_from_bytes(response_bytes)
+
+    responses = await asyncio.gather(
+        *(issue_request(link, payload) for link, payload in zip(links, payloads))
+    )
+
+    assert handled_values and sorted(handled_values) == [1, 2, 3]
+
+    for expected, response in zip(payloads, responses):
+        assert response["value"] == expected["value"]
+        assert response["handled"] is True
+
+    for link in links:
+        link.close()
+
+    await asyncio.sleep(0.05)
+
+    assert service._active_links == {}
+    assert service._link_keepalive_tasks == {}
+
+    if keepalive_tasks:
+        await asyncio.gather(*keepalive_tasks, return_exceptions=True)
+
+
+@pytest.mark.asyncio
 async def test_lxmf_callback_dispatches_response():
     """Handler return values are sent back via _send_lxmf."""
     loop = asyncio.get_running_loop()

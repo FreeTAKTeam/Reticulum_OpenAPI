@@ -13,6 +13,7 @@ from typing import Dict
 from typing import Optional
 from typing import Tuple
 from typing import Type
+from threading import Lock
 
 import LXMF
 import RNS
@@ -165,6 +166,7 @@ class LXMFService:
         self._link_keepalive_interval = link_keepalive_interval
         self._active_links: Dict[bytes, RNS.Link] = {}
         self._link_keepalive_tasks: Dict[bytes, asyncio.Task] = {}
+        self._links_lock = Lock()
         self.link_destination: Optional[RNS.Destination] = None
         if self._links_enabled:
             self._initialise_link_destination()
@@ -203,7 +205,9 @@ class LXMFService:
     def _link_established(self, link: RNS.Link) -> None:
         """Handle a newly established link from a remote node."""
 
-        self._active_links[link.link_id] = link
+        lock = self._get_links_lock()
+        with lock:
+            self._active_links[link.link_id] = link
 
         if hasattr(link, "set_link_closed_callback"):
             link.set_link_closed_callback(self._link_closed)
@@ -217,7 +221,9 @@ class LXMFService:
         if self._link_keepalive_interval and self._link_keepalive_interval > 0:
             def _start_keepalive() -> None:
                 task = asyncio.create_task(self._link_keepalive(link))
-                self._link_keepalive_tasks[link.link_id] = task
+                lock_inner = self._get_links_lock()
+                with lock_inner:
+                    self._link_keepalive_tasks[link.link_id] = task
 
             self._loop.call_soon_threadsafe(_start_keepalive)
 
@@ -225,8 +231,10 @@ class LXMFService:
         """Cleanup when a link is closed by either party."""
 
         def _cleanup() -> None:
-            self._active_links.pop(link.link_id, None)
-            task = self._link_keepalive_tasks.pop(link.link_id, None)
+            lock = self._get_links_lock()
+            with lock:
+                self._active_links.pop(link.link_id, None)
+                task = self._link_keepalive_tasks.pop(link.link_id, None)
             if task is not None:
                 task.cancel()
 
@@ -236,14 +244,30 @@ class LXMFService:
         """Periodically send keep-alive packets for an active link."""
 
         try:
-            while link.link_id in self._active_links:
+            lock = self._get_links_lock()
+            while True:
+                with lock:
+                    if link.link_id not in self._active_links:
+                        break
                 await asyncio.sleep(self._link_keepalive_interval)
+                with lock:
+                    if link.link_id not in self._active_links:
+                        break
                 try:
                     link.send_keepalive()
                 except Exception:
                     logger.debug("Failed to send keepalive on link %r", link.link_id)
         except asyncio.CancelledError:
             return
+
+    def _get_links_lock(self) -> Lock:
+        """Return the lock protecting link bookkeeping structures."""
+
+        lock = getattr(self, "_links_lock", None)
+        if lock is None:
+            lock = Lock()
+            self._links_lock = lock
+        return lock
 
     @staticmethod
     def _extract_command_from_path(path: Any) -> Optional[str]:
@@ -851,17 +875,27 @@ class LXMFService:
     async def _shutdown_links(self) -> None:
         """Close any active links and cancel keep-alive tasks."""
 
-        active_links = getattr(self, "_active_links", {})
-        for link in list(active_links.values()):
+        lock = self._get_links_lock()
+        with lock:
+            active_dict = getattr(self, "_active_links", None)
+            keepalive_dict = getattr(self, "_link_keepalive_tasks", None)
+            if active_dict is None:
+                active_links = []
+            else:
+                active_links = list(active_dict.values())
+                active_dict.clear()
+            if keepalive_dict is None:
+                keepalive_tasks = []
+            else:
+                keepalive_tasks = list(keepalive_dict.values())
+                keepalive_dict.clear()
+
+        for link in active_links:
             try:
                 link.close()
             except Exception:
                 pass
-        active_links.clear()
-        keepalive_tasks = getattr(self, "_link_keepalive_tasks", {})
-        tasks = list(keepalive_tasks.values())
-        keepalive_tasks.clear()
-        for task in tasks:
+        for task in keepalive_tasks:
             task.cancel()
-        if tasks:
-            await asyncio.gather(*tasks, return_exceptions=True)
+        if keepalive_tasks:
+            await asyncio.gather(*keepalive_tasks, return_exceptions=True)
