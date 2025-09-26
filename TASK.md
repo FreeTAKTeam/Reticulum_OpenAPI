@@ -84,4 +84,6 @@
 
 ## 2025-09-26
 - [x] Derive EmergencyManagement database configuration from the server module path and expose runtime overrides.
+- [x] Add sortable tables to the EmergencyManagement web UI for messages and events.
+
 
