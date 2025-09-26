@@ -436,8 +436,10 @@ a {
   hyphens: auto;
 }
 
-.page-grid--dashboard {
-  grid-template-columns: minmax(0, 1fr);
+.dashboard-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 1.75rem;
 }
 
 .page-grid {

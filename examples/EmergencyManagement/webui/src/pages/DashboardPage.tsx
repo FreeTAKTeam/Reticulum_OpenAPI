@@ -123,7 +123,7 @@ export function DashboardPage(): JSX.Element {
         <h2>Dashboard</h2>
         <p>High-level overview of the Emergency Management gateway.</p>
       </header>
-      <div className="page-grid page-grid--dashboard">
+      <div className="dashboard-layout">
         <div className="page-card">
           <h3>Gateway Status</h3>
           {error && <p className="page-error">{error}</p>}
