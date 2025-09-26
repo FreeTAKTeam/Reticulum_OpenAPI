@@ -404,9 +404,15 @@ a {
 
 .page-definition-list {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 1.25rem;
   margin: 0;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+}
+
+@media (min-width: 1200px) {
+  .page-definition-list {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
 }
 
 .page-definition-list div {
@@ -425,6 +431,19 @@ a {
 .page-definition-list dd {
   margin: 0;
   color: var(--text-primary);
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  hyphens: auto;
+}
+
+.page-grid--dashboard {
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+}
+
+@media (min-width: 1200px) {
+  .page-grid--dashboard {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
 }
 
 .page-grid {
