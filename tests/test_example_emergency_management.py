@@ -9,13 +9,7 @@ from pathlib import Path
 
 import pytest
 import pytest_asyncio
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.ext.asyncio import async_sessionmaker
-from sqlalchemy.ext.asyncio import create_async_engine
 
-from examples.EmergencyManagement.Server import (
-    controllers_emergency as controllers_module,
-)
 from examples.EmergencyManagement.Server import database as database_module
 from examples.EmergencyManagement.Server.controllers_emergency import (
     EmergencyController,
@@ -32,35 +26,36 @@ from reticulum_openapi.model import compress_json
 
 
 @pytest_asyncio.fixture
-async def emergency_db(monkeypatch, tmp_path):
+async def emergency_db(tmp_path):
     """Provide a temporary database and session factory for the example tests."""
 
     db_path = tmp_path / "emergency_test.db"
-    engine = create_async_engine(f"sqlite+aiosqlite:///{db_path}")
-    session_factory = async_sessionmaker(
-        engine,
-        expire_on_commit=False,
-        class_=AsyncSession,
-    )
+    original_url = database_module.DATABASE_URL
+    original_engine = database_module.engine
 
-    # Reason: the controllers capture async_session at import time, so patch the
-    # module-level references to point at the temporary session factory.
-    monkeypatch.setattr(database_module, "engine", engine, raising=False)
-    monkeypatch.setattr(
-        database_module, "async_session", session_factory, raising=False
-    )
-    monkeypatch.setattr(
-        controllers_module, "async_session", session_factory, raising=False
-    )
+    configured_url = database_module.configure_database(str(db_path))
+    assert configured_url == database_module.DATABASE_URL
 
-    async with engine.begin() as conn:
+    if database_module.engine is None:
+        raise RuntimeError("Database engine was not initialised")
+    if database_module.async_session is None:
+        raise RuntimeError("Session factory was not initialised")
+
+    async with database_module.engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
         await conn.run_sync(Base.metadata.create_all)
 
     try:
-        yield session_factory
+        yield database_module.async_session
     finally:
-        await engine.dispose()
+        if database_module.engine is not None:
+            await database_module.engine.dispose()
+        database_module.configure_database(original_url)
+        if (
+            original_engine is not None
+            and original_engine is not database_module.engine
+        ):
+            await original_engine.dispose()
 
 
 @pytest.mark.asyncio
@@ -193,9 +188,7 @@ def test_decode_event_list_fallback_handles_compressed_json() -> None:
         Event(uid=21, type="Test", point=Point(lat=3.0, lon=4.0)),
         Event(uid=22, type="Exercise", point=Point(lat=5.0, lon=6.0)),
     ]
-    payload = compress_json(
-        dataclass_to_json_bytes([asdict(item) for item in events])
-    )
+    payload = compress_json(dataclass_to_json_bytes([asdict(item) for item in events]))
 
     decoded = client_module._decode_event_list(payload)
 
@@ -234,6 +227,7 @@ def test_server_script_importable_from_directory(monkeypatch) -> None:
 
     assert "EmergencyService" in globals_ns
     assert "init_db" in globals_ns
+    assert "configure_database" in globals_ns
 
 
 @pytest.mark.asyncio
@@ -408,6 +402,7 @@ async def test_main_uses_configured_identity(monkeypatch, tmp_path) -> None:
         fake_retrieve,
         raising=False,
     )
+
     async def immediate_wait(*args, **kwargs):
         return None
 
@@ -498,6 +493,7 @@ async def test_main_prompts_when_config_missing(monkeypatch, tmp_path) -> None:
         fake_retrieve,
         raising=False,
     )
+
     async def immediate_wait(*args, **kwargs):
         return None
 
@@ -596,6 +592,7 @@ async def test_main_prompts_when_config_invalid(monkeypatch, tmp_path) -> None:
         fake_retrieve,
         raising=False,
     )
+
     async def immediate_wait(*args, **kwargs):
         return None
 
