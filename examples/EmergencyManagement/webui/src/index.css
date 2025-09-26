@@ -437,13 +437,7 @@ a {
 }
 
 .page-grid--dashboard {
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-}
-
-@media (min-width: 1200px) {
-  .page-grid--dashboard {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .page-grid {
