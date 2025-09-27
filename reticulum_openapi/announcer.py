@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 from typing import Optional
+from typing import Union
 
 import RNS
 
@@ -25,6 +26,7 @@ class DestinationAnnouncer:
         *,
         direction: Optional[int] = None,
         destination_type: Optional[int] = None,
+        app_data: Optional[Union[bytes, str]] = None,
     ) -> None:
         """Initialise the announcer with destination metadata.
 
@@ -36,6 +38,9 @@ class DestinationAnnouncer:
                 direction. Defaults to ``RNS.Destination.IN``.
             destination_type (Optional[int]): Override for the Reticulum
                 destination type. Defaults to ``RNS.Destination.SINGLE``.
+            app_data (Optional[Union[bytes, str]]): Metadata transmitted with
+                the announce packet. Strings are encoded as UTF-8 prior to
+                assignment. Defaults to ``None``.
 
         Raises:
             ValueError: If ``identity`` is ``None``.
@@ -58,6 +63,12 @@ class DestinationAnnouncer:
             application,
             aspect,
         )
+        if isinstance(app_data, str):
+            app_data_bytes: Optional[bytes] = app_data.encode("utf-8")
+        else:
+            app_data_bytes = app_data
+        if app_data_bytes is not None:
+            self.destination.default_app_data = app_data_bytes
 
     def announce(self) -> bytes:
         """Send an announce packet for the configured destination.

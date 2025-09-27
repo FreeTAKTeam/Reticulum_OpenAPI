@@ -7,6 +7,8 @@ from types import SimpleNamespace
 import pytest
 
 from examples.EmergencyManagement.Server import server_emergency
+from examples.EmergencyManagement.Server import service_emergency
+from reticulum_openapi import service as service_module
 
 
 class _StubService:
@@ -118,3 +120,110 @@ def test_database_override_priority():
 
     override = server_emergency._select_database_override(options)
     assert override == "postgresql+asyncpg://user:pass@host/db"
+
+
+def test_emergency_service_default_app_data(monkeypatch):
+    """EmergencyService should encode service metadata for announces."""
+
+    recorded = {}
+
+    class FakeIdentity:
+        def __init__(self):
+            self.hash = b"\xAA" * 16
+
+    class FakeDestination:
+        IN = object()
+        SINGLE = object()
+
+        def __init__(self, *_args, **_kwargs):
+            self.accepts_links_called = []
+
+        def set_link_established_callback(self, _callback):
+            return None
+
+    class FakeReticulum:
+        storagepath = "/tmp"
+
+        def __init__(self, _config_path):
+            return None
+
+    class FakeTransport:
+        @staticmethod
+        def register_announce_handler(_handler):
+            return None
+
+    class FakeRNS:
+        Destination = FakeDestination
+        Identity = FakeIdentity
+        Reticulum = FakeReticulum
+        Transport = FakeTransport
+
+        @staticmethod
+        def prettyhexrep(_value):
+            return "hash"
+
+        @staticmethod
+        def log(*_args, **_kwargs):
+            return None
+
+        LOG_WARNING = 1
+
+    class FakeRouter:
+        def __init__(self, storagepath=None):
+            self.storagepath = storagepath
+
+        def register_delivery_callback(self, _callback):
+            return None
+
+        def register_delivery_identity(self, identity, display_name=None, stamp_cost=0):
+            return SimpleNamespace(hash=b"\xBB" * 16)
+
+    class FakeLXMF:
+        LXMRouter = FakeRouter
+
+    class RecordingAnnouncer:
+        def __init__(
+            self,
+            _identity,
+            _application,
+            _aspect,
+            *,
+            direction=None,
+            destination_type=None,
+            app_data=None,
+        ):
+            recorded["direction"] = direction
+            recorded["destination_type"] = destination_type
+            recorded["app_data"] = app_data
+            self.destination = SimpleNamespace(
+                hash=b"\xCC" * 16,
+                default_app_data=app_data,
+            )
+
+        def announce(self):
+            return self.destination.hash
+
+    monkeypatch.setattr(service_module, "RNS", FakeRNS)
+    monkeypatch.setattr(service_module, "LXMF", FakeLXMF)
+    monkeypatch.setattr(service_module, "DestinationAnnouncer", RecordingAnnouncer)
+    monkeypatch.setattr(
+        "reticulum_openapi.service.RNS",
+        FakeRNS,
+    )
+    monkeypatch.setattr(
+        "reticulum_openapi.service.LXMF",
+        FakeLXMF,
+    )
+    monkeypatch.setattr(
+        "reticulum_openapi.service.DestinationAnnouncer",
+        RecordingAnnouncer,
+    )
+    monkeypatch.setattr(
+        "reticulum_openapi.service.load_or_create_identity",
+        lambda _config: FakeIdentity(),
+    )
+
+    service = service_emergency.EmergencyService(enable_links=False)
+
+    assert recorded["app_data"] == b"emergency_management"
+    assert service.destination.default_app_data == b"emergency_management"

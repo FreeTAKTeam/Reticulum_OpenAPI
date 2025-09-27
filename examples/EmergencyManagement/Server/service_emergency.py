@@ -13,6 +13,7 @@ class EmergencyService(LXMFService):
     """Service with routes for the emergency management example."""
 
     def __init__(self, *args, **kwargs):
+        kwargs.setdefault("announce_app_data", "emergency_management")
         super().__init__(*args, **kwargs)
 
         eamc = EmergencyController()
