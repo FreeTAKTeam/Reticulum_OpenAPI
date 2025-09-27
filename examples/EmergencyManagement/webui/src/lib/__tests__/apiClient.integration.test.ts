@@ -3,6 +3,8 @@ import { type AddressInfo } from 'node:net';
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { type EventRecord } from '../apiClient';
+
 function readJsonBody(request: IncomingMessage): Promise<unknown> {
   return new Promise((resolve, reject) => {
     let body = '';
@@ -183,7 +185,7 @@ describe('apiClient HTTP integration', () => {
   it('posts and retrieves events via HTTP', async () => {
     const { createEvent, listEvents, retrieveEvent } = await import('../apiClient');
 
-    const event = {
+    const event: EventRecord = {
       uid: 42,
       type: 'drill',
       detail: {

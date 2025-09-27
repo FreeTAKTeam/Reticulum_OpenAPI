@@ -124,7 +124,7 @@ export function DashboardPage(): JSX.Element {
         <p>High-level overview of the Emergency Management gateway.</p>
       </header>
       <div className="dashboard-layout">
-        <div className="page-card">
+        <div className="page-card dashboard-layout__status-card">
           <h3>Gateway Status</h3>
           {error && <p className="page-error">{error}</p>}
           {!error && !gatewayInfo && <p>Loading gateway information…</p>}
@@ -184,7 +184,7 @@ export function DashboardPage(): JSX.Element {
           )}
         </div>
         {gatewayInfo && (
-          <div className="page-card">
+          <div className="page-card dashboard-layout__configuration-card">
             <h3>Gateway Configuration</h3>
             <dl className="page-definition-list">
               <div>
@@ -222,7 +222,7 @@ export function DashboardPage(): JSX.Element {
             </dl>
           </div>
         )}
-        <div className="page-card">
+        <div className="page-card dashboard-layout__api-card">
           <h3>Web UI API Configuration</h3>
           <dl className="page-definition-list">
             <div>
