@@ -13,6 +13,7 @@ from typing import Dict
 from typing import Optional
 from typing import Tuple
 from typing import Type
+from typing import Union
 from threading import Lock
 
 import LXMF
@@ -102,6 +103,7 @@ class LXMFService:
         announce_aspect: str = "lxmf_service",
         announce_direction: Optional[int] = None,
         announce_destination_type: Optional[int] = None,
+        announce_app_data: Optional[Union[bytes, str]] = None,
         enable_links: bool = True,
         link_handler: Optional[Callable[[RNS.Link], Awaitable[Any]]] = None,
         link_keepalive_interval: float = RNS.Link.KEEPALIVE,
@@ -117,6 +119,7 @@ class LXMFService:
         :param announce_aspect: Aspect component for destination announcements.
         :param announce_direction: Override for the Reticulum destination direction.
         :param announce_destination_type: Override for the Reticulum destination type.
+        :param announce_app_data: Optional metadata advertised in announce packets.
         """
         # Initialize Reticulum (network stack). Reuse existing if already running.
         self.reticulum = RNS.Reticulum(
@@ -147,12 +150,21 @@ class LXMFService:
             if announce_destination_type is not None
             else RNS.Destination.SINGLE
         )
+        if announce_app_data is None:
+            announce_app_data_bytes: Optional[bytes] = None
+        elif isinstance(announce_app_data, bytes):
+            announce_app_data_bytes = announce_app_data
+        elif isinstance(announce_app_data, str):
+            announce_app_data_bytes = announce_app_data.encode("utf-8")
+        else:
+            raise TypeError("announce_app_data must be bytes or str")
         self.announcer = DestinationAnnouncer(
             identity,
             announce_application,
             announce_aspect,
             direction=destination_direction,
             destination_type=destination_type,
+            app_data=announce_app_data_bytes,
         )
         self.destination = self.announcer.destination
         self._loop = asyncio.get_event_loop()
