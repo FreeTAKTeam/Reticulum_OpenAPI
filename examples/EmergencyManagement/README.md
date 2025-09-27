@@ -1,6 +1,9 @@
 # Emergency Management Example
 
-The Emergency Management example demonstrates how to combine a Reticulum LXMF service, a shared northbound client, a FastAPI gateway, and a Vite-powered React UI that all speak the same OpenAPI contract. The stack models two resources:
+The Emergency Management example demonstrates how to combine a Reticulum LXMF service, a shared northbound client, a FastAPI gateway, and a Vite-powered React UI that all speak the same OpenAPI contract. 
+<img width="1826" height="984" alt="image" src="https://github.com/user-attachments/assets/940c4415-3755-47e6-a026-d8e37c454a15" />
+
+The stack models two resources:
 
 - **EmergencyActionMessage** – status reports scoped to a `callsign`.
 - **Event** – event envelopes keyed by a `uid`.
