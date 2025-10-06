@@ -21,6 +21,7 @@ from typing import (
     Union,
     get_args,
     get_origin,
+    get_type_hints,
 )
 
 from importlib import metadata
@@ -425,9 +426,11 @@ def _build_dataclass(cls: Type[T], data: Dict[str, Any]) -> T:
         raise TypeError("Request payload must be a JSON object")
 
     kwargs: Dict[str, Any] = {}
+    type_hints = get_type_hints(cls)
     for field in fields(cls):
         if field.name in data:
-            kwargs[field.name] = _convert_value(field.type, data[field.name])
+            expected_type = type_hints.get(field.name, field.type)
+            kwargs[field.name] = _convert_value(expected_type, data[field.name])
     return cls(**kwargs)
 
 
