@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from typing import Union, Optional
+from typing import Any, Literal, Optional, Union
 
 from reticulum_openapi.model import BaseModel
 from sqlalchemy.orm import declarative_base
@@ -117,3 +117,22 @@ Vehicle = Union[Car, Bike]
 class TransportRecord(BaseModel):
     owner: str
     vehicle: Vehicle
+
+
+@dataclass
+class DeleteEmergencyActionMessageResult(BaseModel):
+    status: Literal["deleted", "not_found"]
+    callsign: str
+
+
+@dataclass
+class DeleteEventResult(BaseModel):
+    status: Literal["deleted", "not_found"]
+    uid: int
+
+
+@dataclass
+class NotificationMessage(BaseModel):
+    title: str
+    payload: Optional[Any] = None
+    payload_raw: Optional[str] = None
