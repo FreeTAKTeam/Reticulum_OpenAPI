@@ -88,3 +88,6 @@
 - [x] Extend EmergencyManagement server CLI to accept runtime overrides and document usage.
 
 
+## 2025-09-27
+- [x] Expand EmergencyManagement OpenAPI specification with notifications streaming and updated schemas.
+
