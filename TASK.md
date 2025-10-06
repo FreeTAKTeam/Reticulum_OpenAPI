@@ -88,3 +88,8 @@
 - [x] Extend EmergencyManagement server CLI to accept runtime overrides and document usage.
 
 
+## 2025-09-27
+- [x] Add async EmergencyManagement controller handlers for new CRUD endpoints.
+
+
+
