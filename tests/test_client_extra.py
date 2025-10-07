@@ -150,9 +150,7 @@ async def test_send_command_bytes_payload(monkeypatch):
     cli.auth_token = None
     cli.timeout = 0.2
 
-    monkeypatch.setattr(
-        client_module.RNS.Identity, "recall", lambda h, create=False: object()
-    )
+    cli._resolve_destination_identity = AsyncMock(return_value=object())
 
     class FakeDestination:
         OUT = object()
@@ -202,9 +200,7 @@ async def test_send_command_dict_payload(monkeypatch):
     cli.auth_token = "secret"
     cli.timeout = 0.2
 
-    monkeypatch.setattr(
-        client_module.RNS.Identity, "recall", lambda h, create=False: object()
-    )
+    cli._resolve_destination_identity = AsyncMock(return_value={"id": 1})
 
     class FakeDestination:
         OUT = object()
@@ -402,6 +398,56 @@ async def test_wait_for_server_announce_timeout(monkeypatch):
 
     with pytest.raises(TimeoutError):
         await client.wait_for_server_announce(timeout=0.05)
+
+
+@pytest.mark.asyncio
+async def test_resolve_destination_identity_requests_path(monkeypatch):
+    loop = asyncio.get_running_loop()
+    client = client_module.LXMFClient.__new__(client_module.LXMFClient)
+    client._loop = loop
+    identity = object()
+    recall_results = [None, identity]
+
+    def fake_recall(_hash):
+        if recall_results:
+            return recall_results.pop(0)
+        return identity
+
+    path_requests = []
+
+    monkeypatch.setattr(client_module.RNS.Identity, "recall", fake_recall)
+    monkeypatch.setattr(
+        client_module.RNS.Transport,
+        "request_path",
+        lambda dest: path_requests.append(dest),
+    )
+
+    result = await client._resolve_destination_identity(
+        "abcd", bytes.fromhex("abcd"), 0.3
+    )
+
+    assert result is identity
+    assert path_requests
+
+
+@pytest.mark.asyncio
+async def test_resolve_destination_identity_timeout(monkeypatch):
+    loop = asyncio.get_running_loop()
+    client = client_module.LXMFClient.__new__(client_module.LXMFClient)
+    client._loop = loop
+
+    monkeypatch.setattr(client_module.RNS.Identity, "recall", lambda _hash: None)
+    path_requests = []
+    monkeypatch.setattr(
+        client_module.RNS.Transport,
+        "request_path",
+        lambda dest: path_requests.append(dest),
+    )
+
+    with pytest.raises(TimeoutError):
+        await client._resolve_destination_identity("abcd", bytes.fromhex("abcd"), 0.15)
+
+    assert path_requests
 
 
 @pytest.mark.asyncio
