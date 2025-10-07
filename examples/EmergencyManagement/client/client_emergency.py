@@ -562,6 +562,8 @@ async def _interactive_loop(
             await _handle_delete_message(client, server_identity)
         else:
             print("Unrecognised option. Please choose again.")
+
+
 async def main():
     """Run the interactive Emergency Management CLI."""
 

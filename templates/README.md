@@ -44,5 +44,19 @@ Adjust the generated code as needed for your specification.
 
 - Set `auth_token` on the generated service and client if your deployment
   requires message authentication.
+- Extend the generated `server.py` with the same runtime CLI options used by
+  the Emergency Management example (`--config-path`, `--storage-path`,
+  `--display-name`, `--auth-token`, `--database-path`, `--database-url`, and
+  `--link-keepalive-interval`). The scaffolded file only sleeps for 30 seconds;
+  update it to wait on a signal-aware shutdown event so the service keeps
+  running until interrupted, prints its identity hashes, and retries LXMF link
+  establishment when necessary.
+- Call `configure_database()` with a caller-supplied override before `init_db`
+  to honour environment variables such as `EMERGENCY_DATABASE_URL` or CLI
+  flags.
 - Add additional schema dataclasses if your API defines objects outside the
   supplied OpenAPI spec.
+- Mirror the gateway helpers if you need FastAPI adapters: load shared LXMF
+  client configuration from `NORTH_API_CONFIG_PATH`/`NORTH_API_CONFIG_JSON`,
+  expose `/notifications/stream`, and surface interface or link status in
+  startup logs.

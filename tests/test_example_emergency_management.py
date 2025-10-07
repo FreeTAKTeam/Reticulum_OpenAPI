@@ -147,6 +147,56 @@ async def test_event_controller_delete_missing(emergency_db) -> None:
     assert result == {"status": "not_found", "uid": "999"}
 
 
+@pytest.mark.asyncio
+async def test_event_controller_retrieve_invalid_identifier_returns_error(
+    emergency_db,
+) -> None:
+    """Invalid identifiers should surface structured controller errors."""
+
+    controller = EventController()
+
+    result = await controller.RetrieveEvent("not-an-integer")
+
+    assert result == {"error": "InternalServerError", "code": 500}
+
+
+@pytest.mark.asyncio
+async def test_event_controller_list_without_session_factory(monkeypatch) -> None:
+    """Missing session factories should be reported via controller error payloads."""
+
+    monkeypatch.setattr(
+        "examples.EmergencyManagement.Server.controllers_emergency.async_session",
+        None,
+    )
+    monkeypatch.setattr(
+        database_module,
+        "async_session",
+        None,
+        raising=False,
+    )
+
+    controller = EventController()
+
+    result = await controller.ListEvent()
+
+    assert result == {"error": "InternalServerError", "code": 500}
+
+
+def test_decode_event_fallback_handles_messagepack() -> None:
+    """The client decoder accepts MessagePack event payloads."""
+
+    from examples.EmergencyManagement.client import client as client_module
+
+    event = Event(uid=8, type="Exercise", qos=2)
+    payload = dataclass_to_msgpack(event)
+
+    decoded = client_module._decode_event(payload)
+
+    assert isinstance(decoded, Event)
+    assert decoded.uid == event.uid
+    assert decoded.qos == event.qos
+
+
 def test_decode_event_fallback_handles_compressed_json() -> None:
     """The client decoder accepts compressed JSON event payloads."""
 
@@ -163,6 +213,21 @@ def test_decode_event_fallback_handles_compressed_json() -> None:
     assert decoded.point.lat == event.point.lat
 
 
+def test_decode_optional_event_fallback_handles_messagepack() -> None:
+    """Optional event decoding handles MessagePack payloads."""
+
+    from examples.EmergencyManagement.client import client as client_module
+
+    event = Event(uid=12, type="Status", version=3)
+    payload = dataclass_to_msgpack(event)
+
+    decoded = client_module._decode_optional_event(payload)
+
+    assert isinstance(decoded, Event)
+    assert decoded.uid == event.uid
+    assert decoded.version == event.version
+
+
 def test_decode_optional_event_fallback_handles_compressed_json() -> None:
     """Optional event decoding also supports compressed JSON payloads."""
 
@@ -177,6 +242,24 @@ def test_decode_optional_event_fallback_handles_compressed_json() -> None:
     assert decoded.uid == event.uid
     assert decoded.point is not None
     assert decoded.point.lon == event.point.lon
+
+
+def test_decode_event_list_fallback_handles_messagepack() -> None:
+    """List decoder accepts MessagePack payloads containing mapping entries."""
+
+    from examples.EmergencyManagement.client import client as client_module
+
+    events = [
+        Event(uid=31, type="Drill", qos=1),
+        Event(uid=32, type="Alert", opex=2),
+    ]
+    payload = dataclass_to_msgpack([asdict(item) for item in events])
+
+    decoded = client_module._decode_event_list(payload)
+
+    assert [item.uid for item in decoded] == [31, 32]
+    assert decoded[0].qos == events[0].qos
+    assert decoded[1].opex == events[1].opex
 
 
 def test_decode_event_list_fallback_handles_compressed_json() -> None:
