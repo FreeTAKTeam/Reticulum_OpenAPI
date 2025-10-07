@@ -5,6 +5,7 @@ from dataclasses import fields
 from dataclasses import is_dataclass
 import json
 import zlib
+import sys
 from typing import List
 from typing import Optional
 from typing import Type
@@ -12,6 +13,7 @@ from typing import TypeVar
 from typing import Union
 from typing import get_args
 from typing import get_origin
+from typing import get_type_hints
 
 from .codec_msgpack import from_bytes as msgpack_from_bytes
 from .codec_msgpack import to_canonical_bytes
@@ -85,24 +87,55 @@ def dataclass_to_json(data_obj: T, *, compress: bool = True) -> bytes:
     return compress_json(json_bytes, enabled=compress)
 
 
-def _construct(tp, value):
+def _construct(tp, value, *, module_globals=None):
+    if isinstance(tp, str):
+        if module_globals is None:
+            return value
+        try:
+            tp = eval(tp, module_globals)
+        except NameError:
+            return value
     origin = get_origin(tp)
     if origin is Union:
+        none_type = type(None)
         for sub in get_args(tp):
+            if sub is none_type:
+                if value is None:
+                    return None
+                continue
             try:
-                return _construct(sub, value)
+                return _construct(sub, value, module_globals=module_globals)
             except Exception:
                 continue
+        if value is None:
+            return None
         raise ValueError(f"No matching type for Union {tp}")
     if is_dataclass(tp):
+        tp_module = sys.modules.get(tp.__module__)
+        tp_globals = module_globals
+        if isinstance(tp_module, type(sys)):
+            tp_globals = vars(tp_module)
         kwargs = {}
-        for f in fields(tp):
-            if isinstance(value, dict) and f.name in value:
-                kwargs[f.name] = _construct(f.type, value[f.name])
+        if isinstance(value, dict):
+            type_hints = get_type_hints(tp, globalns=tp_globals)
+            for f in fields(tp):
+                if f.name in value:
+                    field_type = type_hints.get(f.name, f.type)
+                    kwargs[f.name] = _construct(
+                        field_type,
+                        value[f.name],
+                        module_globals=tp_globals,
+                    )
         return tp(**kwargs)  # type: ignore
     if origin is list and isinstance(value, list):
-        item_type = get_args(tp)[0]
-        return [_construct(item_type, v) for v in value]
+        args = get_args(tp)
+        if not args:
+            return value
+        item_type = args[0]
+        return [
+            _construct(item_type, v, module_globals=module_globals)
+            for v in value
+        ]
     return value
 
 
@@ -124,7 +157,8 @@ def dataclass_from_json(cls: Type[T], data: bytes) -> T:
     else:
         json_bytes = data
     obj_dict = json.loads(json_bytes.decode("utf-8"))
-    return _construct(cls, obj_dict)
+    module_globals = vars(sys.modules.get(cls.__module__, {}))
+    return _construct(cls, obj_dict, module_globals=module_globals)
 
 
 def dataclass_to_msgpack(data_obj: T) -> bytes:
@@ -153,7 +187,8 @@ def dataclass_from_msgpack(cls: Type[T], data: bytes) -> T:
         T: Deserialised dataclass instance.
     """
     obj_dict = msgpack_from_bytes(data)
-    return _construct(cls, obj_dict)
+    module_globals = vars(sys.modules.get(cls.__module__, {}))
+    return _construct(cls, obj_dict, module_globals=module_globals)
 
 
 @dataclass
