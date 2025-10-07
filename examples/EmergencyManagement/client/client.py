@@ -11,6 +11,7 @@ from reticulum_openapi.model import dataclass_from_json
 from examples.EmergencyManagement.Server.models_emergency import (
     EmergencyActionMessage,
     Event,
+    DeleteEmergencyActionMessageResult,
 )
 
 _JSON_DECODE_FAILED = object()
@@ -41,6 +42,9 @@ def _decode_json_payload(payload: Optional[bytes], target_type):
 
 
 COMMAND_CREATE_EMERGENCY_ACTION_MESSAGE = "CreateEmergencyActionMessage"
+COMMAND_DELETE_EMERGENCY_ACTION_MESSAGE = "DeleteEmergencyActionMessage"
+COMMAND_LIST_EMERGENCY_ACTION_MESSAGE = "ListEmergencyActionMessage"
+COMMAND_PUT_EMERGENCY_ACTION_MESSAGE = "PutEmergencyActionMessage"
 COMMAND_RETRIEVE_EMERGENCY_ACTION_MESSAGE = "RetrieveEmergencyActionMessage"
 COMMAND_CREATE_EVENT = "CreateEvent"
 COMMAND_DELETE_EVENT = "DeleteEvent"
@@ -69,10 +73,84 @@ def _decode_emergency_action_message(
     if payload is None:
         raise ValueError("Response payload is required")
 
+    json_result = _decode_json_payload(payload, EmergencyActionMessage)
+    if json_result is not _JSON_DECODE_FAILED:
+        if json_result is None:
+            raise ValueError("Decoded payload cannot be null")
+        return json_result
+
     data = from_bytes(payload)
     if not isinstance(data, dict):
         raise ValueError("Decoded payload must be a mapping")
     return EmergencyActionMessage(**data)
+
+
+def _decode_optional_emergency_action_message(
+    payload: Optional[bytes],
+) -> Optional[EmergencyActionMessage]:
+    """Return an optional :class:`EmergencyActionMessage` decoded from bytes."""
+
+    if payload is None:
+        return None
+
+    json_result = _decode_json_payload(payload, EmergencyActionMessage)
+    if json_result is not _JSON_DECODE_FAILED:
+        return json_result
+
+    data = from_bytes(payload)
+    if data is None:
+        return None
+    if not isinstance(data, dict):
+        raise ValueError("Decoded payload must be a mapping")
+    return EmergencyActionMessage(**data)
+
+
+def _decode_emergency_action_message_list(
+    payload: Optional[bytes],
+) -> List[EmergencyActionMessage]:
+    """Return a list of :class:`EmergencyActionMessage` decoded from bytes."""
+
+    if payload is None:
+        return []
+
+    json_result = _decode_json_payload(payload, List[EmergencyActionMessage])
+    if json_result is not _JSON_DECODE_FAILED:
+        if json_result is None:
+            return []
+        return list(json_result)
+
+    data = from_bytes(payload)
+    if data is None:
+        return []
+    if not isinstance(data, list):
+        raise ValueError("Decoded payload must be a list")
+
+    messages: List[EmergencyActionMessage] = []
+    for item in data:
+        if not isinstance(item, dict):
+            raise ValueError("Each emergency action payload must be a mapping")
+        messages.append(EmergencyActionMessage(**item))
+    return messages
+
+
+def _decode_delete_emergency_action_message_result(
+    payload: Optional[bytes],
+) -> DeleteEmergencyActionMessageResult:
+    """Return the delete emergency action response decoded from bytes."""
+
+    if payload is None:
+        raise ValueError("Response payload is required")
+
+    json_result = _decode_json_payload(payload, DeleteEmergencyActionMessageResult)
+    if json_result is not _JSON_DECODE_FAILED:
+        if json_result is None:
+            raise ValueError("Decoded payload cannot be null")
+        return json_result
+
+    data = from_bytes(payload)
+    if not isinstance(data, dict):
+        raise ValueError("Decoded payload must be a mapping")
+    return DeleteEmergencyActionMessageResult(**data)
 
 
 def _decode_event(payload: Optional[bytes]) -> Event:
@@ -183,7 +261,7 @@ async def retrieve_emergency_action_message(
     client: LXMFClient,
     server_identity_hash: str,
     callsign: str,
-) -> EmergencyActionMessage:
+) -> Optional[EmergencyActionMessage]:
     """Fetch an emergency action message from the LXMF API.
 
     Args:
@@ -192,7 +270,7 @@ async def retrieve_emergency_action_message(
         callsign (str): Callsign identifying the message to retrieve.
 
     Returns:
-        EmergencyActionMessage: Retrieved message returned by the service.
+        Optional[EmergencyActionMessage]: Retrieved message or ``None`` when missing.
     """
 
     response = await client.send_command(
@@ -201,7 +279,54 @@ async def retrieve_emergency_action_message(
         callsign,
         await_response=True,
     )
-    return _decode_emergency_action_message(response)
+    return _decode_optional_emergency_action_message(response)
+
+
+async def list_emergency_action_messages(
+    client: LXMFClient,
+    server_identity_hash: str,
+) -> List[EmergencyActionMessage]:
+    """Return all emergency action messages stored on the LXMF service."""
+
+    response = await client.send_command(
+        server_identity_hash,
+        COMMAND_LIST_EMERGENCY_ACTION_MESSAGE,
+        None,
+        await_response=True,
+    )
+    return _decode_emergency_action_message_list(response)
+
+
+async def update_emergency_action_message(
+    client: LXMFClient,
+    server_identity_hash: str,
+    message: EmergencyActionMessage,
+) -> Optional[EmergencyActionMessage]:
+    """Update an emergency action message via the LXMF API."""
+
+    response = await client.send_command(
+        server_identity_hash,
+        COMMAND_PUT_EMERGENCY_ACTION_MESSAGE,
+        message,
+        await_response=True,
+    )
+    return _decode_optional_emergency_action_message(response)
+
+
+async def delete_emergency_action_message(
+    client: LXMFClient,
+    server_identity_hash: str,
+    callsign: str,
+) -> DeleteEmergencyActionMessageResult:
+    """Delete an emergency action message via the LXMF API."""
+
+    response = await client.send_command(
+        server_identity_hash,
+        COMMAND_DELETE_EMERGENCY_ACTION_MESSAGE,
+        callsign,
+        await_response=True,
+    )
+    return _decode_delete_emergency_action_message_result(response)
 
 
 async def create_event(
