@@ -166,6 +166,55 @@ class LXMFClient:
             "link",
         )
 
+    async def _resolve_destination_identity(
+        self, dest_hex: str, dest_hash: bytes, timeout: float
+    ) -> RNS.Identity:
+        """Return the announced identity for ``dest_hash`` waiting if needed.
+
+        Args:
+            dest_hex (str): Hexadecimal representation of the destination hash.
+            dest_hash (bytes): Binary destination hash.
+            timeout (float): Maximum seconds to wait for an announce.
+
+        Returns:
+            RNS.Identity: The recalled destination identity.
+
+        Raises:
+            TimeoutError: If the identity is not announced before ``timeout``.
+        """
+
+        identity = RNS.Identity.recall(dest_hash)
+        if identity is not None:
+            return identity
+
+        deadline = self._loop.time() + timeout
+        request_interval = min(1.0, max(0.5, timeout))
+        next_request = 0.0
+
+        while True:
+            remaining = deadline - self._loop.time()
+            if remaining <= 0:
+                raise TimeoutError(
+                    "Destination identity "
+                    f"{dest_hex} was not announced within {timeout} seconds"
+                )
+
+            if self._loop.time() >= next_request:
+                try:
+                    RNS.Transport.request_path(dest_hash)
+                except Exception:  # pragma: no cover - defensive logging path
+                    logger.debug(
+                        "Failed to request path for destination %s",
+                        dest_hex,
+                        exc_info=True,
+                    )
+                next_request = self._loop.time() + request_interval
+
+            await asyncio.sleep(min(0.2, remaining))
+            identity = RNS.Identity.recall(dest_hash)
+            if identity is not None:
+                return identity
+
     async def _ensure_link(
         self, dest_hex: str, dest_hash: bytes, timeout: float
     ) -> RNS.Link:
@@ -176,8 +225,8 @@ class LXMFClient:
             link = self._links.get(dest_hash)
             event = self._link_events.get(dest_hash)
             if link is None or event is None:
-                dest_identity = RNS.Identity.recall(dest_hash) or RNS.Identity.recall(
-                    dest_hash, create=True
+                dest_identity = await self._resolve_destination_identity(
+                    dest_hex, dest_hash, timeout
                 )
                 destination = self._build_link_destination(dest_identity)
                 event = asyncio.Event()
