@@ -284,7 +284,7 @@ def test_delete_event_sends_identifier_string(gateway_app) -> None:
     )
 
     assert response.status_code == 200
-    assert response.json() == {"status": "deleted", "uid": "21"}
+    assert response.json() == {"status": "deleted", "uid": 21}
 
     args, _ = stub.send_command.await_args
     assert args[0] == SERVER_IDENTITY
@@ -296,7 +296,7 @@ def test_list_events_decodes_compressed_json(gateway_app) -> None:
     """Compressed JSON responses should be decompressed and parsed."""
 
     _module, client, stub = gateway_app
-    payload = {"items": [{"uid": 1, "point": {"lat": 12.5}}]}
+    payload = [{"uid": 1, "point": {"lat": 12.5}}]
     stub.send_command.return_value = zlib.compress(json.dumps(payload).encode("utf-8"))
 
     response = client.get(
