@@ -1,3 +1,16 @@
 # Emergency Management northbound client
 
-The full stack setup—including the shared LXMF client, FastAPI gateway, and CLI demo—is documented in the consolidated [Emergency Management README](../README.md). Refer to that guide for configuration values, startup commands, and build instructions. The sample [`client_config.json`](client_config.json) now also includes a `shared_instance_rpc_key` entry so the CLI, web gateway, and LXMF service can all authenticate with the bundled Reticulum configuration under [`../.reticulum`](../.reticulum).
+The full stack setup—including the shared LXMF client, FastAPI gateway, and CLI demo—is documented in the consolidated [Emergency Management README](../README.md). Refer to that guide for configuration values, startup commands, and build instructions. The CLI now presents an interactive menu that lets operators:
+
+- create new emergency action messages,
+- update existing records,
+- list all stored messages,
+- retrieve individual messages by callsign, and
+- delete records when they are no longer needed.
+
+All operations use the shared LXMF client and message codecs, so the CLI mirrors the behaviour of the gateway and northbound API. Populate [`client_config.json`](client_config.json) with values that match your mesh. In addition to the LXMF configuration paths and RPC key, the client understands:
+
+- `request_timeout_seconds` – per-command timeout budget,
+- `generate_test_messages` – optional seeding of random demo data,
+- `enable_interactive_menu` – turn the interactive prompt on or off (useful for automation),
+- `test_message_count` / `test_event_count` – payload counts for the seeding routine.

@@ -1,4 +1,5 @@
 import asyncio
+import os
 import signal
 import sys
 from contextlib import suppress
@@ -24,6 +25,7 @@ REQUEST_TIMEOUT_KEY = "request_timeout_seconds"
 LXMF_CONFIG_PATH_KEY = "lxmf_config_path"
 LXMF_STORAGE_PATH_KEY = "lxmf_storage_path"
 SHARED_INSTANCE_RPC_KEY = "shared_instance_rpc_key"
+ENABLE_INTERACTIVE_MENU_KEY = "enable_interactive_menu"
 DEFAULT_DISPLAY_NAME = "OpenAPIClient"
 DEFAULT_TIMEOUT_SECONDS = 30.0
 
@@ -42,6 +44,17 @@ PROMPT_MESSAGE = (
     f"{EXAMPLE_IDENTITY_HASH}): "
 )
 CONFIG_PATH = Path(__file__).with_name(CONFIG_FILENAME)
+FIELD_CLEAR_SENTINEL = "-"
+MENU_PROMPT = (
+    "\nSelect an action:\n"
+    "  [C]reate emergency action message\n"
+    "  [U]pdate emergency action message\n"
+    "  [R]etrieve emergency action message\n"
+    "  [L]ist emergency action messages\n"
+    "  [D]elete emergency action message\n"
+    "  [Q]uit\n"
+    "Choice: "
+)
 
 
 ensure_standard_library()
@@ -54,26 +67,55 @@ try:
         create_emergency_action_message,
     )
     from examples.EmergencyManagement.client.client import (
+        delete_emergency_action_message,
+    )
+    from examples.EmergencyManagement.client.client import (
+        list_emergency_action_messages,
+    )
+    from examples.EmergencyManagement.client.client import (
         retrieve_emergency_action_message,
+    )
+    from examples.EmergencyManagement.client.client import (
+        update_emergency_action_message,
     )
     from examples.EmergencyManagement.Server.models_emergency import (
         EmergencyActionMessage,
     )
     from examples.EmergencyManagement.Server.models_emergency import EAMStatus
+    from examples.EmergencyManagement.client.eam_test import generate_random_eam
+    from examples.EmergencyManagement.client.eam_test import seed_test_messages
+    from examples.EmergencyManagement.client.event_test import RandomEventSeeder
 except ImportError:  # pragma: no cover
     _BaseLXMFClient = None
     create_emergency_action_message = None
+    delete_emergency_action_message = None
+    list_emergency_action_messages = None
     retrieve_emergency_action_message = None
+    update_emergency_action_message = None
     EmergencyActionMessage = None
     EAMStatus = None
+    generate_random_eam = None
+    seed_test_messages = None
+    RandomEventSeeder = None
 
 
 LXMFClient = _BaseLXMFClient
 
+_STATUS_VALUES = ("Red", "Yellow", "Green")
+if EAMStatus is not None:
+    _STATUS_LOOKUP = {value.lower(): getattr(EAMStatus, value) for value in _STATUS_VALUES}
+else:  # pragma: no cover - import guard
+    _STATUS_LOOKUP = {value.lower(): value for value in _STATUS_VALUES}
+_STATUS_ALIAS_LOOKUP = {value[0].lower(): _STATUS_LOOKUP[value.lower()] for value in _STATUS_VALUES}
+_STATUS_CHOICES_DISPLAY = "/".join(str(_STATUS_LOOKUP[value.lower()]) for value in _STATUS_VALUES)
+
 __all__ = [
     "LXMFClient",
     "create_emergency_action_message",
+    "delete_emergency_action_message",
+    "list_emergency_action_messages",
     "retrieve_emergency_action_message",
+    "update_emergency_action_message",
     "EmergencyActionMessage",
     "EAMStatus",
     "main",
@@ -189,27 +231,356 @@ def _normalise_config_directory(path_value: Optional[str]) -> Optional[str]:
     return str(candidate)
 
 
-async def main():
-    """Send and retrieve an emergency action message.
+def _resolve_status_input(raw_value: str):
+    """Return a normalised :class:`EAMStatus` from user input."""
 
-    Prompts the user for a server identity hash, sends an emergency action
-    message, and then retrieves the stored message for demonstration.
-    Responses from the server are decoded from MessagePack into dataclasses
-    before printing.
-    """
+    key = raw_value.strip().lower()
+    if not key:
+        return None
+    if key in _STATUS_LOOKUP:
+        return _STATUS_LOOKUP[key]
+    if key in _STATUS_ALIAS_LOOKUP:
+        return _STATUS_ALIAS_LOOKUP[key]
+    return None
+
+
+async def _prompt_value(prompt: str) -> str:
+    """Prompt the user for a value without blocking the event loop."""
+
+    loop = asyncio.get_running_loop()
+    response = await loop.run_in_executor(None, input, prompt)
+    return response.strip()
+
+
+async def _prompt_callsign(default: Optional[str] = None) -> str:
+    """Prompt for a callsign, falling back to ``default`` when provided."""
+
+    while True:
+        suffix = f" [{default}]" if default else ""
+        response = await _prompt_value(f"Callsign{suffix}: ")
+        if not response:
+            if default:
+                return default
+            print("Callsign is required.")
+            continue
+        return response
+
+
+async def _prompt_emergency_action_message(
+    base: "EmergencyActionMessage",
+    *,
+    allow_callsign_edit: bool,
+) -> "EmergencyActionMessage":
+    """Collect user edits for an emergency action message payload."""
+
+    if EmergencyActionMessage is None:
+        raise RuntimeError("EmergencyActionMessage model is unavailable")
+
+    callsign = base.callsign
+    if allow_callsign_edit:
+        callsign = await _prompt_callsign(base.callsign)
+
+    print(
+        f"Press Enter to keep the current value. Enter '{FIELD_CLEAR_SENTINEL}' to clear a field."
+    )
+
+    result = {"callsign": callsign}
+    text_fields = [
+        ("groupName", "Group name"),
+        ("commsMethod", "Communications method"),
+    ]
+    status_fields = [
+        ("securityStatus", "Security status"),
+        ("securityCapability", "Security capability"),
+        ("preparednessStatus", "Preparedness status"),
+        ("medicalStatus", "Medical status"),
+        ("mobilityStatus", "Mobility status"),
+        ("commsStatus", "Communications status"),
+    ]
+
+    for field_name, label in text_fields:
+        current_value = getattr(base, field_name)
+        current_display = str(current_value) if current_value is not None else "blank"
+        response = await _prompt_value(
+            f"{label} [{current_display}]: "
+        )
+        if not response:
+            result[field_name] = current_value
+        elif response == FIELD_CLEAR_SENTINEL:
+            result[field_name] = None
+        else:
+            result[field_name] = response
+
+    for field_name, label in status_fields:
+        current_value = getattr(base, field_name)
+        current_display = str(current_value) if current_value is not None else "blank"
+        while True:
+            response = await _prompt_value(
+                f"{label} [{current_display}] ({_STATUS_CHOICES_DISPLAY}): "
+            )
+            if not response:
+                result[field_name] = current_value
+                break
+            if response == FIELD_CLEAR_SENTINEL:
+                result[field_name] = None
+                break
+            candidate = _resolve_status_input(response)
+            if candidate is not None:
+                result[field_name] = candidate
+                break
+            print(
+                f"Invalid value. Choose one of {_STATUS_CHOICES_DISPLAY} "
+                f"or '{FIELD_CLEAR_SENTINEL}' to clear the field."
+            )
+
+    return EmergencyActionMessage(**result)
+
+
+async def _handle_create_message(
+    client: "LXMFClient",
+    server_identity: str,
+) -> None:
+    """Create a new emergency action message interactively."""
+
+    if generate_random_eam is None or create_emergency_action_message is None:
+        print("Create helpers are unavailable in this environment.")
+        return
+
+    template = generate_random_eam()
+    message = await _prompt_emergency_action_message(
+        template,
+        allow_callsign_edit=True,
+    )
+
+    try:
+        created = await create_emergency_action_message(
+            client,
+            server_identity,
+            message,
+        )
+    except TimeoutError as exc:
+        print(f"Create request timed out: {exc}")
+        return
+    except (TypeError, ValueError) as exc:
+        print(f"Create request failed: {exc}")
+        return
+
+    print("Created message:", created)
+
+
+async def _handle_retrieve_message(
+    client: "LXMFClient",
+    server_identity: str,
+) -> None:
+    """Retrieve an emergency action message by callsign."""
+
+    if retrieve_emergency_action_message is None:
+        print("Retrieve helper is unavailable in this environment.")
+        return
+
+    callsign = await _prompt_callsign()
+    try:
+        message = await retrieve_emergency_action_message(
+            client,
+            server_identity,
+            callsign,
+        )
+    except TimeoutError as exc:
+        print(f"Retrieve request timed out: {exc}")
+        return
+
+    if message is None:
+        print(f"No emergency action message found for callsign '{callsign}'.")
+        return
+
+    print("Retrieved message:", message)
+
+
+async def _handle_update_message(
+    client: "LXMFClient",
+    server_identity: str,
+) -> None:
+    """Update an existing emergency action message."""
+
+    if retrieve_emergency_action_message is None or update_emergency_action_message is None:
+        print("Update helpers are unavailable in this environment.")
+        return
+
+    callsign = await _prompt_callsign()
+    try:
+        current = await retrieve_emergency_action_message(
+            client,
+            server_identity,
+            callsign,
+        )
+    except TimeoutError as exc:
+        print(f"Retrieve request timed out: {exc}")
+        return
+
+    if current is None:
+        print(f"No emergency action message found for callsign '{callsign}'.")
+        return
+
+    print("Current message:", current)
+    updated_payload = await _prompt_emergency_action_message(
+        current,
+        allow_callsign_edit=False,
+    )
+
+    try:
+        updated = await update_emergency_action_message(
+            client,
+            server_identity,
+            updated_payload,
+        )
+    except TimeoutError as exc:
+        print(f"Update request timed out: {exc}")
+        return
+
+    if updated is None:
+        print(f"Message '{callsign}' no longer exists on the server.")
+        return
+
+    print("Updated message:", updated)
+
+
+async def _handle_delete_message(
+    client: "LXMFClient",
+    server_identity: str,
+) -> None:
+    """Delete an emergency action message."""
+
+    if delete_emergency_action_message is None:
+        print("Delete helper is unavailable in this environment.")
+        return
+
+    callsign = await _prompt_callsign()
+    try:
+        result = await delete_emergency_action_message(
+            client,
+            server_identity,
+            callsign,
+        )
+    except TimeoutError as exc:
+        print(f"Delete request timed out: {exc}")
+        return
+
+    print(
+        f"Delete result for '{result.callsign}': {result.status}"
+    )
+
+
+async def _handle_list_messages(
+    client: "LXMFClient",
+    server_identity: str,
+) -> None:
+    """List all emergency action messages stored on the service."""
+
+    if list_emergency_action_messages is None:
+        print("List helper is unavailable in this environment.")
+        return
+
+    try:
+        messages = await list_emergency_action_messages(
+            client,
+            server_identity,
+        )
+    except TimeoutError as exc:
+        print(f"List request timed out: {exc}")
+        return
+
+    if not messages:
+        print("No emergency action messages are stored on the server.")
+        return
+
+    for index, message in enumerate(messages, start=1):
+        print(f"[{index}] {message}")
+
+
+async def _seed_test_data(
+    client: "LXMFClient",
+    server_identity: str,
+    *,
+    generate_test_data: bool,
+    message_count: int,
+    event_count: int,
+) -> None:
+    """Optionally seed demo data before the interactive loop starts."""
+
+    if (
+        not generate_test_data
+        or seed_test_messages is None
+        or RandomEventSeeder is None
+    ):
+        return
+
+    try:
+        print("Generating test emergency messages...")
+        await seed_test_messages(
+            client,
+            server_identity,
+            count=message_count,
+        )
+        print("Generating test events...")
+        event_seeder = RandomEventSeeder(
+            client,
+            server_identity,
+            count=event_count,
+        )
+        await event_seeder.seed()
+    except TimeoutError as exc:
+        print(f"Test data generation timed out: {exc}")
+    except (TypeError, ValueError) as exc:
+        print(f"Test data generation failed: {exc}")
+
+
+async def _interactive_loop(
+    client: "LXMFClient",
+    server_identity: str,
+) -> None:
+    """Run the interactive CLI menu until the user chooses to exit."""
+
+    print("\nEmergency client ready. Use the menu to manage messages.")
+
+    while True:
+        choice = (await _prompt_value(MENU_PROMPT)).lower()
+        if not choice:
+            continue
+        option = choice[0]
+        if option == "q":
+            print("Exiting emergency client.")
+            break
+        if option == "c":
+            await _handle_create_message(client, server_identity)
+        elif option == "u":
+            await _handle_update_message(client, server_identity)
+        elif option == "r":
+            await _handle_retrieve_message(client, server_identity)
+        elif option == "l":
+            await _handle_list_messages(client, server_identity)
+        elif option == "d":
+            await _handle_delete_message(client, server_identity)
+        else:
+            print("Unrecognised option. Please choose again.")
+async def main():
+    """Run the interactive Emergency Management CLI."""
 
     ensure_project_root(package_name=__package__, file_path=__file__)
 
-    from examples.EmergencyManagement.client.client import (
-        LXMFClient,
+    if LXMFClient is None:
+        raise RuntimeError("LXMF client implementation is unavailable")
+    required_helpers = [
         create_emergency_action_message,
         retrieve_emergency_action_message,
-    )
-    from examples.EmergencyManagement.client.eam_test import (
+        update_emergency_action_message,
+        delete_emergency_action_message,
+        list_emergency_action_messages,
         generate_random_eam,
         seed_test_messages,
-    )
-    from examples.EmergencyManagement.client.event_test import RandomEventSeeder
+        RandomEventSeeder,
+    ]
+    if any(helper is None for helper in required_helpers):
+        raise RuntimeError("Emergency client dependencies failed to load")
 
     from reticulum_openapi.identity import load_or_create_identity
 
@@ -219,6 +590,22 @@ async def main():
         generate_test_data = raw_test_flag.strip().lower() in {"1", "true", "yes", "on"}
     else:
         generate_test_data = bool(raw_test_flag)
+
+    interactive_setting = config_data.get(ENABLE_INTERACTIVE_MENU_KEY, True)
+    if isinstance(interactive_setting, str):
+        interactive_enabled = interactive_setting.strip().lower() not in {
+            "0",
+            "false",
+            "no",
+            "off",
+        }
+    elif isinstance(interactive_setting, bool):
+        interactive_enabled = interactive_setting
+    elif interactive_setting is None:
+        interactive_enabled = True
+    else:
+        interactive_enabled = bool(interactive_setting)
+
     config_path_value = config_data.get(LXMF_CONFIG_PATH_KEY)
     if isinstance(config_path_value, str):
         config_path_value = config_path_value.strip()
@@ -313,27 +700,20 @@ async def main():
             TEST_EVENT_COUNT,
         )
 
-        if generate_test_data:
-            print("Generating test emergency messages...")
-            await seed_test_messages(
-                client,
-                server_id,
-                count=message_count,
-            )
-            print("Generating test events...")
-            event_seeder = RandomEventSeeder(
-                client,
-                server_id,
-                count=event_count,
-            )
-            await event_seeder.seed()
+        await _seed_test_data(
+            client,
+            server_id,
+            generate_test_data=generate_test_data,
+            message_count=message_count,
+            event_count=event_count,
+        )
 
-        eam = generate_random_eam()
+        demo_message = generate_random_eam()
         try:
-            created_eam = await create_emergency_action_message(
+            created_demo = await create_emergency_action_message(
                 client,
                 server_id,
-                eam,
+                demo_message,
             )
         except (TypeError, ValueError) as exc:
             print(f"Invalid server identity hash: {exc}")
@@ -341,22 +721,35 @@ async def main():
         except TimeoutError as exc:
             print(f"Request timed out: {exc}")
             return
-        print("Create response:", created_eam)
+        else:
+            print("Create response:", created_demo)
 
-        # Retrieve the message back from the server to demonstrate persistence
         try:
-            retrieved_eam = await retrieve_emergency_action_message(
+            retrieved_demo = await retrieve_emergency_action_message(
                 client,
                 server_id,
-                eam.callsign,
+                demo_message.callsign,
             )
         except TimeoutError as exc:
             print(f"Request timed out: {exc}")
             return
-        print("Retrieve response:", retrieved_eam)
 
-        print("Emergency client is running. Press Ctrl+C to exit.")
-        await _wait_until_interrupted()
+        if retrieved_demo is None:
+            print(
+                f"Retrieve response: no emergency action message stored for '{demo_message.callsign}'."
+            )
+        else:
+            print("Retrieve response:", retrieved_demo)
+
+        running_under_pytest = bool(os.environ.get("PYTEST_CURRENT_TEST"))
+        if interactive_enabled and not running_under_pytest:
+            await _interactive_loop(
+                client,
+                server_id,
+            )
+        elif not running_under_pytest:
+            print("Emergency client is running. Press Ctrl+C to exit.")
+            await _wait_until_interrupted()
     finally:
         client.stop_listening_for_announces()
 

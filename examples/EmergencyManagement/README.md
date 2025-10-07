@@ -54,13 +54,30 @@ Both the CLI demo and the FastAPI gateway read [`client/client_config.json`](cli
   "request_timeout_seconds": 30,
   "lxmf_config_path": null,
   "lxmf_storage_path": null,
-  "shared_instance_rpc_key": "<hex rpc key>"
+  "shared_instance_rpc_key": "<hex rpc key>",
+  "generate_test_messages": false,
+  "enable_interactive_menu": true,
+  "test_message_count": 5,
+  "test_event_count": 5
 }
 ```
 
 - Override the location of the configuration file with `NORTH_API_CONFIG_PATH` or provide JSON directly through `NORTH_API_CONFIG_JSON`.
 - Requests can target different LXMF services by supplying an `X-Server-Identity` header or a `server_identity` query parameter to the gateway.
 - The repository ships with a sample Reticulum directory at [`examples/EmergencyManagement/.reticulum`](./.reticulum) that pins `rpc_key` to `F1E2D3C4B5A697887766554433221100`. When the gateway and LXMF service use this directory (or any config with the same key) they can attach to the same shared instance without prompting.
+
+| Key | Purpose |
+| --- | --- |
+| `server_identity_hash` | Destination LXMF identity hash for the Emergency service. |
+| `client_display_name` | Friendly name announced by the LXMF client. |
+| `request_timeout_seconds` | Timeout applied to each LXMF command issued by the client or gateway. |
+| `lxmf_config_path` | Optional override for the Reticulum configuration directory. |
+| `lxmf_storage_path` | Optional override for the LXMF storage directory. |
+| `shared_instance_rpc_key` | RPC key used when attaching to a shared Reticulum instance. |
+| `generate_test_messages` | When `true`, the CLI seeds random emergency messages and events during startup. |
+| `enable_interactive_menu` | Enables the interactive CLI menu after the initial demo run. Disable when scripting automated flows. |
+| `test_message_count` | Number of emergency messages to seed when `generate_test_messages` is enabled. |
+| `test_event_count` | Number of events to seed when `generate_test_messages` is enabled. |
 
 ### Web UI environment
 
@@ -90,7 +107,7 @@ Copy [`webui/.env.example`](webui/.env.example) to `webui/.env` and set:
    python client/client_emergency.py
    ```
 
-   The client reuses the stored identity hash (or prompts for one), sends a `CreateEmergencyActionMessage` command, and then retrieves the stored record to verify persistence in `emergency.db`.
+   The client reuses the stored identity hash (or prompts for one) and exposes an interactive menu for creating, listing, updating, retrieving, and deleting emergency action messages over LXMF.
 
 3. **Expose the REST gateway**
 
