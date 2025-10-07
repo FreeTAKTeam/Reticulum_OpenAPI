@@ -91,4 +91,5 @@
 ## 2025-10-06
 - [x] Add async EmergencyManagement controller handlers for new CRUD endpoints.
 - [x] Expand EmergencyManagement OpenAPI specification with notifications streaming and updated schemas.
+- [x] Resolve dataclass JSON decoding for postponed annotations in nested payloads.
 

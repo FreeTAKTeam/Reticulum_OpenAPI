@@ -8,10 +8,16 @@ from reticulum_openapi.model import (
     dataclass_to_json_bytes,
     dataclass_to_msgpack,
 )
-from typing import List, Union
+from typing import List
+from typing import Optional
+from typing import Union
+from sqlalchemy import Column
+from sqlalchemy import Integer
+from sqlalchemy import String
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import async_sessionmaker
+from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy.orm import declarative_base
-from sqlalchemy import Column, Integer, String
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 import pytest
 
 
@@ -24,6 +30,17 @@ class Item:
 @dataclass
 class ItemList:
     items: List[Item]
+
+
+@dataclass
+class Location:
+    lat: float
+    lon: float
+
+
+@dataclass
+class OptionalLocationRecord:
+    location: Optional[Location]
 
 
 def test_serialization_roundtrip():
@@ -47,6 +64,15 @@ def test_json_roundtrip_with_compression():
     obj = dataclass_from_json(Item, compressed)
     assert obj == item
     assert compress_json(json_bytes, enabled=False) == json_bytes
+
+
+def test_json_roundtrip_with_optional_nested_dataclass():
+    record = OptionalLocationRecord(location=Location(lat=1.0, lon=2.0))
+    compressed = compress_json(dataclass_to_json_bytes(record))
+    obj = dataclass_from_json(OptionalLocationRecord, compressed)
+    assert isinstance(obj.location, Location)
+    assert obj.location.lat == pytest.approx(1.0)
+    assert obj.location.lon == pytest.approx(2.0)
 
 
 def test_list_of_items_roundtrip():
