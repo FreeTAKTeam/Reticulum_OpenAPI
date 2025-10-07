@@ -7,7 +7,9 @@ import json
 from pathlib import Path
 from typing import Any, Optional, Tuple
 
-from sqlalchemy import inspect, select
+from sqlalchemy import inspect
+from sqlalchemy import literal
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -67,11 +69,22 @@ def _backfill_event_components(connection) -> None:
         for row in connection.execute(select(point_table.c.event_uid))
     }
 
+    detail_column = (
+        event_table.c.get("detail")
+        if has_detail_column
+        else literal(None).label("detail")
+    )
+    point_column = (
+        event_table.c.get("point")
+        if has_point_column
+        else literal(None).label("point")
+    )
+
     rows = connection.execute(
         select(
             event_table.c.uid,
-            event_table.c.detail_payload,
-            event_table.c.point_payload,
+            detail_column,
+            point_column,
         )
     )
 
