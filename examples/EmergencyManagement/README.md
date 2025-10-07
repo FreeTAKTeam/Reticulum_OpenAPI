@@ -10,6 +10,18 @@ The stack models two resources:
 
 Both dataclasses treat their identifying field (`callsign` or `uid`) as required; every other property may be omitted or `null` in the JSON payload. The complete contract lives in [`API/EmergencyActionMessageManagement-OAS.yaml`](API/EmergencyActionMessageManagement-OAS.yaml).
 
+### LXMF command catalogue
+
+The mesh service exposes symmetrical LXMF commands that are consumed by the CLI, FastAPI gateway, and web UI. Message and event
+workflows share consistent CRUD verb names:
+
+| Resource | Create | Update | Retrieve | List | Delete |
+| --- | --- | --- | --- | --- | --- |
+| Emergency action message | `CreateEmergencyActionMessage` | `PutEmergencyActionMessage` | `RetrieveEmergencyActionMessage` | `ListEmergencyActionMessage` | `DeleteEmergencyActionMessage` |
+| Event | `CreateEvent` | `PutEvent` | `RetrieveEvent` | `ListEvent` | `DeleteEvent` |
+
+The gateway also relays server-sent notifications via `/notifications/stream` so web clients can subscribe to live updates.
+
 ## Repository layout
 
 | Folder | Description |
@@ -79,6 +91,26 @@ Both the CLI demo and the FastAPI gateway read [`client/client_config.json`](cli
 | `test_message_count` | Number of emergency messages to seed when `generate_test_messages` is enabled. |
 | `test_event_count` | Number of events to seed when `generate_test_messages` is enabled. |
 
+### Service runtime configuration
+
+[`Server/server_emergency.py`](Server/server_emergency.py) now accepts runtime overrides so you can adapt the deployment to your
+mesh topology without editing source code. Invoke `python server_emergency.py --help` to review the CLI. Commonly used flags
+include:
+
+| Flag | Purpose |
+| --- | --- |
+| `--config-path PATH` | Override the Reticulum configuration directory used to initialise the LXMF stack. |
+| `--storage-path PATH` | Choose a custom LXMF storage directory for message queues and identity caches. |
+| `--display-name NAME` | Change the service's announced LXMF display name. |
+| `--auth-token TOKEN` | Require clients to present a matching auth token with every command. |
+| `--link-keepalive-interval SECONDS` | Adjust the interval between LXMF link keepalive packets. |
+| `--database-path PATH` / `--database PATH` | Point the SQLite database at a specific filesystem location. |
+| `--database-url URL` | Supply a full SQLAlchemy URL (for example, PostgreSQL or `sqlite+aiosqlite`). |
+
+When no CLI argument is provided, the helper honours the `EMERGENCY_DATABASE_URL` environment variable before falling back to the
+default SQLite file that ships with the example. The CLI prints the resolved hashes, Reticulum directories, and database
+connection string so you can verify the active configuration at startup.
+
 ### Web UI environment
 
 Copy [`webui/.env.example`](webui/.env.example) to `webui/.env` and set:
@@ -95,7 +127,10 @@ Copy [`webui/.env.example`](webui/.env.example) to `webui/.env` and set:
 
    ```bash
    cd examples/EmergencyManagement/Server
-   python server_emergency.py
+   python server_emergency.py \
+       --config-path /path/to/.reticulum \
+       --storage-path /path/to/storage \
+       --display-name "Emergency LXMF Service"
    ```
 
    The service prints its identity hash on startup. Record it in `client_config.json`. Stop it with `Ctrl+C` when finished.
@@ -118,7 +153,10 @@ Copy [`webui/.env.example`](webui/.env.example) to `webui/.env` and set:
    ```
 
    - Set `EMERGENCY_GATEWAY_ALLOWED_ORIGINS` to a comma-separated list to restrict CORS.
-   - The gateway loads the shared LXMF client during startup and keeps it alive until shutdown.
+   - Provide the LXMF client configuration via `NORTH_API_CONFIG_PATH` or inline JSON with `NORTH_API_CONFIG_JSON` when the
+     defaults do not match your deployment.
+   - The gateway loads the shared LXMF client during startup, announces its identity, and retries the LXMF link until the
+     server accepts the connection. Watch the logs for interface status, link state changes, and the version banner.
 
 4. **Launch the React UI**
 
