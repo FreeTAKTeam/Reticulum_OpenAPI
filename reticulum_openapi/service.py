@@ -25,7 +25,7 @@ from jsonschema import validate
 from .announcer import DestinationAnnouncer
 from .codec_msgpack import from_bytes as msgpack_from_bytes
 from .identity import load_or_create_identity
-from .logging import configure_logging
+from .logging_config import configure_logging
 from .model import compress_json
 from .model import dataclass_from_json
 from .model import dataclass_from_msgpack

@@ -13,7 +13,7 @@ from typing import Optional
 import RNS
 
 from .identity import load_or_create_identity
-from .logging import configure_logging
+from .logging_config import configure_logging
 
 configure_logging()
 logger = logging.getLogger(__name__)

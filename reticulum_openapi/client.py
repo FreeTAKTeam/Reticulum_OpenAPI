@@ -17,7 +17,7 @@ import LXMF
 import RNS
 
 from .identity import load_or_create_identity
-from .logging import configure_logging
+from .logging_config import configure_logging
 from .model import compress_json
 from .model import dataclass_to_json_bytes
 from .model import dataclass_to_msgpack
