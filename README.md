@@ -99,6 +99,35 @@ pip install -r requirements.txt
 
 Tests can then be run with `pytest` and code style is checked with `flake8`.
 
+## Release workflow
+
+Follow these steps to build and publish a new release from the `main` branch:
+
+1. Bump the version in `pyproject.toml` and update any relevant documentation or
+   changelog entries.
+2. Install the packaging utilities inside your virtual environment:
+
+   ```bash
+   python -m pip install build twine
+   ```
+
+   The `build` module is not part of the standard library, so installing it
+   beforehand prevents `python -m build` from failing with `No module named build`.
+3. Regenerate the distribution artifacts:
+
+   ```bash
+   python -m build
+   ```
+
+4. Optionally validate the artifacts before uploading them to PyPI:
+
+   ```bash
+   python -m twine check dist/*
+   ```
+
+5. Tag the release (`git tag -a vX.Y.Z -m "Release vX.Y.Z"`), push the tag, and
+   draft the corresponding GitHub release with the generated artifacts and notes.
+
 ## Further resources
 
 - [examples/EmergencyManagement/README.md](examples/EmergencyManagement/README.md) – walkthrough of the sample API implementation.

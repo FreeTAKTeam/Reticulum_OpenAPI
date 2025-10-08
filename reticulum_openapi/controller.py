@@ -2,7 +2,7 @@ import logging
 from functools import wraps
 from typing import Any, Callable, Coroutine, TypeVar
 
-from .logging import configure_logging
+from .logging_config import configure_logging
 
 configure_logging()
 logger = logging.getLogger(__name__)
