@@ -1,8 +1,11 @@
-"""Helpers for reporting Reticulum interface status."""
+"""Helpers for inspecting Reticulum interface status for FastAPI gateways."""
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any
+from typing import Dict
+from typing import List
+from typing import Optional
 
 import RNS
 from RNS.Interfaces import Interface as RNSInterface
@@ -39,7 +42,7 @@ def _coerce_optional_int(value: Any) -> Optional[int]:
     if isinstance(value, (int, float)):
         try:
             return int(value)
-        except (TypeError, ValueError):
+        except (TypeError, ValueError):  # pragma: no cover - defensive cast
             return None
     return None
 
@@ -62,3 +65,6 @@ def gather_interface_status() -> List[Dict[str, Any]]:
             }
         )
     return statuses
+
+
+__all__ = ["gather_interface_status"]
