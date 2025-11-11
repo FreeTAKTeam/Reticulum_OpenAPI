@@ -168,8 +168,9 @@ async def test_event_controller_list_without_session_factory(monkeypatch) -> Non
     """Missing session factories should be reported via controller error payloads."""
 
     monkeypatch.setattr(
-        "examples.EmergencyManagement.Server.controllers_emergency.async_session",
+        "examples.EmergencyManagement.Server.controllers_emergency.EventController.session_factory",
         None,
+        raising=False,
     )
     monkeypatch.setattr(
         database_module,
