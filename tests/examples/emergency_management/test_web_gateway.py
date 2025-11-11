@@ -137,6 +137,7 @@ def test_create_emergency_action_message_routes_payload(gateway_app) -> None:
     """Creating an EAM should convert payloads to dataclasses and decode responses."""
 
     module, client, stub = gateway_app
+
     async def fake_send(*args, **kwargs):
         return {"callsign": "Alpha", "groupName": "Team"}
 
@@ -181,6 +182,7 @@ def test_list_emergency_action_messages_decodes_messagepack(gateway_app) -> None
     """Listing EAMs should decode MessagePack arrays to JSON lists."""
 
     module, client, stub = gateway_app
+
     async def fake_send(*args, **kwargs):
         return [
             {"callsign": "Alpha"},
@@ -208,6 +210,7 @@ def test_create_event_accepts_structured_detail(gateway_app) -> None:
     """Creating events should forward structured detail payloads."""
 
     module, client, stub = gateway_app
+
     async def fake_send(*args, **kwargs):
         return {
             "uid": 42,
@@ -313,6 +316,7 @@ def test_list_events_decodes_compressed_json(gateway_app) -> None:
 
     _module, client, stub = gateway_app
     payload = [{"uid": 1, "point": {"lat": 12.5}}]
+
     async def fake_send(*args, **kwargs):
         return payload
 

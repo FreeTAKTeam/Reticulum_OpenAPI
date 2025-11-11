@@ -492,6 +492,7 @@ async def _send_command(
     normalised = normalise_response(response)
     return JSONResponse(content=normalised)
 
+
 @app.get("/")
 async def get_gateway_status() -> Dict[str, Any]:
     """Return gateway metadata and configuration details."""
