@@ -103,6 +103,7 @@
 - [x] Pin Reticulum (RNS) to 1.0.2 and LXMF to 0.9.2 in project dependencies.
 - [x] Centralise payload conversion utilities and refactor EmergencyManagement client and gateway to use them.
 - [x] Extract SQLAlchemy controller mixin for async CRUD helpers and refactor emergency controllers/tests.
+- [x] Share async database helpers across services and migrate EmergencyManagement to use them.
 
 ## 2025-11-12
 - [x] Introduce FastAPI integration helpers for LXMF configuration, dependencies, and command routing.
