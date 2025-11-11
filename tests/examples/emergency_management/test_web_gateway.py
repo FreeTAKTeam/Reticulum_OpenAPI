@@ -276,6 +276,7 @@ def test_update_event_uses_path_identifier(gateway_app) -> None:
     """Updating events should merge the path UID into the dataclass payload."""
 
     module, client, stub = gateway_app
+    
     async def fake_send(*args, **kwargs):
         return {"uid": 21, "type": "Updated"}
 
@@ -303,6 +304,7 @@ def test_delete_event_sends_identifier_string(gateway_app) -> None:
     """Deleting events should forward the identifier as provided."""
 
     module, client, stub = gateway_app
+    
     async def fake_send(*args, **kwargs):
         return {"status": "deleted", "uid": 21}
 
