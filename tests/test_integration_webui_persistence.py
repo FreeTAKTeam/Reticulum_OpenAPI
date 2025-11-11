@@ -16,7 +16,6 @@ from examples.EmergencyManagement.Server.models_emergency import (
     Base,
     EmergencyActionMessage,
 )
-from reticulum_openapi.codec_msgpack import to_canonical_bytes
 
 
 def _to_primitive(value: Any) -> Any:
@@ -57,8 +56,10 @@ class InProcessLXMFClient:
         command: str,
         payload: Any,
         await_response: bool = True,
-    ) -> bytes:
-        """Execute the mapped controller coroutine and encode the response."""
+        response_type: Any = None,
+        normalise: bool = False,
+    ) -> Any:
+        """Execute the mapped controller coroutine and return the raw result."""
 
         if server_identity != self.server_identity:
             raise AssertionError("Unexpected server identity hash")
@@ -66,7 +67,9 @@ class InProcessLXMFClient:
         if handler is None:
             raise AssertionError(f"Unhandled command: {command}")
         result = await handler(payload)
-        return to_canonical_bytes(_to_primitive(result))
+        if normalise:
+            return _to_primitive(result)
+        return result
 
 
 @pytest.mark.asyncio

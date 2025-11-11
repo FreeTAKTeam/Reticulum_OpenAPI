@@ -5,7 +5,6 @@ from __future__ import annotations
 import importlib
 import json
 import time
-import zlib
 from typing import List
 from unittest.mock import AsyncMock
 
@@ -19,7 +18,6 @@ from examples.EmergencyManagement.Server.models_emergency import (
     Event,
 )
 from examples.EmergencyManagement.client.client import LXMFClient as RealLXMFClient
-from reticulum_openapi.codec_msgpack import to_canonical_bytes
 
 
 SERVER_IDENTITY = "00112233445566778899aabbccddeeff"
@@ -139,9 +137,10 @@ def test_create_emergency_action_message_routes_payload(gateway_app) -> None:
     """Creating an EAM should convert payloads to dataclasses and decode responses."""
 
     module, client, stub = gateway_app
-    stub.send_command.return_value = to_canonical_bytes(
-        {"callsign": "Alpha", "groupName": "Team"}
-    )
+    async def fake_send(*args, **kwargs):
+        return {"callsign": "Alpha", "groupName": "Team"}
+
+    stub.send_command.side_effect = fake_send
 
     response = client.post(
         "/emergency-action-messages",
@@ -159,6 +158,7 @@ def test_create_emergency_action_message_routes_payload(gateway_app) -> None:
     assert isinstance(args[2], EmergencyActionMessage)
     assert args[2].callsign == "Alpha"
     assert kwargs["await_response"] is True
+    assert kwargs["response_type"] == module._COMMAND_SPECS["eam:create"].response_type
 
 
 def test_gateway_status_includes_interface_details(gateway_app) -> None:
@@ -181,9 +181,13 @@ def test_list_emergency_action_messages_decodes_messagepack(gateway_app) -> None
     """Listing EAMs should decode MessagePack arrays to JSON lists."""
 
     module, client, stub = gateway_app
-    stub.send_command.return_value = to_canonical_bytes(
-        [{"callsign": "Alpha"}, {"callsign": "Bravo"}]
-    )
+    async def fake_send(*args, **kwargs):
+        return [
+            {"callsign": "Alpha"},
+            {"callsign": "Bravo"},
+        ]
+
+    stub.send_command.side_effect = fake_send
 
     response = client.get(
         "/emergency-action-messages",
@@ -193,19 +197,24 @@ def test_list_emergency_action_messages_decodes_messagepack(gateway_app) -> None
     assert response.status_code == 200
     assert response.json() == [{"callsign": "Alpha"}, {"callsign": "Bravo"}]
 
-    args, _ = stub.send_command.await_args
+    args, kwargs = stub.send_command.await_args
     assert args[0] == SERVER_IDENTITY
     assert args[1] == module.COMMAND_LIST_EAM
     assert args[2] is None
+    assert kwargs["response_type"] == module._COMMAND_SPECS["eam:list"].response_type
 
 
 def test_create_event_accepts_structured_detail(gateway_app) -> None:
     """Creating events should forward structured detail payloads."""
 
     module, client, stub = gateway_app
-    stub.send_command.return_value = to_canonical_bytes(
-        {"uid": 42, "detail": {"emergencyActionMessage": {"callsign": "Bravo"}}}
-    )
+    async def fake_send(*args, **kwargs):
+        return {
+            "uid": 42,
+            "detail": {"emergencyActionMessage": {"callsign": "Bravo"}},
+        }
+
+    stub.send_command.side_effect = fake_send
 
     payload = {
         "uid": 42,
@@ -237,6 +246,7 @@ def test_create_event_accepts_structured_detail(gateway_app) -> None:
     assert isinstance(args[2], Event)
     assert args[2].uid == 42
     assert kwargs["await_response"] is True
+    assert kwargs["response_type"] == module._COMMAND_SPECS["event:create"].response_type
 
     assert args[2].detail is not None
     message = args[2].detail.emergencyActionMessage
@@ -251,7 +261,10 @@ def test_update_event_uses_path_identifier(gateway_app) -> None:
     """Updating events should merge the path UID into the dataclass payload."""
 
     module, client, stub = gateway_app
-    stub.send_command.return_value = to_canonical_bytes({"uid": 21, "type": "Updated"})
+    async def fake_send(*args, **kwargs):
+        return {"uid": 21, "type": "Updated"}
+
+    stub.send_command.side_effect = fake_send
 
     response = client.put(
         "/events/21",
@@ -268,15 +281,17 @@ def test_update_event_uses_path_identifier(gateway_app) -> None:
     assert isinstance(args[2], Event)
     assert args[2].uid == 21
     assert kwargs["await_response"] is True
+    assert kwargs["response_type"] == module._COMMAND_SPECS["event:update"].response_type
 
 
 def test_delete_event_sends_identifier_string(gateway_app) -> None:
     """Deleting events should forward the identifier as provided."""
 
     module, client, stub = gateway_app
-    stub.send_command.return_value = to_canonical_bytes(
-        {"status": "deleted", "uid": "21"}
-    )
+    async def fake_send(*args, **kwargs):
+        return {"status": "deleted", "uid": 21}
+
+    stub.send_command.side_effect = fake_send
 
     response = client.delete(
         "/events/21",
@@ -286,10 +301,11 @@ def test_delete_event_sends_identifier_string(gateway_app) -> None:
     assert response.status_code == 200
     assert response.json() == {"status": "deleted", "uid": 21}
 
-    args, _ = stub.send_command.await_args
+    args, kwargs = stub.send_command.await_args
     assert args[0] == SERVER_IDENTITY
     assert args[1] == module.COMMAND_DELETE_EVENT
     assert args[2] == "21"
+    assert kwargs["response_type"] == module._COMMAND_SPECS["event:delete"].response_type
 
 
 def test_list_events_decodes_compressed_json(gateway_app) -> None:
@@ -297,7 +313,10 @@ def test_list_events_decodes_compressed_json(gateway_app) -> None:
 
     _module, client, stub = gateway_app
     payload = [{"uid": 1, "point": {"lat": 12.5}}]
-    stub.send_command.return_value = zlib.compress(json.dumps(payload).encode("utf-8"))
+    async def fake_send(*args, **kwargs):
+        return payload
+
+    stub.send_command.side_effect = fake_send
 
     response = client.get(
         "/events",
@@ -306,6 +325,9 @@ def test_list_events_decodes_compressed_json(gateway_app) -> None:
 
     assert response.status_code == 200
     assert response.json() == payload
+
+    args, kwargs = stub.send_command.await_args
+    assert kwargs["response_type"] == _module._COMMAND_SPECS["event:list"].response_type
 
 
 def test_cors_preflight_allows_custom_headers(gateway_app) -> None:
