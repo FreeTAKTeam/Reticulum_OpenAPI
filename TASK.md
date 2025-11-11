@@ -99,3 +99,5 @@
   READMEs.
 - [x] Update Mustache template guidance to cover long-running services, database overrides, and shared client configuration.
 
+## 2025-11-11
+- [x] Pin Reticulum (RNS) to 1.0.2 and LXMF to 0.9.2 in project dependencies.
