@@ -47,6 +47,8 @@ Install dependencies (requires Python 3.8+):
 pip install -r requirements.txt
 ```
 
+The requirements file now pins Reticulum (RNS) 1.0.2 and LXMF 0.9.2 so the framework installs the latest stable mesh networking stack by default.
+
 ### Running the example server
 
 The Emergency Management example exposes both a Reticulum‑backed service and an HTTP
