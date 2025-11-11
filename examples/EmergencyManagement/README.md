@@ -91,6 +91,19 @@ Both the CLI demo and the FastAPI gateway read [`client/client_config.json`](cli
 | `test_message_count` | Number of emergency messages to seed when `generate_test_messages` is enabled. |
 | `test_event_count` | Number of events to seed when `generate_test_messages` is enabled. |
 
+### Managing the link destination from the gateway
+
+The gateway now exposes a small management API so you can edit the default link destination without touching `client_config.json` manually:
+
+| Method | Endpoint | Purpose |
+| --- | --- | --- |
+| `GET` | `/link-destination` | Inspect the stored `server_identity_hash`, config source path, and live link status. |
+| `POST` | `/link-destination` | Create the default link destination when none exists. |
+| `PUT` | `/link-destination` | Update the stored link destination hash. |
+| `DELETE` | `/link-destination` | Clear the configured link destination. |
+
+When the configuration was loaded from a writable JSON file (the default `client/client_config.json` or a path supplied via `NORTH_API_CONFIG_PATH`), the Dashboard page in the React UI surfaces a form that drives these endpoints. Saving a new value persists it to disk and automatically restarts the LXMF link loop so the gateway reconnects to the updated server identity. If the gateway loaded its configuration exclusively from environment variables (for example via `NORTH_API_CONFIG_JSON`), the form is disabled and the API returns `503` to signal that runtime edits are not allowed.
+
 ### Service runtime configuration
 
 [`Server/server_emergency.py`](Server/server_emergency.py) now accepts runtime overrides so you can adapt the deployment to your

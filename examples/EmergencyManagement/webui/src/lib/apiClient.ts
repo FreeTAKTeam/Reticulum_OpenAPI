@@ -51,6 +51,26 @@ export interface DeleteEventResponse {
   uid: number | string;
 }
 
+export interface LinkStatus {
+  state: 'pending' | 'connected' | 'error' | 'unconfigured' | 'unknown';
+  message?: string | null;
+  serverIdentity?: string | null;
+  lastAttempt?: string | null;
+  lastSuccess?: string | null;
+  lastError?: string | null;
+}
+
+export interface LinkDestinationSettings {
+  serverIdentity?: string | null;
+  configurable: boolean;
+  configPath?: string | null;
+  linkStatus?: LinkStatus | null;
+}
+
+export interface LinkDestinationRequest {
+  serverIdentity: string;
+}
+
 const apiBaseUrl = (import.meta.env?.VITE_API_BASE_URL as string | undefined) ??
   'http://localhost:8000';
 const updatesUrl = (import.meta.env?.VITE_UPDATES_URL as string | undefined)?.trim();
@@ -162,6 +182,29 @@ export async function updateEvent(event: EventRecord): Promise<EventRecord | nul
 export async function deleteEvent(uid: number | string): Promise<DeleteEventResponse> {
   const response = await apiClient.delete<DeleteEventResponse>(`/events/${encodeURIComponent(uid)}`);
   return response.data;
+}
+
+export async function getLinkDestinationSettings(): Promise<LinkDestinationSettings> {
+  const response = await apiClient.get<LinkDestinationSettings>('/link-destination');
+  return response.data;
+}
+
+export async function createLinkDestination(
+  payload: LinkDestinationRequest,
+): Promise<LinkDestinationSettings> {
+  const response = await apiClient.post<LinkDestinationSettings>('/link-destination', payload);
+  return response.data;
+}
+
+export async function updateLinkDestination(
+  payload: LinkDestinationRequest,
+): Promise<LinkDestinationSettings> {
+  const response = await apiClient.put<LinkDestinationSettings>('/link-destination', payload);
+  return response.data;
+}
+
+export async function deleteLinkDestination(): Promise<void> {
+  await apiClient.delete('/link-destination');
 }
 
 export function extractApiErrorMessage(error: unknown): string {

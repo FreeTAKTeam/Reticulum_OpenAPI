@@ -63,6 +63,9 @@ def _ensure_dependencies_loaded() -> None:
 
 _configure_environment()
 
+_DEFAULT_RETICULUM_CONFIG_DIR = Path(__file__).resolve().parents[1] / ".reticulum"
+_DEFAULT_RETICULUM_CONFIG_PATH = _DEFAULT_RETICULUM_CONFIG_DIR / "config"
+
 
 def _register_shutdown_signals(stop_event: asyncio.Event) -> None:
     """Register signal handlers that set ``stop_event`` when triggered.
@@ -184,6 +187,8 @@ def _prepare_service_kwargs(args: argparse.Namespace) -> Dict[str, Any]:
         "auth_token": getattr(args, "auth_token", None),
         "link_keepalive_interval": getattr(args, "link_keepalive_interval", None),
     }
+    if candidate_kwargs["config_path"] is None and _DEFAULT_RETICULUM_CONFIG_PATH.exists():
+        candidate_kwargs["config_path"] = str(_DEFAULT_RETICULUM_CONFIG_DIR)
     return {
         key: value
         for key, value in candidate_kwargs.items()

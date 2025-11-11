@@ -1,4 +1,5 @@
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { AxiosResponse } from 'axios';
 
@@ -10,6 +11,76 @@ describe('DashboardPage', () => {
     vi.restoreAllMocks();
   });
 
+  const buildGatewayInfoResponse = (): AxiosResponse<{
+    version: string;
+    uptime: string;
+    serverIdentity?: string | null;
+    clientDisplayName: string;
+    requestTimeoutSeconds: number;
+    lxmfConfigPath: string | null;
+    lxmfStoragePath: string | null;
+    allowedOrigins: string[];
+    linkStatus: apiClientModule.LinkStatus;
+    reticulumInterfaces: {
+      id: string;
+      name: string;
+      type: string;
+      online: boolean;
+      mode?: string | null;
+      bitrate?: number | null;
+    }[];
+  }> => ({
+    data: {
+      version: '1.2.3',
+      uptime: '4 hours',
+      serverIdentity: 'abc123',
+      clientDisplayName: 'Responder',
+      requestTimeoutSeconds: 45.5,
+      lxmfConfigPath: '/tmp/config.json',
+      lxmfStoragePath: '/tmp/storage',
+      allowedOrigins: ['https://example.com'],
+      linkStatus: {
+        state: 'connected',
+        message: 'Connected to LXMF server abc123',
+        lastSuccess: '2025-09-23T12:34:56Z',
+        lastAttempt: '2025-09-23T12:34:56Z',
+        lastError: null,
+      },
+      reticulumInterfaces: [
+        {
+          id: 'AutoInterface:0',
+          name: 'Mesh Neighbors',
+          type: 'AutoInterface',
+          online: true,
+          mode: 'full',
+          bitrate: 125000,
+        },
+        {
+          id: 'TCPClientInterface:1',
+          name: 'WAN Link',
+          type: 'TCPClientInterface',
+          online: false,
+          mode: 'access_point',
+          bitrate: null,
+        },
+      ],
+    },
+  } as AxiosResponse);
+
+  const buildLinkDestinationSettings = (
+    overrides: Partial<apiClientModule.LinkDestinationSettings> = {},
+  ): apiClientModule.LinkDestinationSettings => ({
+    serverIdentity: 'abc123',
+    configurable: true,
+    configPath: '/tmp/client_config.json',
+    linkStatus: {
+      state: 'connected',
+      message: 'Connected to LXMF server abc123',
+      serverIdentity: 'abc123',
+    },
+    ...overrides,
+  });
+
   it('renders backend error message when loading gateway info fails', async () => {
     const backendMessage = 'Gateway temporarily offline';
     const error = new Error('503 Service Unavailable');
@@ -17,6 +88,9 @@ describe('DashboardPage', () => {
     const extractSpy = vi
       .spyOn(apiClientModule, 'extractApiErrorMessage')
       .mockReturnValue(backendMessage);
+    vi.spyOn(apiClientModule, 'getLinkDestinationSettings').mockResolvedValue(
+      buildLinkDestinationSettings(),
+    );
 
     render(<DashboardPage />);
 
@@ -25,68 +99,10 @@ describe('DashboardPage', () => {
   });
 
   it('clears dashboard errors after successfully loading gateway info', async () => {
-    const gatewayInfoResponse = {
-      data: {
-        version: '1.2.3',
-        uptime: '4 hours',
-        serverIdentity: 'abc123',
-        clientDisplayName: 'Responder',
-        requestTimeoutSeconds: 45.5,
-        lxmfConfigPath: '/tmp/config.json',
-        lxmfStoragePath: '/tmp/storage',
-        allowedOrigins: ['https://example.com'],
-        linkStatus: {
-          state: 'connected' as const,
-          message: 'Connected to LXMF server abc123',
-          lastSuccess: '2025-09-23T12:34:56Z',
-          lastAttempt: '2025-09-23T12:34:56Z',
-          lastError: null,
-        },
-        reticulumInterfaces: [
-          {
-            id: 'AutoInterface:0',
-            name: 'Mesh Neighbors',
-            type: 'AutoInterface',
-            online: true,
-            mode: 'full',
-            bitrate: 125000,
-          },
-          {
-            id: 'TCPClientInterface:1',
-            name: 'WAN Link',
-            type: 'TCPClientInterface',
-            online: false,
-            mode: 'access_point',
-            bitrate: null,
-          },
-        ],
-      },
-    } as AxiosResponse<{
-      version: string;
-      uptime: string;
-      serverIdentity?: string | null;
-      clientDisplayName: string;
-      requestTimeoutSeconds: number;
-      lxmfConfigPath: string | null;
-      lxmfStoragePath: string | null;
-      allowedOrigins: string[];
-      linkStatus: {
-        state: 'pending' | 'connected' | 'error' | 'unconfigured' | 'unknown';
-        message?: string | null;
-        lastSuccess?: string | null;
-        lastAttempt?: string | null;
-        lastError?: string | null;
-      };
-      reticulumInterfaces: {
-        id: string;
-        name: string;
-        type: string;
-        online: boolean;
-        mode?: string | null;
-        bitrate?: number | null;
-      }[];
-    }>;
-    vi.spyOn(apiClientModule.apiClient, 'get').mockResolvedValueOnce(gatewayInfoResponse);
+    vi.spyOn(apiClientModule.apiClient, 'get').mockResolvedValueOnce(buildGatewayInfoResponse());
+    vi.spyOn(apiClientModule, 'getLinkDestinationSettings').mockResolvedValue(
+      buildLinkDestinationSettings(),
+    );
 
     render(<DashboardPage />);
 
@@ -112,5 +128,76 @@ describe('DashboardPage', () => {
     expect(
       screen.queryByText((_, element) => element?.classList.contains('page-error') ?? false),
     ).not.toBeInTheDocument();
+  });
+
+  it('loads link destination settings into the form', async () => {
+    vi.spyOn(apiClientModule.apiClient, 'get').mockResolvedValueOnce(buildGatewayInfoResponse());
+    vi.spyOn(apiClientModule, 'getLinkDestinationSettings').mockResolvedValue(
+      buildLinkDestinationSettings(),
+    );
+
+    render(<DashboardPage />);
+
+    const input = await screen.findByLabelText(/server identity/i);
+    expect(input).toHaveValue('abc123');
+    expect(screen.getByText('/tmp/client_config.json')).toBeInTheDocument();
+  });
+
+  it('updates the link destination via the dashboard form', async () => {
+    vi.spyOn(apiClientModule.apiClient, 'get').mockResolvedValueOnce(buildGatewayInfoResponse());
+    vi.spyOn(apiClientModule, 'getLinkDestinationSettings').mockResolvedValue(
+      buildLinkDestinationSettings(),
+    );
+    const updateSpy = vi
+      .spyOn(apiClientModule, 'updateLinkDestination')
+      .mockResolvedValue(
+        buildLinkDestinationSettings({
+          serverIdentity: 'b11f61896ee13a128488bf6687a03ce3',
+          linkStatus: {
+            state: 'connecting',
+            message: 'Attempting to connect',
+            serverIdentity: 'b11f61896ee13a128488bf6687a03ce3',
+          },
+        }),
+      );
+
+    render(<DashboardPage />);
+
+    const user = userEvent.setup();
+    const input = await screen.findByLabelText(/server identity/i);
+    await user.clear(input);
+    await user.type(input, 'B11F61896EE13A128488BF6687A03CE3');
+    await user.click(screen.getByRole('button', { name: /save link destination/i }));
+
+    expect(updateSpy).toHaveBeenCalledWith({
+      serverIdentity: 'B11F61896EE13A128488BF6687A03CE3',
+    });
+    expect(await screen.findByText('Link destination saved.')).toBeInTheDocument();
+  });
+
+  it('clears the link destination when requested', async () => {
+    vi.spyOn(apiClientModule.apiClient, 'get').mockResolvedValueOnce(buildGatewayInfoResponse());
+    vi.spyOn(apiClientModule, 'getLinkDestinationSettings')
+      .mockResolvedValueOnce(buildLinkDestinationSettings())
+      .mockResolvedValueOnce(
+        buildLinkDestinationSettings({
+          serverIdentity: null,
+          linkStatus: {
+            state: 'unconfigured',
+            message: 'Server identity hash not configured.',
+          },
+        }),
+      );
+    const deleteSpy = vi.spyOn(apiClientModule, 'deleteLinkDestination').mockResolvedValue();
+
+    render(<DashboardPage />);
+    const user = userEvent.setup();
+
+    const clearButton = await screen.findByRole('button', { name: /clear/i });
+    await user.click(clearButton);
+
+    expect(deleteSpy).toHaveBeenCalled();
+    expect(await screen.findByText('Link destination removed.')).toBeInTheDocument();
+    expect(await screen.findByLabelText(/server identity/i)).toHaveValue('');
   });
 });

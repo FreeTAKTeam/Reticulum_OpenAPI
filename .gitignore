@@ -194,8 +194,13 @@ cython_debug/
 #  refer to https://docs.cursor.com/context/ignore-files
 .cursorignore
 .cursorindexingignore
+
+# reticulum stuff
 examples/EmergencyManagement/emergency.db
-examples/EmergencyManagement/client/.reticulum_client/
+.reticulum_client/
 examples/EmergencyManagement/Server/emergency.db
 examples/EmergencyManagement/Server/emergency.db
 examples/EmergencyManagement/Server/emergency.db
+examples/EmergencyManagement/.reticulum/config
+.gitignore
+.reticulum/

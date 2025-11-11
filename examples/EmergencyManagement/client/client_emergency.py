@@ -1,10 +1,11 @@
 import asyncio
+import json
 import os
 import signal
 import sys
 from contextlib import suppress
 from pathlib import Path
-from typing import Optional
+from typing import Any, Mapping, Optional
 
 if __package__ in (None, ""):
     project_root = Path(__file__).resolve().parents[3]
@@ -121,6 +122,7 @@ __all__ = [
     "main",
     "read_server_identity_from_config",
     "load_client_config",
+    "write_client_config",
     "SHARED_INSTANCE_RPC_KEY",
 ]
 
@@ -174,6 +176,25 @@ def load_client_config(config_path: Optional[Path] = None) -> dict:
     if _BaseLXMFClient is None:
         return {}
     return _BaseLXMFClient.load_client_config(target_path, error_handler=print)
+
+
+def write_client_config(
+    config_data: Mapping[str, Any],
+    config_path: Optional[Path] = None,
+) -> Path:
+    """Persist ``config_data`` to ``config_path`` (defaults to ``CONFIG_PATH``)."""
+
+    target_path = Path(config_path) if config_path else CONFIG_PATH
+    try:
+        target_path.parent.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        pass
+
+    serialisable_data = dict(config_data)
+    with target_path.open("w", encoding="utf-8") as handle:
+        json.dump(serialisable_data, handle, indent=2, sort_keys=True)
+        handle.write("\n")
+    return target_path
 
 
 def read_server_identity_from_config(

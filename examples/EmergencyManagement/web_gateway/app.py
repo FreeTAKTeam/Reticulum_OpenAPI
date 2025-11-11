@@ -10,6 +10,7 @@ from dataclasses import dataclass, fields, is_dataclass
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
+from threading import Lock
 from typing import (
     Any,
     Awaitable,
@@ -30,7 +31,7 @@ from importlib import metadata
 import os
 
 from dotenv import load_dotenv
-from fastapi import Depends, FastAPI, Header, HTTPException, Query, status
+from fastapi import Depends, FastAPI, Header, HTTPException, Query, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
@@ -45,6 +46,7 @@ from examples.EmergencyManagement.client.client_emergency import (
     CLIENT_DISPLAY_NAME_KEY,
     CONFIG_PATH,
     DEFAULT_DISPLAY_NAME,
+    DEFAULT_RETICULUM_CONFIG_PATH,
     DEFAULT_TIMEOUT_SECONDS,
     LXMF_CONFIG_PATH_KEY,
     LXMF_STORAGE_PATH_KEY,
@@ -52,6 +54,7 @@ from examples.EmergencyManagement.client.client_emergency import (
     SHARED_INSTANCE_RPC_KEY,
     load_client_config,
     read_server_identity_from_config,
+    write_client_config,
 )
 from reticulum_openapi.api.notifications import (
     attach_client_notifications,
@@ -188,6 +191,9 @@ def _resolve_gateway_version() -> str:
 
 _CONFIG_JSON_ENV_VAR = "NORTH_API_CONFIG_JSON"
 _CONFIG_PATH_ENV_VAR = "NORTH_API_CONFIG_PATH"
+_SERVER_IDENTITY_FIELD = "server_identity_hash"
+_CONFIG_SOURCE_PATH: Optional[Path] = None
+_CONFIG_LOCK = Lock()
 
 
 def _load_gateway_config() -> ConfigDict:
@@ -197,6 +203,7 @@ def _load_gateway_config() -> ConfigDict:
         ConfigDict: Parsed configuration values describing the LXMF client.
     """
 
+    global _CONFIG_SOURCE_PATH
     raw_json = os.getenv(_CONFIG_JSON_ENV_VAR)
     if raw_json:
         try:
@@ -205,6 +212,7 @@ def _load_gateway_config() -> ConfigDict:
             parsed = None
         else:
             if isinstance(parsed, dict):
+                _CONFIG_SOURCE_PATH = None
                 return parsed
         # Fall back to path-based configuration when JSON is invalid or not a mapping.
 
@@ -217,14 +225,16 @@ def _load_gateway_config() -> ConfigDict:
         if override_path:
             data = load_client_config(override_path)
             if data:
+                _CONFIG_SOURCE_PATH = override_path
                 return data
 
+    _CONFIG_SOURCE_PATH = CONFIG_PATH
     return load_client_config(CONFIG_PATH)
 
 
 _CONFIG_DATA: ConfigDict = _load_gateway_config()
 _DEFAULT_SERVER_IDENTITY: Optional[str] = read_server_identity_from_config(
-    CONFIG_PATH, _CONFIG_DATA
+    _CONFIG_SOURCE_PATH or CONFIG_PATH, _CONFIG_DATA
 )
 _CLIENT_INSTANCE: Optional[LXMFClient] = None
 _GATEWAY_VERSION: str = _resolve_gateway_version()
@@ -320,6 +330,8 @@ def _create_client_from_config() -> LXMFClient:
     config_path_override = _normalise_optional_path(
         _CONFIG_DATA.get(LXMF_CONFIG_PATH_KEY)
     )
+    if config_path_override is None and DEFAULT_RETICULUM_CONFIG_PATH.exists():
+        config_path_override = str(DEFAULT_RETICULUM_CONFIG_PATH.parent)
     storage_path_override = _normalise_optional_path(
         _CONFIG_DATA.get(LXMF_STORAGE_PATH_KEY)
     )
@@ -338,6 +350,103 @@ def _create_client_from_config() -> LXMFClient:
     )
     client.announce()
     return client
+
+
+def _is_config_mutable() -> bool:
+    """Return ``True`` when the gateway configuration can be persisted."""
+
+    return _CONFIG_SOURCE_PATH is not None
+
+
+def _require_mutable_config() -> None:
+    """Raise an HTTP error when runtime config updates are not allowed."""
+
+    if _is_config_mutable():
+        return
+    raise HTTPException(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        detail=(
+            "Gateway configuration is sourced from environment variables and "
+            "cannot be modified at runtime."
+        ),
+    )
+
+
+def _persist_gateway_config(data: ConfigDict) -> None:
+    """Write ``data`` to the backing client configuration JSON file."""
+
+    if _CONFIG_SOURCE_PATH is None:
+        raise RuntimeError("Gateway configuration source is not writable")
+    write_client_config(data, _CONFIG_SOURCE_PATH)
+
+
+def _link_destination_payload() -> Dict[str, Any]:
+    """Return a serialisable description of the active link destination."""
+
+    return {
+        "serverIdentity": _DEFAULT_SERVER_IDENTITY,
+        "configurable": _is_config_mutable(),
+        "configPath": str(_CONFIG_SOURCE_PATH) if _CONFIG_SOURCE_PATH else None,
+        "linkStatus": _LINK_STATUS.to_dict(),
+    }
+
+
+async def _restart_link_task(server_identity: Optional[str]) -> None:
+    """Restart the background link task to target ``server_identity``."""
+
+    global _LINK_TASK
+    existing_task = _LINK_TASK
+    if existing_task is not None:
+        existing_task.cancel()
+        with suppress(asyncio.CancelledError):
+            await existing_task
+        _LINK_TASK = None
+
+    if not server_identity:
+        _LINK_STATUS.server_identity = None
+        _LINK_STATUS.state = "unconfigured"
+        _LINK_STATUS.message = "Server identity hash not configured."
+        return
+
+    client = get_shared_client()
+    _LINK_STATUS.server_identity = server_identity
+    _LINK_STATUS.state = "connecting"
+    _LINK_STATUS.last_error = None
+    _LINK_STATUS.message = (
+        f"Attempting to connect to LXMF server {server_identity}"
+    )
+    _LINK_TASK = asyncio.create_task(
+        _ensure_link_with_retry(client, server_identity)
+    )
+
+
+def _update_server_identity(server_identity: Optional[str]) -> None:
+    """Persist ``server_identity`` into the shared configuration."""
+
+    global _CONFIG_DATA
+    global _DEFAULT_SERVER_IDENTITY
+
+    with _CONFIG_LOCK:
+        updated = dict(_CONFIG_DATA)
+        if server_identity is None:
+            updated.pop(_SERVER_IDENTITY_FIELD, None)
+        else:
+            updated[_SERVER_IDENTITY_FIELD] = server_identity
+
+        try:
+        _persist_gateway_config(updated)
+        except RuntimeError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail=str(exc),
+            ) from exc
+
+        _CONFIG_DATA = updated
+        _DEFAULT_SERVER_IDENTITY = server_identity
+        if server_identity:
+            logger.info("Gateway link destination updated to %s", server_identity)
+        else:
+            logger.info("Gateway link destination cleared")
 
 
 def get_shared_client() -> LXMFClient:
@@ -688,6 +797,66 @@ async def get_gateway_status() -> Dict[str, Any]:
         "linkStatus": _LINK_STATUS.to_dict(),
         "reticulumInterfaces": interface_status,
     }
+
+
+def _extract_server_identity(payload: Dict[str, Any]) -> str:
+    """Return a normalised server identity from ``payload``."""
+
+    candidate = payload.get("serverIdentity")
+    if candidate is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="serverIdentity is required",
+        )
+    try:
+        return LXMFClient._normalise_destination_hex(str(candidate))
+    except (TypeError, ValueError) as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(exc),
+        ) from exc
+
+
+async def _persist_link_destination(
+    server_identity: Optional[str],
+) -> Dict[str, Any]:
+    """Persist ``server_identity`` and refresh link state."""
+
+    _require_mutable_config()
+    _update_server_identity(server_identity)
+    await _restart_link_task(server_identity)
+    return _link_destination_payload()
+
+
+@app.get("/link-destination")
+async def get_link_destination() -> Dict[str, Any]:
+    """Return the currently configured LXMF link destination."""
+
+    return _link_destination_payload()
+
+
+@app.post("/link-destination", status_code=status.HTTP_201_CREATED)
+async def create_link_destination(payload: Dict[str, Any]) -> Dict[str, Any]:
+    """Create a new default link destination for the gateway."""
+
+    server_identity = _extract_server_identity(payload)
+    return await _persist_link_destination(server_identity)
+
+
+@app.put("/link-destination")
+async def update_link_destination(payload: Dict[str, Any]) -> Dict[str, Any]:
+    """Update the default link destination for the gateway."""
+
+    server_identity = _extract_server_identity(payload)
+    return await _persist_link_destination(server_identity)
+
+
+@app.delete("/link-destination", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_link_destination() -> Response:
+    """Clear the stored link destination value."""
+
+    await _persist_link_destination(None)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 async def _resolve_server_identity(

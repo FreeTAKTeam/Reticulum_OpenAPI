@@ -402,6 +402,11 @@ a {
   font-weight: 600;
 }
 
+.page-success {
+  color: #4ade80;
+  font-weight: 600;
+}
+
 .page-definition-list {
   display: grid;
   gap: 1.25rem;

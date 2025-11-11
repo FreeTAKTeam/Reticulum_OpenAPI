@@ -1,20 +1,18 @@
 # Reticulum OpenAPI
+
 [![Python](https://github.com/FreeTAKTeam/Reticulum_OpenAPI/actions/workflows/python.yml/badge.svg?branch=main)](https://github.com/FreeTAKTeam/Reticulum_OpenAPI/actions/workflows/python.yml)
 
 Reticulum OpenAPI is an experimental framework for building lightweight APIs on top of the Reticulum mesh network using LXMF messages. It allows you to expose simple command based or REST style services that work in delay tolerant and very low bandwidth environments. Payloads are encoded with canonical MessagePack by default with JSON as a fallback for interoperability.
 
 This repository contains the Python implementation of the framework as well as documentation, a full featured example and generator templates. The goal is to provide an easy way to build applications that communicate over Reticulum using structured messages.
 
-
 Models and payloads are serialized with MessagePack to minimize bandwidth overhead.
-
 
 The project now also exposes primitives for maintaining persistent links via
 ``LinkClient`` and ``LinkService`` which allow direct communication over an
 ``RNS.Link`` in addition to LXMF messaging.
 
 See [docs/protocol_design.md](docs/protocol_design.md) for the protocol overview and [docs/Framework_design.md](docs/Framework_design.md) for architectural details.
-
 
 ## Communication Modes
 
@@ -37,7 +35,6 @@ efficiently.
 The package also includes helpers for sending and receiving larger files over Reticulum links. Use
 `ResourceClient.send_resource()` to upload a file with progress reporting and
 `ResourceService.resource_received_callback()` to store incoming resources in a chosen directory.
-
 
 ## Quick start
 
@@ -134,4 +131,3 @@ Follow these steps to build and publish a new release from the `main` branch:
 - [templates/README.md](templates/README.md) – using the generator templates to scaffold a service.
 - [docs/Framework_design.md](docs/Framework_design.md) – in-depth description of the architecture.
 - [docs/protocol_design.md](docs/protocol_design.md) – detailed protocol design discussion.
-

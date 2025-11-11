@@ -1,21 +1,18 @@
-import { useEffect, useMemo, useState } from 'react';
+import { ChangeEvent, FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import {
   apiClient,
+  createLinkDestination,
+  deleteLinkDestination,
   extractApiErrorMessage,
   getApiBaseUrl,
   getConfiguredServerIdentity,
+  getLinkDestinationSettings,
   getLiveUpdatesUrl,
+  LinkDestinationSettings,
+  LinkStatus,
+  updateLinkDestination,
 } from '../lib/apiClient';
-
-interface LinkStatus {
-  state: 'pending' | 'connected' | 'error' | 'unconfigured' | 'unknown';
-  message?: string | null;
-  serverIdentity?: string | null;
-  lastAttempt?: string | null;
-  lastSuccess?: string | null;
-  lastError?: string | null;
-}
 
 interface ReticulumInterfaceStatus {
   id: string;
@@ -42,6 +39,12 @@ interface GatewayInfo {
 export function DashboardPage(): JSX.Element {
   const [gatewayInfo, setGatewayInfo] = useState<GatewayInfo | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [linkDestination, setLinkDestination] = useState<LinkDestinationSettings | null>(null);
+  const [linkDestinationInput, setLinkDestinationInput] = useState('');
+  const [linkDestinationError, setLinkDestinationError] = useState<string | null>(null);
+  const [linkDestinationSuccess, setLinkDestinationSuccess] = useState<string | null>(null);
+  const [isSavingLinkDestination, setIsSavingLinkDestination] = useState(false);
+  const isMountedRef = useRef(true);
   const webUiConfig = useMemo(
     () => ({
       apiBaseUrl: getApiBaseUrl(),
@@ -87,35 +90,149 @@ export function DashboardPage(): JSX.Element {
     return parts.join(' • ');
   };
 
-  useEffect(() => {
-    let isMounted = true;
-    async function loadInfo(): Promise<void> {
-      if (!isMounted) {
+  const applyLinkDestinationResponse = useCallback(
+    (response: LinkDestinationSettings) => {
+      if (!isMountedRef.current) {
         return;
       }
-      setError(null);
+      setLinkDestination(response);
+      setLinkDestinationInput(response.serverIdentity ?? '');
+      setGatewayInfo((previous) =>
+        previous
+          ? {
+              ...previous,
+              serverIdentity: response.serverIdentity ?? null,
+              linkStatus: response.linkStatus ?? previous.linkStatus,
+            }
+          : previous,
+      );
+    },
+    [],
+  );
+
+  const loadGatewayInfo = useCallback(async () => {
+    setError(null);
+    try {
+      const response = await apiClient.get<GatewayInfo>('/');
+      if (!isMountedRef.current) {
+        return;
+      }
+      setGatewayInfo(response.data);
+    } catch (err: unknown) {
+      if (!isMountedRef.current) {
+        return;
+      }
+      setGatewayInfo(null);
+      setError(extractApiErrorMessage(err));
+    }
+  }, [extractApiErrorMessage]);
+
+  const loadLinkDestination = useCallback(async () => {
+    setLinkDestinationError(null);
+    setLinkDestinationSuccess(null);
+    try {
+      const response = await getLinkDestinationSettings();
+      applyLinkDestinationResponse(response);
+    } catch (err: unknown) {
+      if (!isMountedRef.current) {
+        return;
+      }
+      setLinkDestination(null);
+      setLinkDestinationInput('');
+      setLinkDestinationError(extractApiErrorMessage(err));
+    }
+  }, [applyLinkDestinationResponse, extractApiErrorMessage]);
+
+  const handleLinkDestinationInputChange = useCallback(
+    (event: ChangeEvent<HTMLInputElement>) => {
+      setLinkDestinationInput(event.target.value);
+    },
+    [],
+  );
+
+  const handleLinkDestinationSubmit = useCallback(
+    async (event: FormEvent<HTMLFormElement>) => {
+      event.preventDefault();
+      if (!linkDestination?.configurable) {
+        setLinkDestinationError('Gateway configuration is read-only.');
+        return;
+      }
+      const trimmed = linkDestinationInput.trim();
+      if (!trimmed) {
+        setLinkDestinationError('Server identity hash is required.');
+        return;
+      }
+      setIsSavingLinkDestination(true);
+      setLinkDestinationError(null);
+      setLinkDestinationSuccess(null);
       try {
-        const response = await apiClient.get<GatewayInfo>('/');
-        if (!isMounted) {
+        const payload = { serverIdentity: trimmed };
+        const response = linkDestination?.serverIdentity
+          ? await updateLinkDestination(payload)
+          : await createLinkDestination(payload);
+        applyLinkDestinationResponse(response);
+        if (!isMountedRef.current) {
           return;
         }
-        setGatewayInfo(response.data);
-        setError(null);
+        setLinkDestinationSuccess('Link destination saved.');
       } catch (err: unknown) {
-        if (!isMounted) {
+        if (!isMountedRef.current) {
           return;
         }
-        setGatewayInfo(null);
-        setError(extractApiErrorMessage(err));
+        setLinkDestinationError(extractApiErrorMessage(err));
+      } finally {
+        if (isMountedRef.current) {
+          setIsSavingLinkDestination(false);
+        }
+      }
+    },
+    [
+      linkDestination,
+      linkDestinationInput,
+      applyLinkDestinationResponse,
+      extractApiErrorMessage,
+    ],
+  );
+
+  const handleLinkDestinationClear = useCallback(async () => {
+    if (!linkDestination?.configurable) {
+      return;
+    }
+    if (!linkDestination.serverIdentity) {
+      setLinkDestinationInput('');
+      return;
+    }
+    setIsSavingLinkDestination(true);
+    setLinkDestinationError(null);
+    setLinkDestinationSuccess(null);
+    try {
+      await deleteLinkDestination();
+      const refreshed = await getLinkDestinationSettings();
+      applyLinkDestinationResponse(refreshed);
+      if (!isMountedRef.current) {
+        return;
+      }
+      setLinkDestinationSuccess('Link destination removed.');
+    } catch (err: unknown) {
+      if (!isMountedRef.current) {
+        return;
+      }
+      setLinkDestinationError(extractApiErrorMessage(err));
+    } finally {
+      if (isMountedRef.current) {
+        setIsSavingLinkDestination(false);
       }
     }
+  }, [linkDestination, applyLinkDestinationResponse, extractApiErrorMessage]);
 
-    loadInfo();
-
+  useEffect(() => {
+    isMountedRef.current = true;
+    loadGatewayInfo();
+    loadLinkDestination();
     return () => {
-      isMounted = false;
+      isMountedRef.current = false;
     };
-  }, []);
+  }, [loadGatewayInfo, loadLinkDestination]);
 
   return (
     <section className="page-section">
@@ -222,6 +339,80 @@ export function DashboardPage(): JSX.Element {
             </dl>
           </div>
         )}
+        <div className="page-card dashboard-layout__link-card">
+          <h3>Link Destination</h3>
+          {!linkDestination && !linkDestinationError && (
+            <p>Loading link destination…</p>
+          )}
+          {linkDestinationError && <p className="page-error">{linkDestinationError}</p>}
+          {linkDestinationSuccess && <p className="page-success">{linkDestinationSuccess}</p>}
+          {linkDestination && (
+            <>
+              {!linkDestination.configurable && (
+                <p className="page-error">
+                  Runtime updates are disabled because the gateway is using environment overrides.
+                </p>
+              )}
+              <form onSubmit={handleLinkDestinationSubmit}>
+                <label className="form-field form-field--wide" htmlFor="link-destination-input">
+                  <span>Server Identity</span>
+                  <input
+                    id="link-destination-input"
+                    type="text"
+                    value={linkDestinationInput}
+                    onChange={handleLinkDestinationInputChange}
+                    autoComplete="off"
+                    autoCorrect="off"
+                    spellCheck={false}
+                    placeholder="Enter 32 character destination hash"
+                    disabled={!linkDestination.configurable || isSavingLinkDestination}
+                  />
+                </label>
+                <div className="form-card__footer">
+                  <button
+                    type="submit"
+                    className="button"
+                    disabled={
+                      !linkDestination.configurable ||
+                      isSavingLinkDestination ||
+                      !linkDestinationInput.trim()
+                    }
+                  >
+                    Save Link Destination
+                  </button>
+                  <button
+                    type="button"
+                    className="button button--secondary"
+                    onClick={handleLinkDestinationClear}
+                    disabled={
+                      !linkDestination.configurable ||
+                      isSavingLinkDestination ||
+                      !linkDestination.serverIdentity
+                    }
+                  >
+                    Clear
+                  </button>
+                </div>
+              </form>
+              <dl className="page-definition-list">
+                <div>
+                  <dt>Config Path</dt>
+                  <dd>{linkDestination.configPath ?? 'Provided via environment'}</dd>
+                </div>
+                <div>
+                  <dt>Gateway Link State</dt>
+                  <dd>{linkDestination.linkStatus?.state ?? 'unknown'}</dd>
+                </div>
+                <div>
+                  <dt>Gateway Link Message</dt>
+                  <dd>
+                    {linkDestination.linkStatus?.message ?? 'No link status reported yet.'}
+                  </dd>
+                </div>
+              </dl>
+            </>
+          )}
+        </div>
         <div className="page-card dashboard-layout__api-card">
           <h3>Web UI API Configuration</h3>
           <dl className="page-definition-list">
