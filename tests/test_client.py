@@ -5,6 +5,7 @@ import pytest
 
 from reticulum_openapi import client as client_module
 from reticulum_openapi.codec_msgpack import from_bytes as msgpack_from_bytes
+from reticulum_openapi.model import dataclass_to_msgpack
 
 
 @dataclass
@@ -71,6 +72,124 @@ async def test_send_command_receives_response(monkeypatch):
     path, payload = created_links[0].requests[0]
     assert path == "/commands/CMD"
     assert isinstance(payload, bytes)
+
+
+@pytest.mark.asyncio
+async def test_send_command_decodes_dataclass_response(monkeypatch):
+    """Responses can be decoded to dataclasses when ``response_type`` is provided."""
+
+    loop = asyncio.get_running_loop()
+    cli = client_module.LXMFClient.__new__(client_module.LXMFClient)
+    cli._loop = loop
+    cli.router = SimpleNamespace(handle_outbound=lambda msg: None)
+    cli.source_identity = object()
+    cli._futures = {}
+    cli._link_locks = {}
+    cli._link_events = {}
+    cli._links = {}
+    cli.auth_token = None
+    cli.timeout = 0.2
+
+    monkeypatch.setattr(
+        client_module.RNS.Identity, "recall", lambda h, create=False: object()
+    )
+
+    class FakeDestination:
+        OUT = object()
+        SINGLE = object()
+
+        def __init__(self, *a, **k):
+            pass
+
+    monkeypatch.setattr(client_module.RNS, "Destination", FakeDestination)
+
+    class FakeLink:
+        def __init__(self, _dest, established_callback=None, closed_callback=None):
+            if established_callback:
+                loop.call_soon(established_callback, self)
+
+        def request(
+            self,
+            path,
+            data=None,
+            response_callback=None,
+            failed_callback=None,
+            timeout=None,
+        ):
+            if response_callback:
+                payload = dataclass_to_msgpack(Sample(text="response"))
+                loop.call_soon(response_callback, SimpleNamespace(response=payload))
+
+    monkeypatch.setattr(client_module.RNS, "Link", FakeLink)
+
+    result = await cli.send_command(
+        "aa",
+        "CMD",
+        Sample(text="hi"),
+        response_type=Sample,
+    )
+
+    assert isinstance(result, Sample)
+    assert result.text == "response"
+
+
+@pytest.mark.asyncio
+async def test_send_command_normalises_decoded_response(monkeypatch):
+    """Normalised responses are returned as JSON-serialisable primitives."""
+
+    loop = asyncio.get_running_loop()
+    cli = client_module.LXMFClient.__new__(client_module.LXMFClient)
+    cli._loop = loop
+    cli.router = SimpleNamespace(handle_outbound=lambda msg: None)
+    cli.source_identity = object()
+    cli._futures = {}
+    cli._link_locks = {}
+    cli._link_events = {}
+    cli._links = {}
+    cli.auth_token = None
+    cli.timeout = 0.2
+
+    monkeypatch.setattr(
+        client_module.RNS.Identity, "recall", lambda h, create=False: object()
+    )
+
+    class FakeDestination:
+        OUT = object()
+        SINGLE = object()
+
+        def __init__(self, *a, **k):
+            pass
+
+    monkeypatch.setattr(client_module.RNS, "Destination", FakeDestination)
+
+    class FakeLink:
+        def __init__(self, _dest, established_callback=None, closed_callback=None):
+            if established_callback:
+                loop.call_soon(established_callback, self)
+
+        def request(
+            self,
+            path,
+            data=None,
+            response_callback=None,
+            failed_callback=None,
+            timeout=None,
+        ):
+            if response_callback:
+                payload = dataclass_to_msgpack(Sample(text="response"))
+                loop.call_soon(response_callback, SimpleNamespace(response=payload))
+
+    monkeypatch.setattr(client_module.RNS, "Link", FakeLink)
+
+    result = await cli.send_command(
+        "aa",
+        "CMD",
+        Sample(text="hi"),
+        response_type=Sample,
+        normalise=True,
+    )
+
+    assert result == {"text": "response"}
 
 
 @pytest.mark.asyncio

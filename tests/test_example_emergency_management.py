@@ -6,6 +6,8 @@ import runpy
 import sys
 from dataclasses import asdict
 from pathlib import Path
+from typing import List
+from typing import Optional
 
 import pytest
 import pytest_asyncio
@@ -20,6 +22,7 @@ from examples.EmergencyManagement.Server.models_emergency import EmergencyAction
 from examples.EmergencyManagement.Server.models_emergency import EAMStatus
 from examples.EmergencyManagement.Server.models_emergency import Event
 from examples.EmergencyManagement.Server.models_emergency import Point
+from reticulum_openapi.conversion import decode_payload
 from reticulum_openapi.model import dataclass_to_msgpack
 from reticulum_openapi.model import dataclass_to_json_bytes
 from reticulum_openapi.model import compress_json
@@ -165,8 +168,9 @@ async def test_event_controller_list_without_session_factory(monkeypatch) -> Non
     """Missing session factories should be reported via controller error payloads."""
 
     monkeypatch.setattr(
-        "examples.EmergencyManagement.Server.controllers_emergency.async_session",
+        "examples.EmergencyManagement.Server.controllers_emergency.EventController.session_factory",
         None,
+        raising=False,
     )
     monkeypatch.setattr(
         database_module,
@@ -182,30 +186,26 @@ async def test_event_controller_list_without_session_factory(monkeypatch) -> Non
     assert result == {"error": "InternalServerError", "code": 500}
 
 
-def test_decode_event_fallback_handles_messagepack() -> None:
-    """The client decoder accepts MessagePack event payloads."""
-
-    from examples.EmergencyManagement.client import client as client_module
+def test_decode_payload_handles_messagepack_dataclass() -> None:
+    """MessagePack payloads decode to dataclass instances."""
 
     event = Event(uid=8, type="Exercise", qos=2)
     payload = dataclass_to_msgpack(event)
 
-    decoded = client_module._decode_event(payload)
+    decoded = decode_payload(payload, Event)
 
     assert isinstance(decoded, Event)
     assert decoded.uid == event.uid
     assert decoded.qos == event.qos
 
 
-def test_decode_event_fallback_handles_compressed_json() -> None:
-    """The client decoder accepts compressed JSON event payloads."""
-
-    from examples.EmergencyManagement.client import client as client_module
+def test_decode_payload_handles_compressed_json_dataclass() -> None:
+    """Compressed JSON payloads decode to dataclass instances."""
 
     event = Event(uid=7, type="Drill", point=Point(lat=12.34, lon=56.78))
     payload = compress_json(dataclass_to_json_bytes(event))
 
-    decoded = client_module._decode_event(payload)
+    decoded = decode_payload(payload, Event)
 
     assert isinstance(decoded, Event)
     assert decoded.uid == event.uid
@@ -213,30 +213,26 @@ def test_decode_event_fallback_handles_compressed_json() -> None:
     assert decoded.point.lat == event.point.lat
 
 
-def test_decode_optional_event_fallback_handles_messagepack() -> None:
-    """Optional event decoding handles MessagePack payloads."""
-
-    from examples.EmergencyManagement.client import client as client_module
+def test_decode_payload_handles_optional_messagepack() -> None:
+    """Optional dataclass decoding accepts MessagePack payloads."""
 
     event = Event(uid=12, type="Status", version=3)
     payload = dataclass_to_msgpack(event)
 
-    decoded = client_module._decode_optional_event(payload)
+    decoded = decode_payload(payload, Optional[Event])
 
     assert isinstance(decoded, Event)
     assert decoded.uid == event.uid
     assert decoded.version == event.version
 
 
-def test_decode_optional_event_fallback_handles_compressed_json() -> None:
-    """Optional event decoding also supports compressed JSON payloads."""
-
-    from examples.EmergencyManagement.client import client as client_module
+def test_decode_payload_handles_optional_compressed_json() -> None:
+    """Optional dataclass decoding supports compressed JSON payloads."""
 
     event = Event(uid=11, type="Alert", point=Point(lat=1.5, lon=2.5))
     payload = compress_json(dataclass_to_json_bytes(event))
 
-    decoded = client_module._decode_optional_event(payload)
+    decoded = decode_payload(payload, Optional[Event])
 
     assert isinstance(decoded, Event)
     assert decoded.uid == event.uid
@@ -244,10 +240,8 @@ def test_decode_optional_event_fallback_handles_compressed_json() -> None:
     assert decoded.point.lon == event.point.lon
 
 
-def test_decode_event_list_fallback_handles_messagepack() -> None:
-    """List decoder accepts MessagePack payloads containing mapping entries."""
-
-    from examples.EmergencyManagement.client import client as client_module
+def test_decode_payload_handles_messagepack_list() -> None:
+    """List decoding accepts MessagePack payloads containing dataclass mappings."""
 
     events = [
         Event(uid=31, type="Drill", qos=1),
@@ -255,17 +249,15 @@ def test_decode_event_list_fallback_handles_messagepack() -> None:
     ]
     payload = dataclass_to_msgpack([asdict(item) for item in events])
 
-    decoded = client_module._decode_event_list(payload)
+    decoded = decode_payload(payload, List[Event])
 
     assert [item.uid for item in decoded] == [31, 32]
     assert decoded[0].qos == events[0].qos
     assert decoded[1].opex == events[1].opex
 
 
-def test_decode_event_list_fallback_handles_compressed_json() -> None:
-    """List decoder returns dataclasses when given compressed JSON payloads."""
-
-    from examples.EmergencyManagement.client import client as client_module
+def test_decode_payload_handles_compressed_json_list() -> None:
+    """List decoding returns dataclasses when given compressed JSON payloads."""
 
     events = [
         Event(uid=21, type="Test", point=Point(lat=3.0, lon=4.0)),
@@ -273,7 +265,7 @@ def test_decode_event_list_fallback_handles_compressed_json() -> None:
     ]
     payload = compress_json(dataclass_to_json_bytes([asdict(item) for item in events]))
 
-    decoded = client_module._decode_event_list(payload)
+    decoded = decode_payload(payload, List[Event])
 
     assert [item.uid for item in decoded] == [21, 22]
     assert decoded[0].point is not None
@@ -705,9 +697,19 @@ async def test_create_helper_decodes_payload() -> None:
         def __init__(self) -> None:
             self.calls = []
 
-        async def send_command(self, server_id, command, payload, await_response=True):
-            self.calls.append((server_id, command, payload, await_response))
-            return dataclass_to_msgpack(message)
+        async def send_command(
+            self,
+            server_id,
+            command,
+            payload,
+            await_response=True,
+            response_type=None,
+            normalise=False,
+        ):
+            self.calls.append(
+                (server_id, command, payload, await_response, response_type, normalise)
+            )
+            return message
 
     client = DummyClient()
     result = await client_lib.create_emergency_action_message(
@@ -719,6 +721,8 @@ async def test_create_helper_decodes_payload() -> None:
     sent = client.calls[0]
     assert sent[1] == client_lib.COMMAND_CREATE_EMERGENCY_ACTION_MESSAGE
     assert sent[3] is True
+    assert sent[4] == EmergencyActionMessage
+    assert sent[5] is False
 
 
 @pytest.mark.asyncio
@@ -728,8 +732,16 @@ async def test_retrieve_helper_raises_for_invalid_payload() -> None:
     from examples.EmergencyManagement.client import client as client_lib
 
     class DummyClient:
-        async def send_command(self, server_id, command, payload, await_response=True):
-            return dataclass_to_msgpack("not-a-mapping")
+        async def send_command(
+            self,
+            server_id,
+            command,
+            payload,
+            await_response=True,
+            response_type=None,
+            normalise=False,
+        ):
+            raise ValueError("Unable to decode payload")
 
     client = DummyClient()
 

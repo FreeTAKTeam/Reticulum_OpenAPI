@@ -7,6 +7,11 @@ from .announcer import DestinationAnnouncer
 from .controller import APIException
 from .controller import Controller
 from .controller import handle_exceptions
+from .conversion import build_dataclass
+from .conversion import convert_value
+from .conversion import decode_payload
+from .conversion import normalise_response
+from .conversion import prepare_dataclass_payload
 from .link_client import LinkClient
 from .link_service import LinkService
 from .model import BaseModel
@@ -25,6 +30,11 @@ __all__ = [
     "Controller",
     "APIException",
     "handle_exceptions",
+    "convert_value",
+    "build_dataclass",
+    "decode_payload",
+    "prepare_dataclass_payload",
+    "normalise_response",
     "BaseModel",
     "compress_json",
     "dataclass_from_json",

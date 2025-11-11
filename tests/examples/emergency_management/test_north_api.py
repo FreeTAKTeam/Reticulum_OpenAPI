@@ -107,7 +107,23 @@ async def test_register_client_events_lifecycle(monkeypatch):
         def stop_listening_for_announces(self):
             self.stopped = True
 
-    monkeypatch.setattr(deps, "LXMFClient", DummyClient)
+        def announce(self) -> None:
+            return None
+
+    def _factory(settings):
+        return DummyClient(
+            config_path=settings.lxmf_config_path,
+            storage_path=settings.lxmf_storage_path,
+            display_name=settings.client_display_name,
+            timeout=settings.request_timeout_seconds,
+            shared_instance_rpc_key=settings.shared_instance_rpc_key,
+        )
+
+    deps._client_manager = deps.LXMFClientManager(
+        deps.get_config,
+        client_factory=_factory,
+        announce_on_startup=False,
+    )
 
     app = FastAPI()
     deps.register_client_events(app)
@@ -125,8 +141,9 @@ async def test_register_client_events_lifecycle(monkeypatch):
         await handler()
 
     assert DummyClient.instance.stopped is True
-    with pytest.raises(RuntimeError):
-        deps.get_lxmf_client()
+    new_client = deps.get_lxmf_client()
+    assert isinstance(new_client, DummyClient)
+    assert new_client is not client
 
 
 @pytest.fixture()
@@ -143,21 +160,34 @@ def north_api_test_client(monkeypatch):
         "examples.EmergencyManagement.client.north_api.dependencies"
     )
 
-    app_module = importlib.reload(app_module)
-    routes_module = importlib.reload(routes_module)
     deps_module = importlib.reload(deps_module)
 
     stub_client = object()
-    deps_module._client_instance = None
 
-    def _fake_startup() -> None:
-        deps_module._client_instance = stub_client
+    class StubManager:
+        def __init__(self) -> None:
+            self.client = stub_client
 
-    def _fake_shutdown() -> None:
-        deps_module._client_instance = None
+        def get_client(self):
+            return self.client
 
-    monkeypatch.setattr(deps_module, "startup_client", _fake_startup)
-    monkeypatch.setattr(deps_module, "shutdown_client", _fake_shutdown)
+        def get_server_identity(self) -> str:
+            return "0011223344556677"
+
+        def register_events(self, app, attach_notifications=None):
+            @app.on_event("startup")
+            async def _startup() -> None:
+                return None
+
+            @app.on_event("shutdown")
+            async def _shutdown() -> None:
+                return None
+
+    deps_module._client_manager = StubManager()
+
+    app_module = importlib.reload(app_module)
+    routes_module = importlib.reload(routes_module)
+
     app_module.app.dependency_overrides[deps_module.get_lxmf_client] = (
         lambda: stub_client
     )
@@ -169,7 +199,6 @@ def north_api_test_client(monkeypatch):
         yield client, routes_module, stub_client
 
     app_module.app.dependency_overrides.clear()
-    deps_module._client_instance = None
 
 
 def test_create_event_route_converts_payload(north_api_test_client, monkeypatch):

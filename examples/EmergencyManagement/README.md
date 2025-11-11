@@ -1,7 +1,8 @@
 # Emergency Management Example
 
-The Emergency Management example demonstrates how to combine a Reticulum LXMF service, a shared northbound client, a FastAPI gateway, and a Vite-powered React UI that all speak the same OpenAPI contract. 
-<img width="1826" height="984" alt="image" src="https://github.com/user-attachments/assets/940c4415-3755-47e6-a026-d8e37c454a15" />
+The Emergency Management example demonstrates how to combine a Reticulum LXMF service, a shared northbound client, a FastAPI gateway, and a Vite-powered React UI that all speak the same OpenAPI contract.
+
+![image](https://github.com/user-attachments/assets/940c4415-3755-47e6-a026-d8e37c454a15)
 
 The stack models two resources:
 
@@ -10,7 +11,7 @@ The stack models two resources:
 
 Both dataclasses treat their identifying field (`callsign` or `uid`) as required; every other property may be omitted or `null` in the JSON payload. The complete contract lives in [`API/EmergencyActionMessageManagement-OAS.yaml`](API/EmergencyActionMessageManagement-OAS.yaml).
 
-### LXMF command catalogue
+## LXMF command catalogue
 
 The mesh service exposes symmetrical LXMF commands that are consumed by the CLI, FastAPI gateway, and web UI. Message and event
 workflows share consistent CRUD verb names:
