@@ -16,6 +16,9 @@ from typing import Union
 import LXMF
 import RNS
 
+from .codec_msgpack import decode_payload_bytes
+from .conversion import decode_payload
+from .conversion import normalise_response
 from .identity import load_or_create_identity
 from .logging_config import configure_logging
 from .model import compress_json
@@ -401,7 +404,9 @@ class LXMFClient:
         path_timeout: Optional[float] = None,
         await_response: bool = True,
         response_title: Optional[str] = None,
-    ) -> Optional[bytes]:
+        response_type: Optional[Any] = None,
+        normalise: bool = False,
+    ) -> Optional[Any]:
         """Send a command to a remote LXMF node.
 
         Args:
@@ -411,9 +416,14 @@ class LXMFClient:
             path_timeout (float, optional): Maximum seconds to wait for path discovery. Defaults to ``self.timeout``.
             await_response (bool, optional): Wait for a response message. Defaults to ``True``.
             response_title (str, optional): Expected response title. Defaults to ``<command>_response``.
+            response_type (Any, optional): Dataclass or typing annotation describing the expected
+                response structure. When provided, the payload is decoded via
+                :func:`reticulum_openapi.conversion.decode_payload` before being returned.
+            normalise (bool, optional): When ``True`` the decoded response is normalised to
+                JSON-serialisable primitives. Defaults to ``False``.
 
         Returns:
-            Optional[bytes]: Response payload if ``await_response`` is ``True``.
+            Optional[Any]: Response payload decoded according to ``response_type`` and ``normalise``.
 
         Raises:
             TimeoutError: If a transport path cannot be established before ``path_timeout`` elapses.
@@ -483,7 +493,12 @@ class LXMFClient:
                 timeout=self.timeout,
             )
             try:
-                return await asyncio.wait_for(response_future, timeout=self.timeout)
+                raw_response = await asyncio.wait_for(
+                    response_future, timeout=self.timeout
+                )
+                return self._process_response_payload(
+                    raw_response, response_type, normalise
+                )
             except TimeoutError as exc:
                 logger.error(
                     "LXMF command '%s' to %s failed before a response was received: %s",
@@ -507,6 +522,104 @@ class LXMFClient:
                 raise TimeoutError(timeout_message) from exc
         link.request(request_path, data=content_bytes, timeout=self.timeout)
         return None
+
+    def _process_response_payload(
+        self,
+        payload: Optional[Any],
+        response_type: Optional[Any],
+        normalise: bool,
+    ) -> Optional[Any]:
+        """Return the decoded response based on ``response_type`` and ``normalise`` flags.
+
+        Args:
+            payload (Optional[Any]): Raw payload returned by LXMF.
+            response_type (Optional[Any]): Optional dataclass or typing annotation describing
+                the desired response structure.
+            normalise (bool): When ``True`` converts decoded values into JSON-compatible
+                primitives.
+
+        Returns:
+            Optional[Any]: Decoded payload that honours ``response_type`` and ``normalise``.
+
+        Raises:
+            TypeError: Raised when decoding is requested but the payload is not bytes-like.
+        """
+
+        if payload is None:
+            if response_type is None and not normalise:
+                return None
+            if response_type is not None:
+                decoded = decode_payload(None, response_type)
+                return normalise_response(decoded) if normalise else decoded
+            return None
+
+        if isinstance(payload, memoryview):
+            payload = payload.tobytes()
+
+        if isinstance(payload, bytearray):
+            payload = bytes(payload)
+
+        if not isinstance(payload, bytes):
+            if response_type is None and not normalise:
+                return payload
+            raise TypeError("Response payload must be bytes when decoding is requested")
+
+        if response_type is None and not normalise:
+            return payload
+
+        decoded: Any
+        if response_type is not None:
+            decoded = decode_payload(payload, response_type)
+        else:
+            decoded = decode_payload_bytes(payload)
+
+        if normalise:
+            return normalise_response(decoded)
+        return decoded
+
+    async def send_command_for_type(
+        self,
+        dest_hex: str,
+        command: str,
+        payload_obj: object = None,
+        *,
+        response_type: Any,
+        path_timeout: Optional[float] = None,
+        await_response: bool = True,
+        response_title: Optional[str] = None,
+        normalise: bool = False,
+    ) -> Optional[Any]:
+        """Convenience wrapper returning decoded responses for ``response_type``.
+
+        Args:
+            dest_hex (str): Destination identity hash as hex string.
+            command (str): Command name placed in the LXMF title.
+            payload_obj (object, optional): Dataclass, dict or bytes payload forwarded to the
+                service. Defaults to ``None``.
+            response_type (Any): Dataclass or typing annotation describing the expected response
+                structure.
+            path_timeout (Optional[float], optional): Maximum seconds to wait for path discovery.
+                Defaults to ``self.timeout``.
+            await_response (bool, optional): Wait for a response message. Defaults to ``True``.
+            response_title (Optional[str], optional): Expected response title. Defaults to
+                ``<command>_response``.
+            normalise (bool, optional): When ``True`` converts decoded values into
+                JSON-compatible primitives. Defaults to ``False``.
+
+        Returns:
+            Optional[Any]: Decoded response matching ``response_type``.
+        """
+
+        return await self.send_command(
+            dest_hex,
+            command,
+            payload_obj,
+            path_timeout=path_timeout,
+            await_response=await_response,
+            response_title=response_title,
+            response_type=response_type,
+            normalise=normalise,
+        )
 
     @staticmethod
     def _format_transport_failure(receipt: Any) -> str:

@@ -6,9 +6,8 @@ import asyncio
 import json
 import logging
 from contextlib import suppress
-from dataclasses import dataclass, fields, is_dataclass
+from dataclasses import dataclass
 from datetime import datetime, timezone
-from enum import Enum
 from pathlib import Path
 from typing import (
     Any,
@@ -16,14 +15,7 @@ from typing import (
     Callable,
     Dict,
     List,
-    Literal,
     Optional,
-    Type,
-    TypeVar,
-    Union,
-    get_args,
-    get_origin,
-    get_type_hints,
 )
 
 from importlib import metadata
@@ -57,8 +49,8 @@ from reticulum_openapi.api.notifications import (
     attach_client_notifications,
     router as notifications_router,
 )
-from reticulum_openapi.codec_msgpack import CodecError
-from reticulum_openapi.codec_msgpack import decode_payload_bytes
+from reticulum_openapi.conversion import normalise_response
+from reticulum_openapi.conversion import prepare_dataclass_payload
 
 from examples.EmergencyManagement.web_gateway.interface_status import (
     gather_interface_status,
@@ -79,7 +71,6 @@ COMMAND_RETRIEVE_EVENT = "RetrieveEvent"
 
 
 ConfigDict = Dict[str, Any]
-T = TypeVar("T")
 
 
 @dataclass(frozen=True)
@@ -456,100 +447,6 @@ async def _shutdown() -> None:
     await unsubscribe()
 
 
-def _convert_value(expected_type: Type[Any], value: Any) -> Any:
-    """Recursively convert JSON values to dataclass field types."""
-
-    if expected_type is Any or expected_type is object:
-        return value
-    if expected_type is str:
-        if isinstance(value, str):
-            return value
-        if isinstance(value, (bytes, bytearray, memoryview)):
-            try:
-                return bytes(value).decode("utf-8")
-            except UnicodeDecodeError as exc:
-                raise ValueError("Unable to decode bytes to string") from exc
-        raise TypeError(f"Expected string for type {expected_type}")
-    if expected_type is int:
-        if isinstance(value, bool):
-            raise TypeError("Boolean value is not a valid integer")
-        if isinstance(value, int):
-            return value
-        if isinstance(value, float) and value.is_integer():
-            return int(value)
-        if isinstance(value, str):
-            cleaned = value.strip()
-            try:
-                return int(cleaned, 10)
-            except ValueError as exc:
-                raise ValueError(f"Unable to convert '{value}' to int") from exc
-        raise TypeError(f"Expected integer for type {expected_type}")
-    if expected_type is float:
-        if isinstance(value, (int, float)):
-            return float(value)
-        if isinstance(value, str):
-            cleaned = value.strip()
-            try:
-                return float(cleaned)
-            except ValueError as exc:
-                raise ValueError(f"Unable to convert '{value}' to float") from exc
-        raise TypeError(f"Expected float for type {expected_type}")
-    if expected_type is bool:
-        if isinstance(value, bool):
-            return value
-        if isinstance(value, str):
-            lowered = value.strip().lower()
-            if lowered in {"true", "1", "yes", "on"}:
-                return True
-            if lowered in {"false", "0", "no", "off"}:
-                return False
-        raise TypeError(f"Expected boolean for type {expected_type}")
-    origin = get_origin(expected_type)
-    if origin is Union:
-        for arg in get_args(expected_type):
-            if arg is type(None):
-                if value is None:
-                    return None
-                continue
-            try:
-                return _convert_value(arg, value)
-            except (TypeError, ValueError):
-                continue
-        raise ValueError(f"Unable to match value {value!r} to type {expected_type}")
-    if origin is Literal:
-        allowed = get_args(expected_type)
-        if value in allowed:
-            return value
-        raise ValueError(
-            f"Value {value!r} is not permitted for literal {expected_type}"
-        )
-    if origin in (list, List):
-        if not isinstance(value, list):
-            raise TypeError(f"Expected list for type {expected_type}")
-        item_type = get_args(expected_type)[0]
-        return [_convert_value(item_type, item) for item in value]
-    if is_dataclass(expected_type):
-        if not isinstance(value, dict):
-            raise TypeError(f"Expected object for dataclass {expected_type.__name__}")
-        return _build_dataclass(expected_type, value)
-    return value
-
-
-def _build_dataclass(cls: Type[T], data: Dict[str, Any]) -> T:
-    """Build a dataclass instance from primitive JSON data."""
-
-    if not isinstance(data, dict):
-        raise TypeError("Request payload must be a JSON object")
-
-    kwargs: Dict[str, Any] = {}
-    type_hints = get_type_hints(cls)
-    for field in fields(cls):
-        if field.name in data:
-            expected_type = type_hints.get(field.name, field.type)
-            kwargs[field.name] = _convert_value(expected_type, data[field.name])
-    return cls(**kwargs)
-
-
 async def _send_command(
     server_identity: str,
     command: str,
@@ -565,6 +462,7 @@ async def _send_command(
             command,
             payload,
             await_response=True,
+            response_type=response_type,
         )
     except TimeoutError as exc:
         logger.error(
@@ -590,78 +488,9 @@ async def _send_command(
 
     if response is None:
         return JSONResponse(content=None)
-    try:
-        data = decode_payload_bytes(response)
-    except CodecError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=str(exc),
-        ) from exc
 
-    converted = data
-    if response_type is not None:
-        try:
-            converted = _convert_value(response_type, data)
-        except (TypeError, ValueError) as exc:
-            raise HTTPException(
-                status_code=status.HTTP_502_BAD_GATEWAY,
-                detail=f"Unable to decode response payload: {exc}",
-            ) from exc
-
-    normalised = _normalise_response(converted)
+    normalised = normalise_response(response)
     return JSONResponse(content=normalised)
-
-
-def _prepare_payload(
-    spec: CommandSpec,
-    payload: Optional[Dict[str, Any]] = None,
-    *,
-    overrides: Optional[Dict[str, Any]] = None,
-) -> Any:
-    """Return the payload shaped for the LXMF command described by ``spec``."""
-
-    if spec.request_type is None:
-        if payload is not None and overrides:
-            merged: Dict[str, Any] = dict(payload)
-            merged.update(overrides)
-            return merged
-        if payload is not None:
-            return payload
-        if overrides is not None:
-            if len(overrides) == 1:
-                return next(iter(overrides.values()))
-            return dict(overrides)
-        return None
-
-    data: Dict[str, Any] = {}
-    if payload is not None:
-        data.update(payload)
-    if overrides is not None:
-        data.update(overrides)
-    return _build_dataclass(spec.request_type, data)
-
-
-def _normalise_response(value: Any) -> Any:
-    """Convert dataclasses, enums, and iterables into JSON-serialisable data."""
-
-    if value is None:
-        return None
-    if is_dataclass(value):
-        result: Dict[str, Any] = {}
-        for field in fields(value):
-            field_value = getattr(value, field.name)
-            if field_value is None:
-                continue
-            result[field.name] = _normalise_response(field_value)
-        return result
-    if isinstance(value, Enum):
-        return value.value
-    if isinstance(value, dict):
-        return {str(key): _normalise_response(item) for key, item in value.items()}
-    if isinstance(value, (list, tuple, set)):
-        return [_normalise_response(item) for item in value]
-    return value
-
 
 @app.get("/")
 async def get_gateway_status() -> Dict[str, Any]:
@@ -721,7 +550,7 @@ async def create_emergency_action_message(
     """Create a new emergency action message via LXMF."""
 
     spec = _COMMAND_SPECS["eam:create"]
-    message = _prepare_payload(spec, dict(payload))
+    message = prepare_dataclass_payload(spec.request_type, dict(payload))
     return await _send_command(
         server_identity,
         spec.command,
@@ -771,7 +600,9 @@ async def update_emergency_action_message(
 
     spec = _COMMAND_SPECS["eam:update"]
     overrides = {spec.path_field: callsign} if spec.path_field else {"callsign": callsign}
-    message = _prepare_payload(spec, dict(payload), overrides=overrides)
+    message = prepare_dataclass_payload(
+        spec.request_type, dict(payload), overrides=overrides
+    )
     return await _send_command(
         server_identity,
         spec.command,
@@ -804,7 +635,7 @@ async def create_event(
     """Create a new event record via LXMF."""
 
     spec = _COMMAND_SPECS["event:create"]
-    event = _prepare_payload(spec, dict(payload))
+    event = prepare_dataclass_payload(spec.request_type, dict(payload))
     return await _send_command(
         server_identity,
         spec.command,
@@ -854,7 +685,9 @@ async def update_event(
 
     spec = _COMMAND_SPECS["event:update"]
     overrides = {spec.path_field: uid} if spec.path_field else {"uid": uid}
-    event = _prepare_payload(spec, dict(payload), overrides=overrides)
+    event = prepare_dataclass_payload(
+        spec.request_type, dict(payload), overrides=overrides
+    )
     return await _send_command(
         server_identity,
         spec.command,
