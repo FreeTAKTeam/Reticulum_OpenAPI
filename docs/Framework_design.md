@@ -167,6 +167,64 @@ The routing mechanism is inherently asynchronous. Multiple requests can be in fl
 
 In summary, message routing uses a **command-based addressing scheme** within LXMF Fields to direct messages to code, enabling a pattern similar to RPC or REST but over the Reticulum decentralized network. This design cleanly separates the transport (Reticulum addressing and LXMF delivery) from the application logic (command handling in controllers).
 
+## Reference Implementation Modules
+
+The repository contains concrete implementations of each architectural role so
+developers can bootstrap new services without re-creating plumbing:
+
+| Module | Responsibilities |
+| --- | --- |
+| `reticulum_openapi.service.LXMFService` | Bootstraps Reticulum/LXMF identities, registers command routes, validates payloads (dataclasses or JSON Schema), keeps optional live `RNS.Link` sessions alive, and exposes a `GetSchema` discovery command. |
+| `reticulum_openapi.controller.Controller` & `handle_exceptions` | Provide consistent logging and convert uncaught exceptions into structured responses so mesh clients always receive an acknowledgement. |
+| `reticulum_openapi.sqlalchemy_controller.SQLAlchemyControllerMixin` | Supplies `_create_instance`, `_update_instance`, `_retrieve_instance`, `_delete_instance`, and `_list_instances` helpers that wrap async SQLAlchemy sessions. |
+| `reticulum_openapi.model.BaseModel` | Adds `to_msgpack`, `from_msgpack`, and async CRUD primitives (`create`, `get`, `list`, `update`, `delete`) that keep dataclasses, JSON/MessagePack payloads, and ORM models in sync. |
+| `reticulum_openapi.client.LXMFClient` | Offers async request/response helpers, shared identity management, and optional link establishment so REST gateways or CLIs can call mesh services using the same schema contracts. |
+
+These building blocks are reused verbatim by the Emergency Management example
+service, ensuring production features (link routing, schema discovery, logging)
+are exercised in sample code as well as real deployments.
+
+## Command Lifecycle in Practice
+
+1. **Route Registration:** At startup, a service instantiates controllers and
+   calls `LXMFService.add_route`, passing the command name, coroutine handler,
+   and either a dataclass type or JSON Schema dict. This automatically registers
+   both LXMF and link handlers.
+2. **Message Receipt:** When a command arrives, the service deserialises the
+   payload via `dataclass_from_msgpack` or validates it against the attached
+   schema. Invalid payloads are rejected with a structured error response.
+3. **Controller Execution:** The handler runs inside the `handle_exceptions`
+   decorator, which logs inputs, awaits the coroutine, and translates raised
+   exceptions into `{ "error": ..., "code": ... }` payloads.
+4. **Persistence Helpers:** Controllers that mix in
+   `SQLAlchemyControllerMixin` delegate CRUD work to `BaseModel` helpers that
+   manage async sessions and primary-key coercion.
+5. **Response Encoding:** Results are normalised into MessagePack-safe
+   structures before being returned to LXMF, so clients receive dataclass-shaped
+   dictionaries even if the handler returned nested objects.
+
+This lifecycle keeps the edge transport, domain logic, and persistence layers
+loosely coupled while retaining strong typing and validation guarantees.
+
+## Schema Validation and Discovery
+
+`LXMFService.add_route` accepts either a dataclass (which triggers automatic
+deserialisation) or an explicit JSON Schema dictionary. During command
+processing the service uses `jsonschema.validate` to enforce constraints, so
+even simple primitives like callsigns or numeric identifiers are checked before
+the controller runs. The built-in `GetSchema` command enumerates every
+registered route along with its schema metadata, enabling northbound gateways to
+generate forms or OpenAPI documents dynamically without hard-coding payloads.
+
+## Observability and Error Handling
+
+The base controller logs entry, success, and failure for every command. If a
+controller raises `APIException`, the decorator returns a payload containing the
+original message and an application-specific status code; unexpected errors are
+captured as `InternalServerError`. On the transport side, the service logs link
+establishment, keepalive events, and schema validation failures, giving
+operators full visibility when running on embedded devices.
+
 ## Async Design Patterns and Considerations
 
 The entire framework is designed around Python’s asynchronous programming model to maximize concurrency and keep the system lightweight. Here we outline the key async design patterns and how they are applied in the Reticulum OpenAPI project:

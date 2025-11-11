@@ -18,37 +18,78 @@ and link keepalive interval. When the service starts it prints a summary of the
 effective settings alongside the identity and destination hashes used by LXMF
 clients and gateways.
 
+## Domain Models and Persistence
+
+Emergency data is expressed with dataclasses that subclass the shared
+`BaseModel`, ensuring a consistent API for serialisation, validation, and ORM
+bridging. `EmergencyActionMessage` mirrors the LXMF payload and provides
+optional colour-coded status indicators via the `EAMStatus` enumeration.
+`Detail` wraps nested emergency messages embedded within events, and `Point`
+normalises positional data, coercing string or integer values into floats. Each
+dataclass exposes `to_record`, `to_orm`, and `from_orm` helpers so controllers
+can move between LXMF payloads, in-memory objects, and SQLAlchemy rows without
+duplicating conversion logic. The ORM layer is backed by
+`EmergencyActionMessageORM`, `EventORM`, and child tables for detail and point
+records, enabling cascaded updates and deletes for nested objects.
+
+To simplify persistence, `BaseModel` injects asynchronous CRUD helpers used by
+the controllers. Class methods such as `Event.create` and `Event.update`
+prepare nested `Detail` and `Point` payloads, attach them to the SQLAlchemy
+session, and return fully-populated dataclasses once the transaction is
+committed. The conversion helpers also accept raw dictionaries or JSON strings,
+making it easy for LXMF handlers and REST gateways to accept loosely-typed
+inputs while persisting normalised representations.
+
 ## Emergency Action Message Operations
 
-| Operation | LXMF Command | Controller Method | Input Dataclass | Output |
+| Operation | LXMF Command | Controller Method | Input Schema | Output |
 | --- | --- | --- | --- | --- |
-| Create | `CreateEmergencyActionMessage` | `EmergencyController.CreateEmergencyActionMessage` | `EmergencyActionMessage` | Echoes the created `EmergencyActionMessage` instance. |
-| Retrieve | `RetrieveEmergencyActionMessage` | `EmergencyController.RetrieveEmergencyActionMessage` | Callsign (`str`) | `EmergencyActionMessage` or `None` if not found. |
-| Update | `PutEmergencyActionMessage` | `EmergencyController.PutEmergencyActionMessage` | `EmergencyActionMessage` | Updated `EmergencyActionMessage` or `None`. |
-| Delete | `DeleteEmergencyActionMessage` | `EmergencyController.DeleteEmergencyActionMessage` | Callsign (`str`) | Status mapping with `deleted`/`not_found`. |
+| Create | `CreateEmergencyActionMessage` | `EmergencyController.CreateEmergencyActionMessage` | `EmergencyActionMessage` dataclass | Echoes the created `EmergencyActionMessage`. |
+| Retrieve | `RetrieveEmergencyActionMessage` | `EmergencyController.RetrieveEmergencyActionMessage` | Callsign (`str`) validated by JSON Schema | Matching `EmergencyActionMessage` or `None`. |
+| Update | `PutEmergencyActionMessage` | `EmergencyController.PutEmergencyActionMessage` | `EmergencyActionMessage` dataclass | Updated `EmergencyActionMessage` or `None`. |
+| Delete | `DeleteEmergencyActionMessage` | `EmergencyController.DeleteEmergencyActionMessage` | Callsign (`str`) validated by JSON Schema | Mapping with status `deleted` or `not_found` plus the callsign. |
 | List | `ListEmergencyActionMessage` | `EmergencyController.ListEmergencyActionMessage` | – | Sequence of `EmergencyActionMessage` records. |
 
-All handlers delegate to the shared `BaseModel` persistence helpers. The
-`EmergencyActionMessage` dataclass defines optional status fields enumerated by
-`EAMStatus` and ties into the SQLAlchemy ORM model through `__orm_model__`. The
-controller uses `dataclasses.asdict` to pass dataclass payloads into the
-`create` and `update` helpers, which in turn provide `create`, `get`, `list`,
-`update`, and `delete` primitives against the `AsyncSession`.
+Every handler is decorated with `handle_exceptions`, which converts raised
+errors into structured LXMF replies and keeps the service responsive even when
+database operations fail. CRUD helpers inherited from `BaseModel` perform the
+actual persistence work: `_create_instance`, `_retrieve_instance`,
+`_update_instance`, `_delete_instance`, and `_list_instances` handle session
+management so controllers stay focused on logging and input validation.
 
 ## Event Operations
 
-| Operation | LXMF Command | Controller Method | Input Dataclass | Output |
+| Operation | LXMF Command | Controller Method | Input Schema | Output |
 | --- | --- | --- | --- | --- |
-| Create | `CreateEvent` | `EventController.CreateEvent` | `Event` | Echoes the created `Event` instance. |
-| Retrieve | `RetrieveEvent` | `EventController.RetrieveEvent` | Event UID (`str`) | `Event` or `None` if not found. |
-| Update | `PutEvent` | `EventController.PutEvent` | `Event` | Updated `Event` or `None`. |
-| Delete | `DeleteEvent` | `EventController.DeleteEvent` | Event UID (`str`) | Status mapping with `deleted`/`not_found`. |
-| List | `ListEvent` | `EventController.ListEvent` | – | Sequence of `Event` records. |
+| Create | `CreateEvent` | `EventController.CreateEvent` | `Event` dataclass | Echoes the created `Event`. |
+| Retrieve | `RetrieveEvent` | `EventController.RetrieveEvent` | Event UID validated as integer-or-numeric-string | `Event` or `None`. |
+| Update | `PutEvent` | `EventController.PutEvent` | `Event` dataclass | Updated `Event` or `None`. |
+| Delete | `DeleteEvent` | `EventController.DeleteEvent` | Event UID validated as integer-or-numeric-string | Mapping with status `deleted` or `not_found` plus the UID. |
+| List | `ListEvent` | `EventController.ListEvent` | – | Sequence of `Event` records with nested `Detail` and `Point`. |
 
-The `Event` dataclass embeds nested `Detail` and `Point` dataclasses, allowing
-LXMF payloads to carry nested objects. As with emergency messages, CRUD
-operations ultimately invoke the `BaseModel` convenience methods to manage ORM
-instances and convert database rows back into dataclasses.
+Event handlers lean on the richer lifecycle methods exposed by `Event`. The
+dataclass accepts `Detail` and `Point` payloads in several formats (nested
+objects, dictionaries, or JSON strings), normalises them, and persists related
+ORM rows for `EventDetailORM` and `EventPointORM`. When retrieving rows,
+`Event.from_orm` rehydrates nested dataclasses so the LXMF response contains a
+fully structured event tree without manual serialization code in the
+controllers.
+
+## Validation and Schema Discovery
+
+`EmergencyService` attaches JSON Schema validators to primitive commands such
+as deletes and retrieves. Callsigns must be non-empty strings, and event
+identifiers accept either integers or digit-only strings. During service start
+up, `add_route` registers each command alongside the schema or dataclass used
+for validation. Clients can call the built-in `GetSchema` command exposed by
+`LXMFService` to discover these schemas and build dynamic forms or REST
+contracts.
+
+Because the service also registers link routes for every command, the same
+validation rules apply whether requests arrive over traditional LXMF messages
+or through live `RNS.Link` connections. Invalid payloads are rejected early and
+the requester receives a structured error message produced by the controller
+decorators.
 
 ## Command Registration and Flow
 
