@@ -2,20 +2,20 @@
 
 from __future__ import annotations
 
-import os
 import json
 from pathlib import Path
-from typing import Any, Optional, Tuple
+from typing import Any, Optional
 
 from sqlalchemy import inspect
 from sqlalchemy import literal
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import (
-    AsyncEngine,
-    AsyncSession,
-    async_sessionmaker,
-    create_async_engine,
-)
+from sqlalchemy.ext.asyncio import AsyncEngine
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import async_sessionmaker
+
+from reticulum_openapi.database import create_async_engine_and_session
+from reticulum_openapi.database import initialise_database
+from reticulum_openapi.database import normalise_database_url
 
 from .models_emergency import Base
 from .models_emergency import EventDetailORM, EventORM, EventPointORM
@@ -119,59 +119,6 @@ def _backfill_event_components(connection) -> None:
                 existing_point.add(uid)
 
 
-def _apply_schema_upgrades(connection) -> None:
-    """Run schema upgrade routines for legacy deployments."""
-
-    _backfill_event_components(connection)
-
-
-def _normalise_database_url(candidate: Optional[str]) -> str:
-    """Convert ``candidate`` into a SQLAlchemy database URL.
-
-    Args:
-        candidate (Optional[str]): Potential override provided via the
-            environment, CLI, or direct helper invocation.
-
-    Returns:
-        str: The normalised SQLAlchemy database URL.
-    """
-
-    if not candidate:
-        env_value = os.getenv(DATABASE_ENV_VAR)
-        candidate = env_value if env_value else None
-
-    if not candidate:
-        return _DEFAULT_DATABASE_URL
-
-    if "://" not in candidate:
-        db_path = Path(candidate).expanduser().resolve()
-        return f"sqlite+aiosqlite:///{db_path}"
-
-    return candidate
-
-
-def _create_engine_and_session(
-    url: str,
-) -> Tuple[AsyncEngine, async_sessionmaker[AsyncSession]]:
-    """Create an async engine and session factory for ``url``.
-
-    Args:
-        url (str): Database URL to connect to.
-
-    Returns:
-        Tuple[AsyncEngine, async_sessionmaker[AsyncSession]]: Engine and
-        session factory pair configured for the provided URL.
-    """
-
-    engine = create_async_engine(url, echo=False)
-    session_factory = async_sessionmaker(
-        engine,
-        expire_on_commit=False,
-        class_=AsyncSession,
-    )
-    return engine, session_factory
-
-
 def configure_database(url: Optional[str] = None) -> str:
     """Configure the database engine and session factory.
 
@@ -189,7 +136,11 @@ def configure_database(url: Optional[str] = None) -> str:
     global engine
     global async_session
 
-    resolved_url = _normalise_database_url(url)
+    resolved_url = normalise_database_url(
+        url,
+        default_url=_DEFAULT_DATABASE_URL,
+        env_var=DATABASE_ENV_VAR,
+    )
 
     if (
         resolved_url == DATABASE_URL
@@ -198,8 +149,9 @@ def configure_database(url: Optional[str] = None) -> str:
     ):
         return DATABASE_URL
 
-    engine, session_factory = _create_engine_and_session(resolved_url)
+    created_engine, session_factory = create_async_engine_and_session(resolved_url)
     DATABASE_URL = resolved_url
+    engine = created_engine
     async_session = session_factory
     return DATABASE_URL
 
@@ -219,9 +171,11 @@ async def init_db(url: Optional[str] = None) -> None:
     if engine is None:
         raise RuntimeError("Database engine is not configured")
 
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-        await conn.run_sync(_apply_schema_upgrades)
+    await initialise_database(
+        engine,
+        metadata=Base.metadata,
+        upgrade_hooks=(_backfill_event_components,),
+    )
 
 
 # Initialise the module-level engine and session factory using the default
