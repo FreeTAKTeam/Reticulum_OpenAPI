@@ -6,11 +6,12 @@ usage() {
     cat <<'EOF'
 Usage: setup_emergency.client.bash [--skip-install]
 
-Install dependencies (unless --skip-install) and launch:
-  • FastAPI gateway (uvicorn)
-  • Emergency Management web UI (Vite dev server)
+Install dependencies (unless --skip-install), ensure a Python virtual
+environment exists, and launch:
+  - FastAPI gateway (uvicorn) in its own terminal window
+  - Emergency Management web UI (Vite dev server) in its own terminal window
 
-Use Ctrl+C to stop both processes.
+Use Ctrl+C inside each new window or close it to stop the corresponding service.
 EOF
 }
 
@@ -21,6 +22,61 @@ require_cmd() {
         echo "Error: required command '$label' not found on PATH." >&2
         exit 1
     fi
+}
+
+detect_terminal() {
+    local candidates=(
+        "${TERMINAL_BIN:-}"
+        x-terminal-emulator
+        gnome-terminal
+        xfce4-terminal
+        konsole
+        mate-terminal
+        tilix
+        kitty
+        alacritty
+        lxterminal
+        terminator
+        xterm
+        uxterm
+        urxvt
+    )
+    for term in "${candidates[@]}"; do
+        if [[ -n "$term" ]] && command -v "$term" >/dev/null 2>&1; then
+            echo "$term"
+            return 0
+        fi
+    done
+    return 1
+}
+
+launch_console() {
+    local title="$1"
+    local command="$2"
+    local shell_cmd="bash -lc \"$command; exec bash\""
+    case "$TERMINAL_BIN" in
+        gnome-terminal|mate-terminal|tilix)
+            "$TERMINAL_BIN" --title "$title" -- bash -lc "$command; exec bash" &
+            ;;
+        konsole)
+            "$TERMINAL_BIN" --new-window -p tabtitle="$title" -e bash -lc "$command; exec bash" &
+            ;;
+        xfce4-terminal|lxterminal|terminator)
+            "$TERMINAL_BIN" --title "$title" --command="$shell_cmd" &
+            ;;
+        kitty)
+            "$TERMINAL_BIN" --title "$title" bash -lc "$command; exec bash" &
+            ;;
+        alacritty)
+            "$TERMINAL_BIN" --title "$title" -e bash -lc "$command; exec bash" &
+            ;;
+        xterm|uxterm|urxvt|x-terminal-emulator)
+            "$TERMINAL_BIN" -T "$title" -e bash -lc "$command; exec bash" &
+            ;;
+        *)
+            "$TERMINAL_BIN" -e bash -lc "$command; exec bash" &
+            ;;
+    esac
 }
 
 SCRIPT_DIR="$(cd -- "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -58,7 +114,7 @@ require_cmd python3 "Python 3"
 require_cmd npm "npm"
 
 ensure_uvicorn() {
-    if "$VENV_PYTHON" -m pip show uvicorn >/dev/null 2>&1; then
+    if [[ -x "$VENV_PYTHON" ]] && "$VENV_PYTHON" -m pip show uvicorn >/dev/null 2>&1; then
         return
     fi
     if [[ $SKIP_INSTALL -eq 1 ]]; then
@@ -66,16 +122,26 @@ ensure_uvicorn() {
         echo "Run the script without --skip-install at least once." >&2
         exit 1
     fi
-    echo "Installing uvicorn..."
+    echo "Installing uvicorn inside the virtual environment..."
     "$VENV_PYTHON" -m pip install uvicorn
 }
+
+TERMINAL_BIN="$(detect_terminal || true)"
+if [[ -z "$TERMINAL_BIN" ]]; then
+    cat <<'ERR' >&2
+Error: no supported terminal emulator was found. Install one (e.g. gnome-terminal,
+konsole, xterm) or set TERMINAL_BIN to the command that opens a new terminal window.
+ERR
+    exit 1
+fi
+echo "Using terminal emulator: $TERMINAL_BIN"
 
 if [[ $SKIP_INSTALL -eq 0 ]]; then
     if [[ ! -d "$VENV_DIR" ]]; then
         echo "Creating Python virtual environment at $VENV_DIR..."
         python3 -m venv "$VENV_DIR"
     fi
-    echo "Installing Python dependencies inside virtual environment..."
+    echo "Installing Python dependencies inside the virtual environment..."
     "$VENV_PYTHON" -m pip install --upgrade pip
     "$VENV_PYTHON" -m pip install -r "$REQUIREMENTS_FILE"
     ensure_uvicorn
@@ -88,6 +154,7 @@ else
         echo "Run the script without --skip-install at least once to create it." >&2
         exit 1
     fi
+    ensure_uvicorn
     echo "Skipping dependency installation (--skip-install supplied)."
 fi
 
@@ -95,7 +162,6 @@ if [[ ! -x "$VENV_PYTHON" ]]; then
     echo "Error: expected Python virtual environment missing at $VENV_DIR." >&2
     exit 1
 fi
-ensure_uvicorn
 
 if [[ ! -f "$ENV_FILE" ]]; then
     if [[ -f "$ENV_EXAMPLE" ]]; then
@@ -108,35 +174,12 @@ else
     echo "webui/.env already exists; leaving it untouched."
 fi
 
-PIDS=()
+echo "Launching FastAPI gateway in a new terminal window..."
+GATEWAY_CMD="cd \"$REPO_ROOT\" && \"$VENV_PYTHON\" -m uvicorn examples.EmergencyManagement.web_gateway.app:app --host 127.0.0.1 --port 8000 --reload"
+launch_console "FastAPI Gateway" "$GATEWAY_CMD"
 
-cleanup() {
-    echo "Stopping background processes..."
-    for pid in "${PIDS[@]:-}"; do
-        if kill -0 "$pid" >/dev/null 2>&1; then
-            kill "$pid" >/dev/null 2>&1 || true
-        fi
-    done
-}
-trap cleanup INT TERM EXIT
+echo "Launching web UI dev server in a new terminal window..."
+WEBUI_CMD="cd \"$WEBUI_DIR\" && npm run dev"
+launch_console "Web UI Dev Server" "$WEBUI_CMD"
 
-echo "Starting FastAPI gateway..."
-(
-    cd "$REPO_ROOT"
-    exec "$VENV_PYTHON" -m uvicorn examples.EmergencyManagement.web_gateway.app:app \
-        --host 127.0.0.1 --port 8000 --reload
-) &
-PIDS+=($!)
-
-echo "Starting web UI dev server..."
-(
-    cd "$WEBUI_DIR"
-    exec npm run dev
-) &
-PIDS+=($!)
-
-echo "FastAPI gateway PID: ${PIDS[0]}"
-echo "Web UI dev server PID: ${PIDS[1]}"
-echo "Press Ctrl+C to stop both services."
-
-wait
+echo "Both services are running in separate consoles. Close their windows or press Ctrl+C inside them to stop the processes."
