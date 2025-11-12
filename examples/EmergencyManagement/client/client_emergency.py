@@ -26,6 +26,7 @@ REQUEST_TIMEOUT_KEY = "request_timeout_seconds"
 LXMF_CONFIG_PATH_KEY = "lxmf_config_path"
 LXMF_STORAGE_PATH_KEY = "lxmf_storage_path"
 SHARED_INSTANCE_RPC_KEY = "shared_instance_rpc_key"
+USE_SHARED_INSTANCE_RPC_KEY = "use_shared_instance_rpc"
 ENABLE_INTERACTIVE_MENU_KEY = "enable_interactive_menu"
 DEFAULT_DISPLAY_NAME = "OpenAPIClient"
 DEFAULT_TIMEOUT_SECONDS = 30.0
@@ -124,6 +125,7 @@ __all__ = [
     "load_client_config",
     "write_client_config",
     "SHARED_INSTANCE_RPC_KEY",
+    "USE_SHARED_INSTANCE_RPC_KEY",
 ]
 
 
@@ -236,6 +238,15 @@ def _coerce_positive_int(value, default: int) -> int:
         if candidate > 0:
             return candidate
     return default
+
+
+def _is_shared_instance_rpc_enabled(config: Mapping[str, Any]) -> bool:
+    """Return ``True`` when shared-instance RPC access should be used."""
+
+    flag = config.get(USE_SHARED_INSTANCE_RPC_KEY)
+    if isinstance(flag, bool):
+        return flag
+    return bool(config.get(SHARED_INSTANCE_RPC_KEY))
 
 
 def _normalise_config_directory(path_value: Optional[str]) -> Optional[str]:
@@ -664,6 +675,8 @@ async def main():
         if not rpc_key_value:
             rpc_key_value = None
     else:
+        rpc_key_value = None
+    if not _is_shared_instance_rpc_enabled(config_data):
         rpc_key_value = None
 
     identity_config_dir = Path(identity_config_path)

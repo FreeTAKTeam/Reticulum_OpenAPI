@@ -37,6 +37,7 @@ from examples.EmergencyManagement.client.client_emergency import (
     LXMF_STORAGE_PATH_KEY,
     REQUEST_TIMEOUT_KEY,
     SHARED_INSTANCE_RPC_KEY,
+    USE_SHARED_INSTANCE_RPC_KEY,
     load_client_config,
     read_server_identity_from_config,
     write_client_config,
@@ -357,6 +358,15 @@ def _normalise_optional_hex(value: Optional[str]) -> Optional[str]:
     return None
 
 
+def _is_shared_instance_rpc_enabled(config: ConfigDict) -> bool:
+    """Return True when shared-instance RPC access should be used."""
+
+    flag = config.get(USE_SHARED_INSTANCE_RPC_KEY)
+    if isinstance(flag, bool):
+        return flag
+    return bool(_normalise_optional_hex(config.get(SHARED_INSTANCE_RPC_KEY)))
+
+
 def _resolve_timeout(config: ConfigDict) -> float:
     """Return the timeout value configured for the client."""
 
@@ -389,6 +399,8 @@ def _create_client_from_config() -> LXMFClient:
     rpc_key_override = _normalise_optional_hex(
         _CONFIG_DATA.get(SHARED_INSTANCE_RPC_KEY)
     )
+    if not _is_shared_instance_rpc_enabled(_CONFIG_DATA):
+        rpc_key_override = None
     timeout_seconds = _resolve_timeout(_CONFIG_DATA)
     display_name = _resolve_display_name(_CONFIG_DATA)
 

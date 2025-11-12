@@ -78,6 +78,7 @@ Both the CLI demo and the FastAPI gateway read [`client/client_config.json`](cli
 - Override the location of the configuration file with `NORTH_API_CONFIG_PATH` or provide JSON directly through `NORTH_API_CONFIG_JSON`.
 - Requests can target different LXMF services by supplying an `X-Server-Identity` header or a `server_identity` query parameter to the gateway.
 - The repository ships with a sample Reticulum directory at [`examples/EmergencyManagement/.reticulum`](./.reticulum) that pins `rpc_key` to `F1E2D3C4B5A697887766554433221100`. When the gateway and LXMF service use this directory (or any config with the same key) they can attach to the same shared instance without prompting.
+- Remote deployments should set `use_shared_instance_rpc` to `false` to avoid attempting shared-instance RPC connections on hosts that only communicate over the mesh.
 
 | Key | Purpose |
 | --- | --- |
@@ -87,6 +88,7 @@ Both the CLI demo and the FastAPI gateway read [`client/client_config.json`](cli
 | `lxmf_config_path` | Optional override for the Reticulum configuration directory. |
 | `lxmf_storage_path` | Optional override for the LXMF storage directory. |
 | `shared_instance_rpc_key` | RPC key used when attaching to a shared Reticulum instance. |
+| `use_shared_instance_rpc` | Set to `true` to use the shared-instance RPC key (local clients); set to `false` on remote hosts that should not attach via RPC. |
 | `generate_test_messages` | When `true`, the CLI seeds random emergency messages and events during startup. |
 | `enable_interactive_menu` | Enables the interactive CLI menu after the initial demo run. Disable when scripting automated flows. |
 | `test_message_count` | Number of emergency messages to seed when `generate_test_messages` is enabled. |
