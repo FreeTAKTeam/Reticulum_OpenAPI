@@ -199,8 +199,7 @@ cython_debug/
 examples/EmergencyManagement/emergency.db
 .reticulum_client/
 examples/EmergencyManagement/Server/emergency.db
-examples/EmergencyManagement/Server/emergency.db
-examples/EmergencyManagement/Server/emergency.db
 examples/EmergencyManagement/.reticulum/config
 .gitignore
 .reticulum/
+examples/EmergencyManagement/Server/emergency.db

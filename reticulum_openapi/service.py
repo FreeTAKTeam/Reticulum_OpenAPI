@@ -16,6 +16,8 @@ from typing import Type
 from typing import Union
 from threading import Lock
 
+from . import _multiprocessing_compat as _mp_compat
+_ = _mp_compat  # ensure side-effect import is retained for linters
 import LXMF
 import RNS
 
