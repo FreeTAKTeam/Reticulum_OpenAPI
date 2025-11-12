@@ -52,7 +52,7 @@ export interface DeleteEventResponse {
 }
 
 export interface LinkStatus {
-  state: 'pending' | 'connected' | 'error' | 'unconfigured' | 'unknown';
+  state: 'pending' | 'connecting' | 'connected' | 'error' | 'unconfigured' | 'unknown';
   message?: string | null;
   serverIdentity?: string | null;
   lastAttempt?: string | null;

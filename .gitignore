@@ -203,3 +203,4 @@ examples/EmergencyManagement/.reticulum/config
 .gitignore
 .reticulum/
 examples/EmergencyManagement/Server/emergency.db
+release/
