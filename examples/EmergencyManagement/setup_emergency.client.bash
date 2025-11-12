@@ -27,6 +27,8 @@ SCRIPT_DIR="$(cd -- "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd -- "$SCRIPT_DIR/../.." && pwd)"
 WEBUI_DIR="$SCRIPT_DIR/webui"
 REQUIREMENTS_FILE="$REPO_ROOT/requirements.txt"
+VENV_DIR="$REPO_ROOT/.venv-emergency"
+VENV_PYTHON="$VENV_DIR/bin/python"
 ENV_EXAMPLE="$WEBUI_DIR/.env.example"
 ENV_FILE="$WEBUI_DIR/.env"
 
@@ -56,14 +58,28 @@ require_cmd python3 "Python 3"
 require_cmd npm "npm"
 
 if [[ $SKIP_INSTALL -eq 0 ]]; then
-    echo "Installing Python dependencies..."
-    python3 -m pip install --upgrade pip
-    python3 -m pip install -r "$REQUIREMENTS_FILE"
+    if [[ ! -d "$VENV_DIR" ]]; then
+        echo "Creating Python virtual environment at $VENV_DIR..."
+        python3 -m venv "$VENV_DIR"
+    fi
+    echo "Installing Python dependencies inside virtual environment..."
+    "$VENV_PYTHON" -m pip install --upgrade pip
+    "$VENV_PYTHON" -m pip install -r "$REQUIREMENTS_FILE"
 
     echo "Installing web UI dependencies (npm install)..."
     (cd "$WEBUI_DIR" && npm install)
 else
+    if [[ ! -x "$VENV_PYTHON" ]]; then
+        echo "Error: virtual environment not found at $VENV_DIR." >&2
+        echo "Run the script without --skip-install at least once to create it." >&2
+        exit 1
+    fi
     echo "Skipping dependency installation (--skip-install supplied)."
+fi
+
+if [[ ! -x "$VENV_PYTHON" ]]; then
+    echo "Error: expected Python virtual environment missing at $VENV_DIR." >&2
+    exit 1
 fi
 
 if [[ ! -f "$ENV_FILE" ]]; then
@@ -92,7 +108,7 @@ trap cleanup INT TERM EXIT
 echo "Starting FastAPI gateway..."
 (
     cd "$REPO_ROOT"
-    exec python3 -m uvicorn examples.EmergencyManagement.web_gateway.app:app \
+    exec "$VENV_PYTHON" -m uvicorn examples.EmergencyManagement.web_gateway.app:app \
         --host 127.0.0.1 --port 8000 --reload
 ) &
 PIDS+=($!)
