@@ -57,6 +57,19 @@ echo "Repository root: $REPO_ROOT"
 require_cmd python3 "Python 3"
 require_cmd npm "npm"
 
+ensure_uvicorn() {
+    if "$VENV_PYTHON" -m pip show uvicorn >/dev/null 2>&1; then
+        return
+    fi
+    if [[ $SKIP_INSTALL -eq 1 ]]; then
+        echo "Error: uvicorn is not installed in the virtual environment." >&2
+        echo "Run the script without --skip-install at least once." >&2
+        exit 1
+    fi
+    echo "Installing uvicorn..."
+    "$VENV_PYTHON" -m pip install uvicorn
+}
+
 if [[ $SKIP_INSTALL -eq 0 ]]; then
     if [[ ! -d "$VENV_DIR" ]]; then
         echo "Creating Python virtual environment at $VENV_DIR..."
@@ -65,6 +78,7 @@ if [[ $SKIP_INSTALL -eq 0 ]]; then
     echo "Installing Python dependencies inside virtual environment..."
     "$VENV_PYTHON" -m pip install --upgrade pip
     "$VENV_PYTHON" -m pip install -r "$REQUIREMENTS_FILE"
+    ensure_uvicorn
 
     echo "Installing web UI dependencies (npm install)..."
     (cd "$WEBUI_DIR" && npm install)
@@ -81,6 +95,7 @@ if [[ ! -x "$VENV_PYTHON" ]]; then
     echo "Error: expected Python virtual environment missing at $VENV_DIR." >&2
     exit 1
 fi
+ensure_uvicorn
 
 if [[ ! -f "$ENV_FILE" ]]; then
     if [[ -f "$ENV_EXAMPLE" ]]; then
