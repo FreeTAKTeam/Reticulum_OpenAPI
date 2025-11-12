@@ -2,41 +2,18 @@
 
 from __future__ import annotations
 
+import asyncio
+import json
 import logging
+import os
 from contextlib import suppress
-from dataclasses import dataclass, fields, is_dataclass
+from dataclasses import dataclass
 from datetime import datetime, timezone
-from enum import Enum
 from pathlib import Path
 from threading import Lock
-from typing import (
-    Any,
-    Awaitable,
-    Callable,
-    Dict,
-    List,
-    Literal,
-    Optional,
-    Type,
-    TypeVar,
-    Union,
-    get_args,
-    get_origin,
-    get_type_hints,
-)
+from typing import Annotated, Any, Awaitable, Callable, Dict, List, Optional
 
 from importlib import metadata
-import os
-from datetime import datetime
-from datetime import timezone
-from importlib import metadata
-from typing import Annotated
-from typing import Any
-from typing import Awaitable
-from typing import Callable
-from typing import Dict
-from typing import List
-from typing import Optional
 
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Response, status
@@ -76,7 +53,11 @@ from reticulum_openapi.integrations.fastapi import create_command_context_depend
 from reticulum_openapi.integrations.fastapi import create_settings_loader
 from reticulum_openapi.integrations.fastapi import gather_interface_status
 
+ConfigDict = Dict[str, Any]
+
 logger = logging.getLogger(__name__)
+
+load_dotenv()
 
 CONFIG_JSON_ENV_VAR = "NORTH_API_CONFIG_JSON"
 CONFIG_PATH_ENV_VAR = "NORTH_API_CONFIG_PATH"
@@ -92,6 +73,7 @@ COMMAND_DELETE_EVENT = "DeleteEvent"
 COMMAND_LIST_EVENT = "ListEvent"
 COMMAND_PUT_EVENT = "PutEvent"
 COMMAND_RETRIEVE_EVENT = "RetrieveEvent"
+_LINK_RETRY_DELAY_SECONDS = 30.0  # seconds between link retries
 
 
 def _parse_allowed_origins(raw_value: Optional[str]) -> List[str]:
@@ -262,26 +244,6 @@ _CommandContextDependency = create_command_context_dependency(
 )
 CommandContext = Annotated[LXMFCommandContext, Depends(_CommandContextDependency)]
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=_ALLOWED_ORIGINS,
-    allow_credentials=False,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-
-def _resolve_gateway_version() -> str:
-    """Return the installed package version or a development placeholder."""
-
-    try:
-        return metadata.version("reticulum-openapi")
-    except metadata.PackageNotFoundError:
-        return "0.1.0-dev"
-
-
-_CONFIG_JSON_ENV_VAR = "NORTH_API_CONFIG_JSON"
-_CONFIG_PATH_ENV_VAR = "NORTH_API_CONFIG_PATH"
 _SERVER_IDENTITY_FIELD = "server_identity_hash"
 _CONFIG_SOURCE_PATH: Optional[Path] = None
 _CONFIG_LOCK = Lock()
@@ -295,7 +257,7 @@ def _load_gateway_config() -> ConfigDict:
     """
 
     global _CONFIG_SOURCE_PATH
-    raw_json = os.getenv(_CONFIG_JSON_ENV_VAR)
+    raw_json = os.getenv(CONFIG_JSON_ENV_VAR)
     if raw_json:
         try:
             parsed = json.loads(raw_json)
@@ -307,7 +269,7 @@ def _load_gateway_config() -> ConfigDict:
                 return parsed
         # Fall back to path-based configuration when JSON is invalid or not a mapping.
 
-    path_override = os.getenv(_CONFIG_PATH_ENV_VAR)
+    path_override = os.getenv(CONFIG_PATH_ENV_VAR)
     if path_override:
         try:
             override_path = Path(path_override).expanduser()
@@ -366,6 +328,7 @@ class _LinkStatus:
 
 
 _LINK_STATUS = _LinkStatus()
+_LINK_TASK: Optional[asyncio.Task[None]] = None
 
 
 def _refresh_interface_status() -> List[Dict[str, Any]]:
@@ -596,14 +559,6 @@ def _format_uptime(uptime_seconds: float) -> str:
     hours, remainder = divmod(total_seconds, 3600)
     minutes, seconds = divmod(remainder, 60)
     return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
-
-
-def _refresh_interface_status() -> List[Dict[str, Any]]:
-    """Refresh and cache the current Reticulum interface metadata."""
-
-    global _INTERFACE_STATUS
-    _INTERFACE_STATUS = gather_interface_status()
-    return _INTERFACE_STATUS
 
 
 @app.on_event("startup")
