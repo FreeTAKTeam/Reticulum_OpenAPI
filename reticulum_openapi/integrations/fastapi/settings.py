@@ -150,6 +150,8 @@ def load_lxmf_client_settings(
             config_data = {}
 
     settings = LXMFClientSettings(**config_data)
+    if settings.shared_instance_rpc_key:
+        settings.shared_instance_rpc_key = settings.shared_instance_rpc_key.lower()
     if require_server_identity and not settings.server_identity_hash:
         raise ValueError("server_identity_hash must be configured")
     return settings
