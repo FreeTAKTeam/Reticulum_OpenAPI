@@ -16,14 +16,13 @@ from typing import Type
 from typing import Union
 from threading import Lock
 
-from . import _multiprocessing_compat as _mp_compat
-_ = _mp_compat  # ensure side-effect import is retained for linters
 import LXMF
 import RNS
 
 from jsonschema import ValidationError
 from jsonschema import validate
 
+from . import _multiprocessing_compat as _mp_compat
 from .announcer import DestinationAnnouncer
 from .codec_msgpack import from_bytes as msgpack_from_bytes
 from .identity import load_or_create_identity
@@ -34,6 +33,7 @@ from .model import dataclass_from_msgpack
 from .model import dataclass_to_json_bytes
 from .model import dataclass_to_msgpack
 
+_ = _mp_compat  # ensure side-effect import is retained for linters
 
 configure_logging()
 logger = logging.getLogger(__name__)
