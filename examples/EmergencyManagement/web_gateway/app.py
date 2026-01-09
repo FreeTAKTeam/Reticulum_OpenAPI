@@ -354,7 +354,9 @@ def _normalise_optional_hex(value: Optional[str]) -> Optional[str]:
 
     if isinstance(value, str):
         cleaned = value.strip()
-        return cleaned or None
+        if not cleaned:
+            return None
+        return cleaned.lower()
     return None
 
 
