@@ -113,7 +113,7 @@ describe('DashboardPage', () => {
     expect(screen.getByText('/tmp/config.json')).toBeInTheDocument();
     expect(screen.getByText('/tmp/storage')).toBeInTheDocument();
     expect(screen.getByText('https://example.com')).toBeInTheDocument();
-    expect(screen.getByText('connected')).toBeInTheDocument();
+    expect(screen.getAllByText('connected')).toHaveLength(2);
     expect(screen.getByText('Connected to LXMF server abc123')).toBeInTheDocument();
     const timestampMatches = screen.getAllByText('2025-09-23T12:34:56Z');
     expect(timestampMatches).toHaveLength(2);
