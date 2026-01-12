@@ -109,3 +109,4 @@
 
 ## 2026-01-12
 - [x] Create venv_linux virtual environment for running tests.
+- [x] Run test suite and verify no errors after requested application testing.
