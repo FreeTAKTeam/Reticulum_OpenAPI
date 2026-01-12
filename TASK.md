@@ -106,3 +106,6 @@
 
 ## 2025-11-12
 - [x] Introduce FastAPI integration helpers for LXMF configuration, dependencies, and command routing.
+
+## 2026-01-12
+- [x] Create venv_linux virtual environment for running tests.
