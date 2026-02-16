@@ -1,0 +1,4 @@
+prune examples
+prune tests
+recursive-exclude examples *
+recursive-exclude tests *
