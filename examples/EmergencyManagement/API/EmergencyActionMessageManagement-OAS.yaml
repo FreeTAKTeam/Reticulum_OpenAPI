@@ -359,7 +359,7 @@ components:
       name: callsign
       in: path
       required: true
-      description: Callsign identifying the emergency action message.
+      description: Member callsign identifying the emergency action message.
       schema:
         type: string
     EventUID:
